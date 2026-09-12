@@ -1,0 +1,82 @@
+import axios from 'axios'
+
+const API_URL = import.meta.env.VITE_API_URL || ''
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json' }
+})
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+export const authAPI = {
+  register: (data) => api.post('/api/auth/register', data),
+  login: (data) => api.post('/api/auth/login', data),
+  me: () => api.get('/api/auth/me'),
+  logout: () => api.post('/api/auth/logout')
+}
+
+export const userAPI = {
+  search: (q) => api.get('/api/users/search', { params: { q } }),
+  friends: () => api.get('/api/users/friends'),
+  friendRequests: () => api.get('/api/users/friend-requests'),
+  sendRequest: (toUserId) => api.post('/api/users/friend-request', { toUserId }),
+  acceptRequest: (id) => api.post(`/api/users/friend-request/${id}/accept`),
+  rejectRequest: (id) => api.post(`/api/users/friend-request/${id}/reject`),
+  updateProfile: (data) => api.put('/api/users/profile', data)
+}
+
+export const chatAPI = {
+  getConversations: () => api.get('/api/chat/conversations'),
+  getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
+  getMessages: (conversationId) => api.get(`/api/chat/messages/${conversationId}`),
+  getGroupMessages: (groupId) => api.get(`/api/chat/group-messages/${groupId}`)
+}
+
+export const groupAPI = {
+  create: (data) => api.post('/api/groups', data),
+  myGroups: () => api.get('/api/groups/my'),
+  get: (id) => api.get(`/api/groups/${id}`),
+  addMembers: (id, userIds) => api.post(`/api/groups/${id}/members`, { userIds }),
+  join: (inviteCode) => api.post(`/api/groups/join/${inviteCode}`),
+  leave: (id) => api.post(`/api/groups/${id}/leave`),
+  removeMember: (id, userId) => api.delete(`/api/groups/${id}/members/${userId}`),
+  regenerateInvite: (id) => api.post(`/api/groups/${id}/regenerate-invite`)
+}
+
+export const walletAPI = {
+  get: () => api.get('/api/wallet'),
+  deposit: (formData) => api.post('/api/wallet/deposit', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  withdraw: (formData) => api.post('/api/wallet/withdraw', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  paymentInfo: () => api.get('/api/wallet/payment-info')
+}
+
+export const adminAPI = {
+  login: (password) => api.post('/api/admin/login', { password }),
+  users: (password) => api.get('/api/admin/users', { headers: { 'x-admin-password': password } }),
+  ban: (id, password) => api.post(`/api/admin/users/${id}/ban`, {}, { headers: { 'x-admin-password': password } }),
+  unban: (id, password) => api.post(`/api/admin/users/${id}/unban`, {}, { headers: { 'x-admin-password': password } }),
+  mute: (id, password) => api.post(`/api/admin/users/${id}/mute`, {}, { headers: { 'x-admin-password': password } }),
+  unmute: (id, password) => api.post(`/api/admin/users/${id}/unmute`, {}, { headers: { 'x-admin-password': password } }),
+  coins: (id, data, password) => api.post(`/api/admin/users/${id}/coins`, data, { headers: { 'x-admin-password': password } }),
+  deposits: (password) => api.get('/api/admin/deposits', { headers: { 'x-admin-password': password } }),
+  approveDeposit: (id, password, adminNote) => api.post(`/api/admin/deposits/${id}/approve`, { adminNote }, { headers: { 'x-admin-password': password } }),
+  rejectDeposit: (id, password, adminNote) => api.post(`/api/admin/deposits/${id}/reject`, { adminNote }, { headers: { 'x-admin-password': password } }),
+  withdraws: (password) => api.get('/api/admin/withdraws', { headers: { 'x-admin-password': password } }),
+  approveWithdraw: (id, password, adminNote) => api.post(`/api/admin/withdraws/${id}/approve`, { adminNote }, { headers: { 'x-admin-password': password } }),
+  rejectWithdraw: (id, password, adminNote) => api.post(`/api/admin/withdraws/${id}/reject`, { adminNote }, { headers: { 'x-admin-password': password } }),
+  getPaymentInfo: (password) => api.get('/api/admin/payment-info', { headers: { 'x-admin-password': password } }),
+  setPaymentInfo: (formData, password) => api.post('/api/admin/payment-info', formData, {
+    headers: { 'x-admin-password': password, 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+export default api
