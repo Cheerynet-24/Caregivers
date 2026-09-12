@@ -1,0 +1,9 @@
+{
+  "build": {
+    "buildCommand": "cd backend && npm install && npx prisma generate"
+  },
+  "deploy": {
+    "startCommand": "cd backend && npm start"
+  }
+}
+
