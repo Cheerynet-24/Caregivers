@@ -1,59 +1,54 @@
-require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const cors = require('cors');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
+const cors = require('cors');
 
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const chatRoutes = require('./routes/chat');
-const groupRoutes = require('./routes/groups');
-const walletRoutes = require('./routes/wallet');
-const adminRoutes = require('./routes/admin');
-const setupSocket = require('./socket');
-
-const prisma = new PrismaClient();
 const app = express();
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true
+    origin: "*",
+    methods: ["GET", "POST"]
   }
 });
 
-app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
-  credentials: true
-}));
-app.use(express.json({ limit: '10mb' }));
+// Middleware
+app.use(cors());
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Make prisma & io available
-app.set('prisma', prisma);
-app.set('io', io);
+// API Routes များကို ချိတ်ဆက်ခြင်း
+try {
+  app.use('/api/auth', require('./routes/auth'));
+  app.use('/api/users', require('./routes/users'));
+  app.use('/api/chat', require('./routes/chat'));
+  app.use('/api/groups', require('./routes/groups'));
+  app.use('/api/wallet', require('./routes/wallet'));
+  app.use('/api/admin', require('./routes/admin'));
+} catch (e) {
+  console.log("Some routes might be missing, running base server...");
+}
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/groups', groupRoutes);
-app.use('/api/wallet', walletRoutes);
-app.use('/api/admin', adminRoutes);
+// Socket.io Setup
+try {
+  const registerSocketHandlers = require('./socket');
+  registerSocketHandlers(io);
+} catch (e) {
+  console.log("Socket handler loaded separately or not found.");
+}
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', name: 'Caregivers API', time: new Date().toISOString() });
+// Frontend (React Build) ဖိုင်များကို ချိတ်ဆက်ပေးခြင်း
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// React Router / Admin Panel တွေအတွက် SPA Fallback Route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
-// Socket.io
-setupSocket(io, prisma);
-
-const PORT = process.env.PORT || 4000;
+// Server စတင်လည်ပတ်ခြင်း
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Caregivers Backend running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
+
