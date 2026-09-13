@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
-                    String js = "javascript:(async()=>{const t=localStorage.getItem('token');if(t)await fetch('/api/auth/fcm-token',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({token:'" + token + "'})})})()";
+                    String js = "javascript:(()=>{const fcm='" + token + "';let tries=0;const send=async()=>{const t=localStorage.getItem('token');if(t){try{await fetch('/api/auth/fcm-token',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({token:fcm})});}catch(e){}return;}if(++tries<30)setTimeout(send,2000);};send();})()";
                     view.evaluateJavascript(js, null);
                 });
             }

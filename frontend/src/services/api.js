@@ -28,6 +28,10 @@ export const authAPI = {
   deleteAccount: () => api.delete('/api/auth/me')
 }
 
+export const callAPI = {
+  config: () => api.get('/api/call-config')
+}
+
 export const userAPI = {
   search: (q) => api.get('/api/users/search', { params: { q } }),
   friends: () => api.get('/api/users/friends'),

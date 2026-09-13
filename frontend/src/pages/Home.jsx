@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
+import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
@@ -78,7 +78,7 @@ export default function Home() {
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
-    fetch('/api/call-config').then(response => response.ok ? response.json() : null).then(config => setIceServers(config?.iceServers || [])).catch(() => {})
+    callAPI.config().then(response => setIceServers(response.data?.iceServers || [])).catch(() => {})
     loadConversations()
     loadGroups()
     loadFriends()
