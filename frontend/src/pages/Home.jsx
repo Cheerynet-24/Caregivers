@@ -237,6 +237,7 @@ export default function Home() {
       setChatBackgroundImage(localStorage.getItem(`chat-bg-image-${activeChat.id}`) || '')
       setChatSettings(JSON.parse(localStorage.getItem(`chat-settings-${activeChat.id}`) || '{"muted":false,"notifications":true,"blocked":false}'))
       setShowChatSettings(false)
+      if (activeChat.type === 'private' && activeChat.data?.id && !activeChat.data.avatar) userAPI.profile(activeChat.data.id).then(res => setActiveChat(current => current?.id === activeChat.id ? { ...current, data: { ...current.data, ...res.data.user } } : current)).catch(() => {})
     }
   }, [activeChat?.id])
 
@@ -901,9 +902,9 @@ export default function Home() {
               <button onClick={() => { setActiveChat(null); setMessages([]) }} className="md:hidden p-2 text-gray-500" aria-label="Back">
                 <ArrowLeft size={20} />
               </button>
-              <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">
+              {activeChat.data?.avatar ? <img src={resolveMediaUrl(activeChat.data.avatar)} alt="" className="w-9 h-9 rounded-full object-cover" /> : <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">
                 {(activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username || '?')[0].toUpperCase()}
-              </div>
+              </div>}
               <div className="flex-1">
                 <p className="font-semibold text-sm dark:text-white">
                   {activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username}
