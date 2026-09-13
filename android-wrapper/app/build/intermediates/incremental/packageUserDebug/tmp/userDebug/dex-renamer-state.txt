@@ -1,7 +1,0 @@
-#Sun Sep 13 07:30:33 UTC 2026
-base.0=/home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/dex/userDebug/mergeProjectDexUserDebug/0/classes.dex
-base.1=/home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/dex/userDebug/mergeProjectDexUserDebug/6/classes.dex
-path.0=0/classes.dex
-path.1=6/classes.dex
-renamed.0=classes.dex
-renamed.1=classes2.dex

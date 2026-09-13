@@ -1,4 +1,0 @@
-com.caregivers.mobile.user:style/AppTheme = 0x7f030000
-com.caregivers.mobile.user:string/start_url = 0x7f020001
-com.caregivers.mobile.user:string/app_name = 0x7f020000
-com.caregivers.mobile.user:drawable/app_logo = 0x7f010000

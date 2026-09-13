@@ -18,6 +18,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+const qrDataUrl = (file) => file ? `data:${file.mimetype};base64,${fs.readFileSync(file.path).toString('base64')}` : undefined;
 
 // Device Token Authentication Middleware
 const deviceAuth = (req, res, next) => {
@@ -61,7 +62,7 @@ router.post('/payment-info', upload.single('qr_image'), deviceAuth, async (req, 
     const accountName = String(req.body.accountName || req.body.account_name || '').trim();
     const phoneNumber = String(req.body.phoneNumber || req.body.phone_number || '').trim();
     const instructions = String(req.body.instructions || '').trim();
-    const qrCode = req.file ? `/uploads/${req.file.filename}` : undefined;
+    const qrCode = qrDataUrl(req.file);
 
     if (!method || !accountName || !phoneNumber) {
       return res.status(400).json({ error: 'Bank/Wallet, Account Name and Phone Number are required' });
@@ -111,7 +112,7 @@ router.post('/payment-accounts', upload.single('qr_image'), deviceAuth, async (r
         accountName,
         phoneNumber,
         instructions: String(req.body.instructions || '').trim() || null,
-        qrCode: req.file ? `/uploads/${req.file.filename}` : null
+        qrCode: qrDataUrl(req.file) || null
       }
     });
     res.status(201).json({ success: true, message: 'Payment account added', account });

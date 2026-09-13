@@ -1,9 +1,0 @@
-com.caregivers.mobile.app-user-0 /home/ubuntu/Caregivers/android-wrapper/app/build/generated/res/pngs/user/debug
-com.caregivers.mobile.app-user-1 /home/ubuntu/Caregivers/android-wrapper/app/build/generated/res/resValues/user/debug
-com.caregivers.mobile.app-packageUserDebugResources-2 /home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/incremental/userDebug/packageUserDebugResources/merged.dir
-com.caregivers.mobile.app-packageUserDebugResources-3 /home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/incremental/userDebug/packageUserDebugResources/stripped.dir
-com.caregivers.mobile.app-userDebug-4 /home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/merged_res/userDebug/mergeUserDebugResources
-com.caregivers.mobile.app-debug-5 /home/ubuntu/Caregivers/android-wrapper/app/src/debug/res
-com.caregivers.mobile.app-main-6 /home/ubuntu/Caregivers/android-wrapper/app/src/main/res
-com.caregivers.mobile.app-user-7 /home/ubuntu/Caregivers/android-wrapper/app/src/user/res
-com.caregivers.mobile.app-userDebug-8 /home/ubuntu/Caregivers/android-wrapper/app/src/userDebug/res

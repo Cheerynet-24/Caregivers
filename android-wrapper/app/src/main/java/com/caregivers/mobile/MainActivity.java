@@ -94,7 +94,6 @@ public class MainActivity extends Activity {
                 else { pendingGeoOrigin = origin; pendingGeoCallback = callback; requestRuntimePermissions(); }
             }
         });
-        requestRuntimePermissions();
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
     }
 

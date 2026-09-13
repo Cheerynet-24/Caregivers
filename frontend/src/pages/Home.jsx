@@ -444,7 +444,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`h-screen flex ${dark ? 'dark' : ''}`}>
+    <div className={`h-screen w-screen max-w-full overflow-hidden flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
       <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 bg-sky-600 dark:bg-gray-900 flex-col items-center py-4 gap-4`}>
         <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -479,7 +479,7 @@ export default function Home() {
       </div>
 
       {/* List Panel */}
-      <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col`}>
+      <div className={`${activeChat ? 'hidden md:flex' : 'flex'} flex-1 min-w-0 md:flex-none md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col`}>
         <div className="p-4 border-b dark:border-gray-700">
           <h2 className="font-bold text-lg text-gray-800 dark:text-white">
             {tab === 'chats' && t('chats')}
