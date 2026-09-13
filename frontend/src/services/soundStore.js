@@ -32,3 +32,14 @@ export async function saveSounds(sounds) {
   });
   try { localStorage.setItem('caregivers-sounds', JSON.stringify(sounds)) } catch {}
 }
+
+export function getAudioDuration(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => { const duration = audio.duration; URL.revokeObjectURL(url); resolve(duration) };
+    audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Invalid audio')) };
+    audio.src = url;
+  });
+}

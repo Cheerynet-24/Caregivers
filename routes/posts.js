@@ -12,7 +12,6 @@ const upload = multer({
     destination: path.join(__dirname, '../uploads'),
     filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
   }),
-  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/'))
 });
 

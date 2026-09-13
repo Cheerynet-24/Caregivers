@@ -13,7 +13,6 @@ const mediaStorage = multer.diskStorage({
 });
 const mediaUpload = multer({
   storage: mediaStorage,
-  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/') || file.mimetype === 'application/pdf';
     cb(allowed ? null : new Error('Unsupported file type'), allowed);

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
-import { getSounds, saveSounds } from '../services/soundStore'
+import { getSounds, saveSounds, getAudioDuration } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
@@ -49,6 +49,8 @@ export default function Home() {
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
   const [conversationToDelete, setConversationToDelete] = useState(null)
+  const [voiceFile, setVoiceFile] = useState(null)
+  const [recordingVoice, setRecordingVoice] = useState(false)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
   const [customSounds, setCustomSounds] = useState({})
   const soundRefs = useRef({})
@@ -58,6 +60,8 @@ export default function Home() {
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
+  const voiceRecorderRef = useRef(null)
+  const voiceChunksRef = useRef([])
 
   useEffect(() => {
     loadConversations()
@@ -172,10 +176,10 @@ export default function Home() {
     window.setTimeout(() => { audio.pause(); audio.currentTime = 0 }, 9000)
   }
 
-  const saveCustomSound = (kind, file) => {
+  const saveCustomSound = async (kind, file) => {
     if (!file) return
     if (!file.type.startsWith('audio/')) return alert('Audio file ပဲ ရွေးပါ')
-    if (file.size > 3 * 1024 * 1024) return alert('Audio file size 3MB ထက်မကျော်ပါစေနဲ့')
+    try { if (await getAudioDuration(file) > 9) return alert('အသံဖိုင် 9 seconds ထက်မကျော်ရပါ။ ဒီဖိုင်ကို အလိုအလျောက်ဖျက်လိုက်ပါပြီ') } catch { return alert('အသံဖိုင်ကို ဖတ်၍မရပါ') }
     const reader = new FileReader()
     reader.onload = () => {
       const next = { ...customSounds, [kind]: reader.result }
@@ -293,13 +297,14 @@ export default function Home() {
   }
 
   const sendMessage = async (overrideContent = null, overrideType = 'text') => {
-    if ((!input.trim() && !overrideContent && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
+    if ((!input.trim() && !overrideContent && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
     let type = overrideType
     let fileUrl
-    if (chatFileRef.current?.files?.[0]) {
+    const selectedFile = voiceFile || chatFileRef.current?.files?.[0]
+    if (selectedFile) {
       const formData = new FormData()
-      formData.append('file', chatFileRef.current.files[0])
+      formData.append('file', selectedFile)
       try {
         const uploaded = await chatAPI.upload(formData)
         fileUrl = uploaded.data.fileUrl
@@ -310,6 +315,7 @@ export default function Home() {
         return
       }
       chatFileRef.current.value = ''
+      setVoiceFile(null)
     }
     if (activeChat.type === 'private') {
       socket.emit('message:private', {
@@ -328,6 +334,21 @@ export default function Home() {
     }
     setInput('')
     setShowStickers(false)
+  }
+
+  const toggleVoiceRecording = async () => {
+    if (recordingVoice) { voiceRecorderRef.current?.stop(); return }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return alert('ဒီဖုန်းမှာ voice recording မပံ့ပိုးပါ')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      voiceChunksRef.current = []
+      recorder.ondataavailable = e => { if (e.data.size) voiceChunksRef.current.push(e.data) }
+      recorder.onstop = () => { stream.getTracks().forEach(track => track.stop()); setVoiceFile(new File([new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' })], `voice-${Date.now()}.webm`, { type: recorder.mimeType || 'audio/webm' })); setRecordingVoice(false) }
+      voiceRecorderRef.current = recorder
+      recorder.start()
+      setRecordingVoice(true)
+    } catch { alert('Microphone permission ကို Allow လုပ်ပြီး ပြန်ကြိုးစားပါ') }
   }
 
   const sendLocation = () => {
@@ -763,6 +784,7 @@ export default function Home() {
             <div className="shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative">
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
+              <button onClick={toggleVoiceRecording} className={`p-2 ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title={recordingVoice ? 'Stop recording' : 'Record voice'}><Mic size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
               <button onClick={() => setShowStickers(v => !v)} className="p-2 text-gray-500 text-lg" title="Sticker">☺</button>
               {showStickers && <div className="absolute bottom-14 left-2 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 grid grid-cols-5 gap-2">
