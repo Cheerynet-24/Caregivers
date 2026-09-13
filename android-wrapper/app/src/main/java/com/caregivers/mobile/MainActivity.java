@@ -18,6 +18,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
+import android.webkit.JavascriptInterface;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
@@ -120,7 +121,30 @@ public class MainActivity extends Activity {
                 else { pendingGeoOrigin = origin; pendingGeoCallback = callback; requestRuntimePermissions(); }
             }
         });
+        webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
+    }
+
+    private class AudioRouteBridge {
+        @JavascriptInterface public void setRoute(String route) {
+            runOnUiThread(() -> {
+                if (audioManager == null) return;
+                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                if ("speaker".equals(route)) {
+                    audioManager.setBluetoothScoOn(false);
+                    audioManager.setSpeakerphoneOn(true);
+                } else if ("bluetooth".equals(route)) {
+                    audioManager.setSpeakerphoneOn(false);
+                    if (android.os.Build.VERSION.SDK_INT < 31) {
+                        audioManager.startBluetoothSco();
+                        audioManager.setBluetoothScoOn(true);
+                    }
+                } else {
+                    audioManager.setBluetoothScoOn(false);
+                    audioManager.setSpeakerphoneOn(false);
+                }
+            });
+        }
     }
 
     private void requestRuntimePermissions() {

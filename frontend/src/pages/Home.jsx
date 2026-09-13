@@ -47,6 +47,7 @@ export default function Home() {
   const [popupReplying, setPopupReplying] = useState(false)
   const [sendingPopupReply, setSendingPopupReply] = useState(false)
   const [chatBackground, setChatBackground] = useState('')
+  const [chatBackgroundImage, setChatBackgroundImage] = useState('')
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
@@ -183,6 +184,7 @@ export default function Home() {
   useEffect(() => {
     if (activeChat?.id) {
       setChatBackground(localStorage.getItem(`chat-bg-${activeChat.id}`) || '')
+      setChatBackgroundImage(localStorage.getItem(`chat-bg-image-${activeChat.id}`) || '')
       setChatSettings(JSON.parse(localStorage.getItem(`chat-settings-${activeChat.id}`) || '{"muted":false,"notifications":true,"blocked":false}'))
       setShowChatSettings(false)
     }
@@ -469,8 +471,12 @@ export default function Home() {
     const peer = new RTCPeerConnection({ iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun.cloudflare.com:3478' }
+      { urls: 'stun:stun.cloudflare.com:3478' },
+      { urls: 'stun:stun.nextcloud.com:443' }
     ] })
+    peer.onconnectionstatechange = () => {
+      if (['failed', 'disconnected'].includes(peer.connectionState)) console.warn('Caregivers call connection:', peer.connectionState)
+    }
     peer.onicecandidate = (event) => {
       if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
     }
@@ -492,6 +498,7 @@ export default function Home() {
       localStreamRef.current = stream
       const peer = createPeer(activeChat.data.id, callType)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
+      setTimeout(() => { if (peer.connectionState === 'new') peer.restartIce?.() }, 8000)
       const offer = await peer.createOffer()
       await peer.setLocalDescription(offer)
       socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType })
@@ -818,8 +825,12 @@ export default function Home() {
                 </>
               )}
               <button onClick={() => setShowBackgrounds(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Chat background"><Settings size={18} /></button>
-              {showBackgrounds && <div className="absolute right-3 top-12 z-20 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 flex gap-2">
-                {['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); setShowBackgrounds(false) }} className={`w-7 h-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}
+              {showBackgrounds && <div className="absolute right-3 top-12 z-20 bg-white dark:bg-gray-800 border rounded-xl shadow p-3 flex flex-wrap gap-2 w-64">
+                {['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); setChatBackgroundImage(''); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); localStorage.removeItem(`chat-bg-image-${activeChat.id}`); setShowBackgrounds(false) }} className={`w-7 h-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}
+                <label className="w-full mt-1 px-3 py-2 rounded-lg bg-sky-500 text-white text-sm text-center cursor-pointer">Choose phone photo
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { const image = String(reader.result); setChatBackgroundImage(image); setChatBackground(''); localStorage.setItem(`chat-bg-image-${activeChat.id}`, image); localStorage.removeItem(`chat-bg-${activeChat.id}`); setShowBackgrounds(false) }; reader.readAsDataURL(file) }} />
+                </label>
+                {chatBackgroundImage && <button onClick={() => { setChatBackgroundImage(''); localStorage.removeItem(`chat-bg-image-${activeChat.id}`); setShowBackgrounds(false) }} className="w-full text-xs text-red-500">Remove photo</button>}
               </div>}
               {activeChat.type === 'private' && <>
                 <button onClick={() => setShowChatSettings(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Conversation settings"><Music size={18} /></button>
@@ -844,7 +855,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className={`min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground}`}>
+            <div className={`min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground} ${chatBackgroundImage ? 'bg-cover bg-center bg-no-repeat' : ''}`} style={chatBackgroundImage ? { backgroundImage: `linear-gradient(rgba(255,255,255,.78),rgba(255,255,255,.78)), url(${chatBackgroundImage})` } : undefined}>
               {messages.length === 0 && (
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
