@@ -251,6 +251,9 @@ public class MainActivity extends Activity {
     }
 
     private void handleAppBack() {
-        Toast.makeText(this, "Chats စာမျက်နှာမှာ ရှိနေပါတယ်", Toast.LENGTH_SHORT).show();
+        long now = System.currentTimeMillis();
+        if (now - lastBackPressedAt < 1800) { finish(); return; }
+        lastBackPressedAt = now;
+        Toast.makeText(this, "ထွက်ရန် Back ကို ထပ်နှိပ်ပါ", Toast.LENGTH_SHORT).show();
     }
 }

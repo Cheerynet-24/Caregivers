@@ -177,22 +177,35 @@ export default function Home() {
   }, [socket, chatSettings])
 
   useEffect(() => {
-    window.CaregiversNotificationReply = async (fromUserId, text) => {
-      if (!fromUserId || !text) return
-      if (!socket) {
-        localStorage.setItem('caregivers-pending-reply', JSON.stringify({ fromUserId, text }))
-        return
-      }
+    const sendReply = async (fromUserId, text) => {
+      if (!socket?.connected || !fromUserId || !text) return false
       try {
         const res = await chatAPI.getOrCreateConversation(fromUserId)
         socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' })
-      } catch (error) { console.error('notification reply failed', error) }
+        return true
+      } catch (error) { console.error('notification reply failed', error); return false }
     }
-    return () => { delete window.CaregiversNotificationReply }
+    const flushPending = async () => {
+      const raw = localStorage.getItem('caregivers-pending-reply')
+      if (!raw) return
+      try {
+        const pending = JSON.parse(raw)
+        if (await sendReply(pending.fromUserId, pending.text)) localStorage.removeItem('caregivers-pending-reply')
+      } catch {}
+    }
+    window.CaregiversNotificationReply = async (fromUserId, text) => {
+      if (!fromUserId || !text) return
+      if (!(await sendReply(fromUserId, text))) {
+        localStorage.setItem('caregivers-pending-reply', JSON.stringify({ fromUserId, text }))
+      }
+    }
+    socket?.on('connect', flushPending)
+    if (socket?.connected) flushPending()
+    return () => { socket?.off('connect', flushPending); delete window.CaregiversNotificationReply }
   }, [socket])
 
   useEffect(() => {
-    if (!socket) return
+    if (!socket?.connected) return
     const raw = localStorage.getItem('caregivers-pending-reply')
     if (!raw) return
     localStorage.removeItem('caregivers-pending-reply')
@@ -229,7 +242,7 @@ export default function Home() {
 
   useEffect(() => {
     window.CaregiversHandleBack = () => {
-      if (!activeChat) return true
+      if (!activeChat) return false
       setActiveChat(null)
       setMessages([])
       setTab('chats')
