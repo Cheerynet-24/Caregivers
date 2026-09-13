@@ -58,6 +58,9 @@ export default function Home() {
   const [callHistory, setCallHistory] = useState([])
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
+  const [showAddMembers, setShowAddMembers] = useState(false)
+  const [selectedMemberIds, setSelectedMemberIds] = useState([])
+  const [addingMembers, setAddingMembers] = useState(false)
   const [voiceFile, setVoiceFile] = useState(null)
   const [recordingVoice, setRecordingVoice] = useState(false)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
@@ -443,6 +446,20 @@ export default function Home() {
     } catch {}
   }
 
+  const addSelectedMembers = async () => {
+    if (!activeChat?.id || selectedMemberIds.length === 0 || addingMembers) return
+    setAddingMembers(true)
+    try {
+      await groupAPI.addMembers(activeChat.id, selectedMemberIds)
+      const refreshed = await groupAPI.get(activeChat.id)
+      setActiveChat(current => current ? { ...current, data: refreshed.data.group || refreshed.data } : current)
+      setGroups(current => current.map(group => group.id === activeChat.id ? { ...group, ...(refreshed.data.group || refreshed.data) } : group))
+      setSelectedMemberIds([])
+      setShowAddMembers(false)
+    } catch (error) { alert(error.response?.data?.error || 'Members could not be added') }
+    finally { setAddingMembers(false) }
+  }
+
   const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null) => {
     if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
@@ -702,6 +719,9 @@ export default function Home() {
     document.documentElement.classList.toggle('dark')
   }
 
+  const existingMemberIds = new Set((activeChat?.data?.members || []).map(member => member.userId || member.id || member.user?.id))
+  const memberCandidates = [...friends, ...conversations.map(conversation => conversation.otherUser || conversation.user).filter(Boolean)].filter(candidate => candidate?.id && candidate.id !== user?.id && !existingMemberIds.has(candidate.id)).filter((candidate, index, list) => list.findIndex(item => item.id === candidate.id) === index)
+
   return (
     <div className={`h-[100dvh] w-screen max-w-full overflow-hidden flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
@@ -939,6 +959,9 @@ export default function Home() {
                 </div>}
               </>}
               {activeChat.type === 'group' && activeChat.data?.inviteCode && (
+                <button onClick={() => { setSelectedMemberIds([]); setShowAddMembers(true) }} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Add members"><UserPlus size={18} /></button>
+              )}
+              {activeChat.type === 'group' && activeChat.data?.inviteCode && (
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(`${window.location.origin}/join/${activeChat.data.inviteCode}`)
@@ -1097,6 +1120,22 @@ export default function Home() {
               placeholder={t('groupName')}
               className="w-full px-4 py-3 border rounded-xl mb-4 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
             <button onClick={createGroup} className="w-full bg-sky-500 text-white py-3 rounded-xl font-medium">{t('submit')}</button>
+          </div>
+        </div>
+      )}
+      {showAddMembers && (
+        <div className="fixed inset-0 z-[65] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowAddMembers(false)}>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold dark:text-white">Add group members</h3><button onClick={() => setShowAddMembers(false)}><X size={20} /></button></div>
+            <div className="max-h-72 overflow-y-auto space-y-2">
+              {memberCandidates.length === 0 && <p className="text-sm text-gray-500 text-center py-5">Friend or conversation user မရှိသေးပါ။</p>}
+              {memberCandidates.map(candidate => <label key={candidate.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                <input type="checkbox" checked={selectedMemberIds.includes(candidate.id)} onChange={e => setSelectedMemberIds(ids => e.target.checked ? [...ids, candidate.id] : ids.filter(id => id !== candidate.id))} />
+                {candidate.avatar ? <img src={resolveMediaUrl(candidate.avatar)} alt="" className="w-9 h-9 rounded-full object-cover" /> : <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center font-bold text-sky-700">{(candidate.displayName || candidate.username || '?')[0].toUpperCase()}</div>}
+                <span className="dark:text-white">{candidate.displayName || candidate.username}</span>
+              </label>)}
+            </div>
+            <button disabled={!selectedMemberIds.length || addingMembers} onClick={addSelectedMembers} className="w-full mt-4 py-3 rounded-xl bg-sky-500 text-white font-semibold disabled:opacity-50">{addingMembers ? 'Adding...' : `Add selected (${selectedMemberIds.length})`}</button>
           </div>
         </div>
       )}
