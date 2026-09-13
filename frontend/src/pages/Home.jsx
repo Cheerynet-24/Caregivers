@@ -52,6 +52,7 @@ export default function Home() {
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
+  const [replyTarget, setReplyTarget] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
   const [callHistory, setCallHistory] = useState([])
@@ -77,6 +78,7 @@ export default function Home() {
   const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
+  const swipeStartXRef = useRef(0)
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
@@ -176,13 +178,28 @@ export default function Home() {
 
   useEffect(() => {
     window.CaregiversNotificationReply = async (fromUserId, text) => {
-      if (!socket || !fromUserId || !text) return
+      if (!fromUserId || !text) return
+      if (!socket) {
+        localStorage.setItem('caregivers-pending-reply', JSON.stringify({ fromUserId, text }))
+        return
+      }
       try {
         const res = await chatAPI.getOrCreateConversation(fromUserId)
         socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' })
       } catch (error) { console.error('notification reply failed', error) }
     }
     return () => { delete window.CaregiversNotificationReply }
+  }, [socket])
+
+  useEffect(() => {
+    if (!socket) return
+    const raw = localStorage.getItem('caregivers-pending-reply')
+    if (!raw) return
+    localStorage.removeItem('caregivers-pending-reply')
+    try {
+      const pending = JSON.parse(raw)
+      window.CaregiversNotificationReply?.(pending.fromUserId, pending.text)
+    } catch {}
   }, [socket])
 
   useEffect(() => {
@@ -415,6 +432,7 @@ export default function Home() {
   const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null) => {
     if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
+    if (replyTarget && !overrideContent) content = `↪ ${replyTarget.sender?.displayName || replyTarget.sender?.username || 'Message'}: ${replyTarget.content || ''}\n${content}`
     let type = overrideType
     let fileUrl
     const selectedFile = overrideFile || voiceFile || chatFileRef.current?.files?.[0]
@@ -453,6 +471,7 @@ export default function Home() {
       })
     }
     setInput('')
+    setReplyTarget(null)
     setShowStickers(false)
   }
 
@@ -916,7 +935,7 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div key={m.id} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
-                  <div className="relative group max-w-[85%]">
+                  <div className="relative group max-w-[85%]" onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX }} onTouchEnd={e => { if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }}>
                   <div className={`max-w-full px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
@@ -947,6 +966,7 @@ export default function Home() {
             </div>
 
             <div className="shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative">
+              {replyTarget && <div className="absolute -top-12 left-2 right-2 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
               <button type="button" onPointerDown={startVoiceRecording} onPointerUp={stopVoiceRecording} onPointerCancel={stopVoiceRecording} onPointerLeave={stopVoiceRecording} className={`p-2 select-none touch-none ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title="ဖိထားပြီး voice ပို့ရန်"><Mic size={19} /></button>

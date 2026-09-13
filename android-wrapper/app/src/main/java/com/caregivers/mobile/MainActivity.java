@@ -144,7 +144,7 @@ public class MainActivity extends Activity {
         if (webView == null || pendingReplyText == null || pendingReplyUserId == null) return;
         String text = android.util.Base64.encodeToString(pendingReplyText.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
         String userId = android.util.Base64.encodeToString(pendingReplyUserId.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
-        webView.evaluateJavascript("setTimeout(()=>{if(window.CaregiversNotificationReply)window.CaregiversNotificationReply(atob('" + userId + "'),atob('" + text + "'))},2500)", null);
+        webView.evaluateJavascript("(()=>{const u=atob('" + userId + "'),t=atob('" + text + "');let n=0;const send=()=>{if(window.CaregiversNotificationReply)window.CaregiversNotificationReply(u,t);else if(++n<30)setTimeout(send,1000)};send()})()", null);
         pendingReplyText = null;
         pendingReplyUserId = null;
     }
