@@ -175,6 +175,17 @@ export default function Home() {
   }, [socket, chatSettings])
 
   useEffect(() => {
+    window.CaregiversNotificationReply = async (fromUserId, text) => {
+      if (!socket || !fromUserId || !text) return
+      try {
+        const res = await chatAPI.getOrCreateConversation(fromUserId)
+        socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' })
+      } catch (error) { console.error('notification reply failed', error) }
+    }
+    return () => { delete window.CaregiversNotificationReply }
+  }, [socket])
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
@@ -201,7 +212,7 @@ export default function Home() {
 
   useEffect(() => {
     window.CaregiversHandleBack = () => {
-      if (!activeChat) return false
+      if (!activeChat) return true
       setActiveChat(null)
       setMessages([])
       setTab('chats')

@@ -48,12 +48,13 @@ export function AuthProvider({ children }) {
   }
 
   const logout = async () => {
-    try { await authAPI.logout() } catch {}
-    if (socket) socket.disconnect()
+    const currentSocket = socket
     localStorage.removeItem('token')
     setToken(null)
     setUser(null)
     setSocket(null)
+    currentSocket?.disconnect()
+    authAPI.logout().catch(() => {})
   }
 
   return (

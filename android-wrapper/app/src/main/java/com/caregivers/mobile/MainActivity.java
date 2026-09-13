@@ -33,9 +33,12 @@ public class MainActivity extends Activity {
     private String pendingGeoOrigin;
     private AudioManager audioManager;
     private long lastBackPressedAt;
+    private String pendingReplyText;
+    private String pendingReplyUserId;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        readReplyIntent(getIntent());
         webView = new WebView(this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         if (audioManager != null) {
@@ -65,6 +68,7 @@ public class MainActivity extends Activity {
                     String js = "javascript:(()=>{const fcm='" + token + "';let tries=0;const send=async()=>{const t=localStorage.getItem('token');if(t){try{await fetch('/api/auth/fcm-token',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({token:fcm})});}catch(e){}return;}if(++tries<30)setTimeout(send,2000);};send();})()";
                     view.evaluateJavascript(js, null);
                 });
+                deliverPendingReply();
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
@@ -127,6 +131,29 @@ public class MainActivity extends Activity {
         });
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
+    }
+
+    private void readReplyIntent(Intent intent) {
+        if (intent == null) return;
+        String text = intent.getStringExtra("notification_reply");
+        String userId = intent.getStringExtra("from_user_id");
+        if (text != null && userId != null) { pendingReplyText = text; pendingReplyUserId = userId; }
+    }
+
+    private void deliverPendingReply() {
+        if (webView == null || pendingReplyText == null || pendingReplyUserId == null) return;
+        String text = android.util.Base64.encodeToString(pendingReplyText.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+        String userId = android.util.Base64.encodeToString(pendingReplyUserId.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+        webView.evaluateJavascript("setTimeout(()=>{if(window.CaregiversNotificationReply)window.CaregiversNotificationReply(atob('" + userId + "'),atob('" + text + "'))},2500)", null);
+        pendingReplyText = null;
+        pendingReplyUserId = null;
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        readReplyIntent(intent);
+        deliverPendingReply();
     }
 
     private class AudioRouteBridge {
