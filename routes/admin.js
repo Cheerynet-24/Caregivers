@@ -5,31 +5,38 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const adminAuth = require('../middleware/auth');
 const { sanitizeUser } = require('../utils/helpers');
 
-// Multer storage configuration for uploads if needed
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(__dirname, '../../uploads')),
+  destination: (req, file, cb) => cb(null, path.join(__dirname, '../uploads')),
   filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Admin Login check with debugging & trim
+// Device Token / Secret Authentication Middleware
+const deviceAuth = (req, res, next) => {
+  const token = req.headers['x-admin-device'] || req.query.token || req.body.deviceToken || req.body.password;
+  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || '29580284';
+
+  if (token && String(token).trim() === String(targetToken).trim()) {
+    return next();
+  }
+  return res.status(403).json({ error: "Unauthorized device" });
+};
+
+// Login route supporting device token / secret key
 router.post('/login', (req, res) => {
-  const password = req.body.password || req.body.adminPassword || req.body.pass;
-  const targetPassword = process.env.ADMIN_PASSWORD || '29580284';
+  const token = req.body.password || req.body.deviceToken || req.headers['x-admin-device'];
+  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || '29580284';
   
-  console.log("DEBUG LOGIN -> Received:", JSON.stringify(password), "Target:", JSON.stringify(targetPassword));
-  
-  if (password && targetPassword && String(password).trim() === String(targetPassword).trim()) {
-    return res.json({ success: true, message: "Admin authenticated" });
+  if (token && String(token).trim() === String(targetToken).trim()) {
+    return res.json({ success: true, message: "Device authenticated" });
   }
   return res.status(401).json({ error: "Wrong password" });
 });
 
 // All users
-router.get('/users', adminAuth, async (req, res) => {
+router.get('/users', deviceAuth, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
@@ -46,7 +53,7 @@ router.get('/users', adminAuth, async (req, res) => {
 });
 
 // Ban / Unban
-router.post('/users/:id/ban', adminAuth, async (req, res) => {
+router.post('/users/:id/ban', deviceAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
       where: { id: req.params.id },
@@ -58,7 +65,7 @@ router.post('/users/:id/ban', adminAuth, async (req, res) => {
   }
 });
 
-router.post('/users/:id/unban', adminAuth, async (req, res) => {
+router.post('/users/:id/unban', deviceAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
       where: { id: req.params.id },
@@ -71,7 +78,7 @@ router.post('/users/:id/unban', adminAuth, async (req, res) => {
 });
 
 // Mute / Unmute
-router.post('/users/:id/mute', adminAuth, async (req, res) => {
+router.post('/users/:id/mute', deviceAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
       where: { id: req.params.id },
@@ -83,7 +90,7 @@ router.post('/users/:id/mute', adminAuth, async (req, res) => {
   }
 });
 
-router.post('/users/:id/unmute', adminAuth, async (req, res) => {
+router.post('/users/:id/unmute', deviceAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
       where: { id: req.params.id },
