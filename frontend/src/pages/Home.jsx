@@ -737,14 +737,20 @@ export default function Home() {
               {showStickers && <div className="absolute bottom-14 left-2 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 grid grid-cols-5 gap-2">
                 {['😀','😂','😍','🥰','😎','😢','😡','👍','❤️','🎉','🙏','🔥','👏','🤝','✨'].map(sticker => <button key={sticker} onClick={() => sendMessage(sticker, 'sticker')} className="text-2xl hover:bg-gray-100 rounded p-1">{sticker}</button>)}
               </div>}
-              <input
+              <textarea
+                rows="1"
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                placeholder={t('typeMessage')}
-                className="min-w-0 flex-1 px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-full outline-none focus:ring-2 focus:ring-sky-400 dark:bg-gray-700 dark:text-white text-sm"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    sendMessage()
+                  }
+                }}
+                placeholder={`${t('typeMessage')} · Shift+Enter = စာကြောင်းခြား`}
+                className="min-w-0 flex-1 resize-none px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-2xl outline-none focus:ring-2 focus:ring-sky-400 dark:bg-gray-700 dark:text-white text-sm"
               />
-              <button onClick={sendMessage} className="p-2.5 bg-sky-500 text-white rounded-full hover:bg-sky-600">
+              <button type="button" onClick={() => sendMessage()} className="p-2.5 bg-sky-500 text-white rounded-full hover:bg-sky-600">
                 <Send size={18} />
               </button>
             </div>
