@@ -568,7 +568,7 @@ export default function Home() {
   return (
     <div className={`h-[100dvh] w-screen max-w-full overflow-hidden flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
-      <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 bg-sky-600 dark:bg-gray-900 flex-col items-center py-4 gap-4`}>
+      <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 shrink-0 bg-sky-600 dark:bg-gray-900 flex-col items-center py-3 gap-2 overflow-y-auto overscroll-contain`}>
         <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
         <button onClick={() => setTab('chats')} className={`p-3 rounded-xl ${tab === 'chats' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <MessageCircle size={22} />
@@ -595,7 +595,7 @@ export default function Home() {
         <button onClick={() => { setTab('feed'); setActiveChat(null); setMessages([]); loadPosts() }} className={`p-3 rounded-xl ${tab === 'feed' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Feed">
           <Rss size={22} />
         </button>
-        <div className="flex-1" />
+        <div className="h-2 shrink-0" />
         <button onClick={() => { setTab('profile'); setActiveChat(null); setMessages([]) }} className={`p-3 rounded-xl ${tab === 'profile' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Profile">
           <UserCircle size={22} />
         </button>
