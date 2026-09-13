@@ -528,7 +528,6 @@ export default function Home() {
   }
 
   const createPeer = (targetUserId, callType, configuredIceServers = iceServers) => {
-    pendingIceRef.current = []
     const peer = new RTCPeerConnection({ iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
@@ -566,6 +565,7 @@ export default function Home() {
     if (!activeChat?.data?.id || activeChat.type !== 'private' || !socket) return
     if (!socket.connected) { setCallStatus('Signaling unavailable'); alert('Server connection မရှိသေးပါ။ App ကို ပြန်ဖွင့်ပြီး စမ်းပါ။'); return }
     try {
+      pendingIceRef.current = []
       const constraints = callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       localStreamRef.current = stream
