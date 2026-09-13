@@ -85,8 +85,12 @@ public class MainActivity extends Activity {
                     }
                     boolean cameraOk = !needsCamera || checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
                     boolean micOk = !needsMic || checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-                    if (cameraOk && micOk) request.grant(request.getResources());
-                    else { pendingWebPermission = request; requestRuntimePermissions(); }
+                    if (cameraOk && micOk) {
+                        request.grant(request.getResources());
+                    } else {
+                        pendingWebPermission = request;
+                        requestRuntimePermissions();
+                    }
                 });
             }
             @Override public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
@@ -98,23 +102,32 @@ public class MainActivity extends Activity {
     }
 
     private void requestRuntimePermissions() {
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
-            java.util.ArrayList<String> missing = new java.util.ArrayList<>();
-            String[] permissions = { Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION };
-            for (String permission : permissions) if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED && !missing.contains(permission)) missing.add(permission);
-            if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), RUNTIME_PERMISSIONS);
+        if (android.os.Build.VERSION.SDK_INT < 23) return;
+        java.util.ArrayList<String> missing = new java.util.ArrayList<>();
+        if (pendingWebPermission != null) {
+            for (String resource : pendingWebPermission.getResources()) {
+                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.CAMERA);
+                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) missing.add(Manifest.permission.RECORD_AUDIO);
+            }
         }
+        if (pendingGeoCallback != null && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            missing.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            missing.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+        }
+        if (!missing.isEmpty()) requestPermissions(missing.toArray(new String[0]), RUNTIME_PERMISSIONS);
+        else resolvePendingPermissions();
     }
 
-    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode != RUNTIME_PERMISSIONS) return;
+    private void resolvePendingPermissions() {
         if (pendingWebPermission != null) {
             boolean cameraOk = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
             boolean micOk = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
             java.util.ArrayList<String> allowed = new java.util.ArrayList<>();
-            for (String resource : pendingWebPermission.getResources()) if ((PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && cameraOk) || (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && micOk)) allowed.add(resource);
-            if (allowed.size() == pendingWebPermission.getResources().length) pendingWebPermission.grant(allowed.toArray(new String[0])); else pendingWebPermission.deny();
+            for (String resource : pendingWebPermission.getResources()) {
+                if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && cameraOk) allowed.add(resource);
+                if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && micOk) allowed.add(resource);
+            }
+            if (!allowed.isEmpty()) pendingWebPermission.grant(allowed.toArray(new String[0])); else pendingWebPermission.deny();
             pendingWebPermission = null;
         }
         if (pendingGeoCallback != null) {
@@ -122,6 +135,12 @@ public class MainActivity extends Activity {
             pendingGeoCallback.invoke(pendingGeoOrigin, locationOk, false);
             pendingGeoCallback = null; pendingGeoOrigin = null;
         }
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != RUNTIME_PERMISSIONS) return;
+        resolvePendingPermissions();
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {

@@ -444,7 +444,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`h-screen w-screen max-w-full overflow-hidden flex ${dark ? 'dark' : ''}`}>
+    <div className={`h-[100dvh] w-screen max-w-full overflow-hidden flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
       <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 bg-sky-600 dark:bg-gray-900 flex-col items-center py-4 gap-4`}>
         <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -605,10 +605,10 @@ export default function Home() {
       </div>
 
       {/* Chat Area */}
-      <div className={`${activeChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-gray-50 dark:bg-gray-900`}>
+      <div className={`${activeChat ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col bg-gray-50 dark:bg-gray-900`}>
         {activeChat ? (
           <>
-            <div className="relative h-14 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center px-4 gap-3">
+            <div className="relative h-14 shrink-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center px-3 sm:px-4 gap-2 sm:gap-3">
               <button onClick={() => { setActiveChat(null); setMessages([]) }} className="md:hidden p-2 text-gray-500" aria-label="Back">
                 <ArrowLeft size={20} />
               </button>
@@ -656,7 +656,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${chatBackground}`}>
+            <div className={`min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground}`}>
               {messages.length === 0 && (
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
@@ -692,7 +692,7 @@ export default function Home() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-2 items-center relative">
+            <div className="shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative">
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
@@ -705,7 +705,7 @@ export default function Home() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
                 placeholder={t('typeMessage')}
-                className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-full outline-none focus:ring-2 focus:ring-sky-400 dark:bg-gray-700 dark:text-white text-sm"
+                className="min-w-0 flex-1 px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-full outline-none focus:ring-2 focus:ring-sky-400 dark:bg-gray-700 dark:text-white text-sm"
               />
               <button onClick={sendMessage} className="p-2.5 bg-sky-500 text-white rounded-full hover:bg-sky-600">
                 <Send size={18} />
