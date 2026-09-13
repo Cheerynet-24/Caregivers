@@ -548,10 +548,13 @@ export default function Home() {
     peer.onicecandidate = (event) => {
       if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
     }
+    peer.onicecandidateerror = event => console.warn('ICE candidate error', event.errorCode, event.errorText)
     peer.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0]
-      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; remoteVideoRef.current.play?.().catch(() => {}) }
-      if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = event.streams[0]; remoteAudioRef.current.play?.().catch(() => {}) }
+      const stream = event.streams?.[0] || remoteStreamRef.current || new MediaStream()
+      if (!event.streams?.[0] && event.track && !stream.getTracks().some(track => track.id === event.track.id)) stream.addTrack(event.track)
+      remoteStreamRef.current = stream
+      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.muted = false; remoteVideoRef.current.play?.().catch(() => {}) }
+      if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.muted = false; remoteAudioRef.current.volume = 1; remoteAudioRef.current.play?.().catch(() => {}) }
       setCallStatus('Connected')
     }
     peerRef.current = peer
