@@ -23,14 +23,10 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
   try {
     await service.send({
       token,
-      notification: { title, body },
       data: Object.fromEntries(Object.entries({ type, title, body, ...data }).map(([key, value]) => [key, String(value ?? '')])),
       android: {
         priority: 'high',
-        notification: {
-          channelId: 'caregivers_calls_messages_v2',
-          sound: type === 'call' ? 'default' : 'default'
-        }
+        ttl: 3600 * 1000
       }
     });
     return true;
