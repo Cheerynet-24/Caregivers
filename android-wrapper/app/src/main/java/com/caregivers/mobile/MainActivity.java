@@ -18,7 +18,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
-import android.webkit.JavascriptInterface;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
@@ -40,27 +39,6 @@ public class MainActivity extends Activity {
             audioManager.setSpeakerphoneOn(false);
         }
         setContentView(webView);
-        webView.addJavascriptInterface(new Object() {
-            @JavascriptInterface public void setRoute(String route) {
-                runOnUiThread(() -> {
-                    if (audioManager == null) return;
-                    audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-                    if ("speaker".equals(route)) {
-                        audioManager.stopBluetoothSco();
-                        audioManager.setBluetoothScoOn(false);
-                        audioManager.setSpeakerphoneOn(true);
-                    } else if ("bluetooth".equals(route)) {
-                        audioManager.setSpeakerphoneOn(false);
-                        audioManager.startBluetoothSco();
-                        audioManager.setBluetoothScoOn(true);
-                    } else {
-                        audioManager.stopBluetoothSco();
-                        audioManager.setBluetoothScoOn(false);
-                        audioManager.setSpeakerphoneOn(false);
-                    }
-                });
-            }
-        }, "AndroidAudio");
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
