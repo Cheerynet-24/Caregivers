@@ -57,6 +57,7 @@ export default function Home() {
   const [voiceFile, setVoiceFile] = useState(null)
   const [recordingVoice, setRecordingVoice] = useState(false)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
+  const [audioRoute, setAudioRoute] = useState(localStorage.getItem('caregivers-audio-route') || 'earpiece')
   const [customSounds, setCustomSounds] = useState({})
   const soundRefs = useRef({})
   const messagesEndRef = useRef(null)
@@ -65,6 +66,8 @@ export default function Home() {
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
+  const remoteAudioRef = useRef(null)
+  const localVideoRef = useRef(null)
   const remoteStreamRef = useRef(null)
   const pendingIceRef = useRef([])
   const notificationAudioRef = useRef(null)
@@ -72,6 +75,7 @@ export default function Home() {
   const voiceChunksRef = useRef([])
 
   useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     loadConversations()
     loadGroups()
     loadFriends()
@@ -87,7 +91,13 @@ export default function Home() {
     const onNewMessage = (msg) => {
       const isIncoming = msg.senderId !== user.id
       const isCurrentChat = activeChat && ((activeChat.type === 'private' && msg.conversationId === activeChat.id) || (activeChat.type === 'group' && msg.groupId === activeChat.id))
-      if (isIncoming && !isCurrentChat) setLatestMessageNotification(msg)
+      if (isIncoming && !isCurrentChat) {
+        setLatestMessageNotification(msg)
+        const title = msg.sender?.displayName || msg.sender?.username || 'New message'
+        const body = msg.content || (msg.type === 'audio' ? 'Voice message' : 'Attachment')
+        window.CaregiversAudio?.notify(title, body, 'message', msg.senderId || '')
+        if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body, tag: `message-${msg.id}` })
+      }
       if (isIncoming && !chatSettings.muted && chatSettings.notifications) playCustomSound('message')
       if (activeChat) {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
@@ -126,6 +136,8 @@ export default function Home() {
     const onOffer = ({ fromUserId, fromUsername, offer, callType }) => {
       if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
       setIncomingCall({ fromUserId, fromUsername, offer, callType })
+      window.CaregiversAudio?.notify(`Incoming ${callType} call`, `${fromUsername} is calling you`, 'call', fromUserId)
+      if ('Notification' in window && Notification.permission === 'granted') new Notification(`Incoming ${callType} call`, { body: `${fromUsername} is calling you`, tag: 'incoming-call' })
     }
     const onAnswer = async ({ answer }) => {
       if (peerRef.current) {
@@ -157,9 +169,14 @@ export default function Home() {
   }, [messages])
 
   useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) localVideoRef.current.srcObject = localStreamRef.current
     if (remoteVideoRef.current && remoteStreamRef.current) {
       remoteVideoRef.current.srcObject = remoteStreamRef.current
       remoteVideoRef.current.play?.().catch(() => {})
+    }
+    if (remoteAudioRef.current && remoteStreamRef.current) {
+      remoteAudioRef.current.srcObject = remoteStreamRef.current
+      remoteAudioRef.current.play?.().catch(() => {})
     }
   }, [call])
 
@@ -460,6 +477,7 @@ export default function Home() {
     peer.ontrack = (event) => {
       remoteStreamRef.current = event.streams[0]
       if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; remoteVideoRef.current.play?.().catch(() => {}) }
+      if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = event.streams[0]; remoteAudioRef.current.play?.().catch(() => {}) }
     }
     peerRef.current = peer
     setCall({ targetUserId, callType })
@@ -530,6 +548,11 @@ export default function Home() {
       track.enabled = !track.enabled
       setCameraOff(!track.enabled)
     }
+  }
+  const changeAudioRoute = route => {
+    setAudioRoute(route)
+    localStorage.setItem('caregivers-audio-route', route)
+    window.CaregiversAudio?.setRoute(route)
   }
 
   const createGroup = async () => {
@@ -915,8 +938,8 @@ export default function Home() {
         </div>
       )}
       {incomingCall && !call && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-xl">
+        <div className="fixed inset-0 z-50 pointer-events-none p-3 sm:p-5">
+          <div className="pointer-events-auto ml-auto mr-auto sm:mr-0 mt-2 bg-white dark:bg-gray-800 rounded-2xl p-5 w-full max-w-sm text-center shadow-2xl border border-sky-200 dark:border-gray-700">
             <p className="text-lg font-semibold dark:text-white mb-2">Incoming {incomingCall.callType} call</p>
             <p className="text-gray-500 mb-5">{incomingCall.fromUsername} is calling you</p>
             <div className="flex gap-3">
@@ -930,15 +953,19 @@ export default function Home() {
       {call && (
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
           <div className="flex-1 relative flex items-center justify-center">
-            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black" />
+            <video ref={remoteVideoRef} autoPlay playsInline className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
+            <audio ref={remoteAudioRef} autoPlay className={call.callType === 'audio' ? 'block' : 'hidden'} />
             <video
-              ref={element => { if (element && localStreamRef.current) element.srcObject = localStreamRef.current }}
+              ref={localVideoRef}
               autoPlay muted playsInline
               className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
             />
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
           </div>
-          <div className="p-5 flex items-center justify-center gap-4 bg-gray-900">
+          <div className="p-4 flex flex-wrap items-center justify-center gap-3 bg-gray-900">
+            <select value={audioRoute} onChange={e => changeAudioRoute(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-700 text-white text-sm" aria-label="Audio output">
+              <option value="earpiece">Ear</option><option value="speaker">Speaker</option><option value="bluetooth">Bluetooth</option>
+            </select>
             <button onClick={toggleMute} className="p-4 rounded-full bg-gray-700 text-white" title="Mute">
               {mutedCall ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
