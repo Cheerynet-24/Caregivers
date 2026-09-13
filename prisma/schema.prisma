@@ -87,6 +87,7 @@ model PaymentInfo {
   method      String
   accountName String
   phoneNumber String
+  instructions String?
+  qrCode      String?
   updatedAt   DateTime @updatedAt
 }
-

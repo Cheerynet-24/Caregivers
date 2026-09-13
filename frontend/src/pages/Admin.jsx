@@ -50,8 +50,17 @@ export default function Admin() {
   const loadPayment = async () => {
     try {
       const res = await adminAPI.getPaymentInfo(password)
-      setPaymentForm(prev => ({ ...prev, ...res.data.paymentInfo }))
-    } catch {}
+      const info = res.data.paymentInfo || {}
+      setPaymentForm(prev => ({
+        ...prev,
+        bank_name: info.method || '',
+        account_name: info.accountName || '',
+        phone_number: info.phoneNumber || '',
+        instructions: info.instructions || ''
+      }))
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load payment info')
+    }
   }
 
   if (!authed) {
@@ -195,14 +204,20 @@ export default function Admin() {
           {tab === 'payment' && (
             <form onSubmit={async (e) => {
               e.preventDefault()
-              const fd = new FormData()
-              Object.entries(paymentForm).forEach(([k, v]) => v && fd.append(k, v))
-              const file = e.target.qr?.files?.[0]
-              if (file) fd.append('qr_image', file)
-              await adminAPI.setPaymentInfo(fd, password)
-              alert(t('success'))
+              try {
+                setError('')
+                const fd = new FormData()
+                Object.entries(paymentForm).forEach(([k, v]) => fd.append(k, v || ''))
+                const file = e.currentTarget.qr?.files?.[0]
+                if (file) fd.append('qr_image', file)
+                await adminAPI.setPaymentInfo(fd, password)
+                alert(t('success'))
+              } catch (err) {
+                setError(err.response?.data?.error || 'Failed to save payment info')
+              }
             }} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow max-w-md space-y-3">
               <h2 className="font-bold text-lg dark:text-white mb-2">{t('setPaymentInfo')}</h2>
+              {error && <p className="text-red-500 text-sm">{error}</p>}
               <input value={paymentForm.bank_name || ''} onChange={e => setPaymentForm({...paymentForm, bank_name: e.target.value})}
                 placeholder="Bank Name" className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
               <input value={paymentForm.account_name || ''} onChange={e => setPaymentForm({...paymentForm, account_name: e.target.value})}

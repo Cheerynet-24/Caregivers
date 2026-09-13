@@ -21,7 +21,7 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Device Token Authentication Middleware
 const deviceAuth = (req, res, next) => {
-  const token = req.headers['x-admin-device'] || (req.body && req.body.deviceToken) || req.query.token || (req.body && req.body.password);
+  const token = req.headers['x-admin-device'] || req.headers['x-admin-password'] || (req.body && req.body.deviceToken) || req.query.token || (req.body && req.body.password);
   const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD;
 
   if (token && targetToken && String(token).trim() === String(targetToken).trim()) {
@@ -45,9 +45,10 @@ router.post('/login', (req, res) => {
 router.get('/payment-info', async (req, res) => {
   try {
     const info = await prisma.paymentInfo.findFirst();
-    res.json(info || { method: '', accountName: '', phoneNumber: '' });
+    res.json({ paymentInfo: info || { method: '', accountName: '', phoneNumber: '', instructions: '', qrCode: '' } });
   } catch (err) {
-    res.json({ method: '', accountName: '', phoneNumber: '' });
+    console.error('Failed to load payment info:', err);
+    res.status(500).json({ error: 'Failed to load payment info' });
   }
 });
 
@@ -56,9 +57,11 @@ router.get('/payment-info', async (req, res) => {
 // and the database field names (method/accountName/phoneNumber).
 router.post('/payment-info', upload.single('qr_image'), deviceAuth, async (req, res) => {
   try {
-    const method = req.body.method || req.body.bank_name || '';
-    const accountName = req.body.accountName || req.body.account_name || '';
-    const phoneNumber = req.body.phoneNumber || req.body.phone_number || '';
+    const method = String(req.body.method || req.body.bank_name || '').trim();
+    const accountName = String(req.body.accountName || req.body.account_name || '').trim();
+    const phoneNumber = String(req.body.phoneNumber || req.body.phone_number || '').trim();
+    const instructions = String(req.body.instructions || '').trim();
+    const qrCode = req.file ? `/uploads/${req.file.filename}` : undefined;
 
     if (!method || !accountName || !phoneNumber) {
       return res.status(400).json({ error: 'Bank/Wallet, Account Name and Phone Number are required' });
@@ -69,11 +72,11 @@ router.post('/payment-info', upload.single('qr_image'), deviceAuth, async (req, 
     if (existing) {
       result = await prisma.paymentInfo.update({
         where: { id: existing.id },
-        data: { method, accountName, phoneNumber }
+        data: { method, accountName, phoneNumber, instructions, ...(qrCode ? { qrCode } : {}) }
       });
     } else {
       result = await prisma.paymentInfo.create({
-        data: { method, accountName, phoneNumber }
+        data: { method, accountName, phoneNumber, instructions, qrCode: qrCode || null }
       });
     }
     res.json({ success: true, message: "Payment info saved", paymentInfo: result, result });

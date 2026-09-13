@@ -123,15 +123,10 @@ router.post('/withdraw', auth, upload.single('qrCode'), async (req, res) => {
 // Get site payment info (bank details set by admin)
 router.get('/payment-info', auth, async (req, res) => {
   try {
-    const settings = await prisma.siteSetting.findMany({
-      where: {
-        key: { in: ['bank_name', 'account_name', 'phone_number', 'qr_image', 'instructions'] }
-      }
-    });
-    const info = {};
-    settings.forEach(s => { info[s.key] = s.value; });
-    res.json({ paymentInfo: info });
+    const info = await prisma.paymentInfo.findFirst();
+    res.json({ paymentInfo: info || { method: '', accountName: '', phoneNumber: '', qrCode: '', instructions: '' } });
   } catch (err) {
+    console.error('Failed to load payment info:', err);
     res.status(500).json({ error: 'Failed' });
   }
 });
