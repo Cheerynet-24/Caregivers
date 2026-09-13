@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
-    "start": "node src/index.js",
-    "postinstall": "npx prisma generate && npx prisma db push"
+    "start": "npx prisma db push && node src/index.js",
+    "postinstall": "npx prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
