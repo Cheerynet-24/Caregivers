@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
-import { getSounds, saveSounds, getAudioDuration } from '../services/soundStore'
+import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
@@ -173,13 +173,11 @@ export default function Home() {
     if (!src) return
     const audio = new Audio(src)
     audio.play().catch(() => {})
-    window.setTimeout(() => { audio.pause(); audio.currentTime = 0 }, 9000)
   }
 
-  const saveCustomSound = async (kind, file) => {
+  const saveCustomSound = (kind, file) => {
     if (!file) return
     if (!file.type.startsWith('audio/')) return alert('Audio file ပဲ ရွေးပါ')
-    try { if (await getAudioDuration(file) > 9) return alert('အသံဖိုင် 9 seconds ထက်မကျော်ရပါ။ ဒီဖိုင်ကို အလိုအလျောက်ဖျက်လိုက်ပါပြီ') } catch { return alert('အသံဖိုင်ကို ဖတ်၍မရပါ') }
     const reader = new FileReader()
     reader.onload = () => {
       const next = { ...customSounds, [kind]: reader.result }
@@ -296,12 +294,12 @@ export default function Home() {
     } catch {}
   }
 
-  const sendMessage = async (overrideContent = null, overrideType = 'text') => {
-    if ((!input.trim() && !overrideContent && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
+  const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null) => {
+    if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
     let type = overrideType
     let fileUrl
-    const selectedFile = voiceFile || chatFileRef.current?.files?.[0]
+    const selectedFile = overrideFile || voiceFile || chatFileRef.current?.files?.[0]
     if (selectedFile) {
       const formData = new FormData()
       formData.append('file', selectedFile)
@@ -336,20 +334,22 @@ export default function Home() {
     setShowStickers(false)
   }
 
-  const toggleVoiceRecording = async () => {
-    if (recordingVoice) { voiceRecorderRef.current?.stop(); return }
+  const startVoiceRecording = async () => {
+    if (recordingVoice) return
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return alert('ဒီဖုန်းမှာ voice recording မပံ့ပိုးပါ')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const recorder = new MediaRecorder(stream)
       voiceChunksRef.current = []
       recorder.ondataavailable = e => { if (e.data.size) voiceChunksRef.current.push(e.data) }
-      recorder.onstop = () => { stream.getTracks().forEach(track => track.stop()); setVoiceFile(new File([new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' })], `voice-${Date.now()}.webm`, { type: recorder.mimeType || 'audio/webm' })); setRecordingVoice(false) }
+      recorder.onstop = () => { stream.getTracks().forEach(track => track.stop()); const file = new File([new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' })], `voice-${Date.now()}.webm`, { type: recorder.mimeType || 'audio/webm' }); setRecordingVoice(false); sendMessage(null, 'text', file) }
       voiceRecorderRef.current = recorder
       recorder.start()
       setRecordingVoice(true)
     } catch { alert('Microphone permission ကို Allow လုပ်ပြီး ပြန်ကြိုးစားပါ') }
   }
+
+  const stopVoiceRecording = () => { if (recordingVoice && voiceRecorderRef.current?.state !== 'inactive') voiceRecorderRef.current.stop() }
 
   const sendLocation = () => {
     if (!navigator.geolocation) return alert('ဒီ browser မှာ Location မပံ့ပိုးပါ')
@@ -784,7 +784,7 @@ export default function Home() {
             <div className="shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative">
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
-              <button onClick={toggleVoiceRecording} className={`p-2 ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title={recordingVoice ? 'Stop recording' : 'Record voice'}><Mic size={19} /></button>
+              <button type="button" onPointerDown={startVoiceRecording} onPointerUp={stopVoiceRecording} onPointerCancel={stopVoiceRecording} onPointerLeave={stopVoiceRecording} className={`p-2 select-none touch-none ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title="ဖိထားပြီး voice ပို့ရန်"><Mic size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
               <button onClick={() => setShowStickers(v => !v)} className="p-2 text-gray-500 text-lg" title="Sticker">☺</button>
               {showStickers && <div className="absolute bottom-14 left-2 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 grid grid-cols-5 gap-2">
