@@ -17,6 +17,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
+import android.media.AudioManager;
 
 public class MainActivity extends Activity {
     private static final int FILE_PICKER = 1001;
@@ -26,10 +27,16 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingWebPermission;
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
+    private AudioManager audioManager;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         webView = new WebView(this);
+        audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        if (audioManager != null) {
+            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+            audioManager.setSpeakerphoneOn(false);
+        }
         setContentView(webView);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -91,6 +98,7 @@ public class MainActivity extends Activity {
                     boolean cameraOk = !needsCamera || checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
                     boolean micOk = !needsMic || checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
                     if (cameraOk && micOk) {
+                        if (needsMic && audioManager != null) audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
                         request.grant(request.getResources());
                     } else {
                         if (pendingWebPermission != null) pendingWebPermission.deny();
@@ -133,7 +141,10 @@ public class MainActivity extends Activity {
                 if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && cameraOk) allowed.add(resource);
                 if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && micOk) allowed.add(resource);
             }
-            if (!allowed.isEmpty()) pendingWebPermission.grant(allowed.toArray(new String[0])); else pendingWebPermission.deny();
+            if (!allowed.isEmpty()) {
+                if (allowed.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE) && audioManager != null) audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                pendingWebPermission.grant(allowed.toArray(new String[0]));
+            } else pendingWebPermission.deny();
             pendingWebPermission = null;
         }
         if (pendingGeoCallback != null) {

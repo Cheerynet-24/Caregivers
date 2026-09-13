@@ -168,4 +168,11 @@ router.get('/conversations', auth, async (req, res) => {
   }
 });
 
+router.get('/call-history', auth, async (req, res) => {
+  try {
+    const calls = await prisma.callLog.findMany({ where: { OR: [{ callerId: req.user.id }, { receiverId: req.user.id }] }, include: { caller: { select: { id: true, username: true, displayName: true, avatar: true } }, receiver: { select: { id: true, username: true, displayName: true, avatar: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    res.json({ calls });
+  } catch (err) { res.status(500).json({ error: 'Failed to load call history' }); }
+});
+
 module.exports = router;

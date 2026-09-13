@@ -197,6 +197,7 @@ function setupSocket(io, prisma) {
 
     // WebRTC signaling for 1-1 calls
     socket.on('call:offer', (data) => {
+      prisma.callLog.create({ data: { callerId: userId, receiverId: data.toUserId, callType: data.callType || 'audio', status: 'ringing' } }).catch(err => console.error('call log error', err));
       io.to(`user:${data.toUserId}`).emit('call:offer', {
         fromUserId: userId,
         fromUsername: socket.user.username,

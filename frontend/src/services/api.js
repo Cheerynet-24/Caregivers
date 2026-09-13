@@ -54,6 +54,7 @@ export const chatAPI = {
   getConversations: () => api.get('/api/chat/conversations'),
   getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
   getMessages: (conversationId) => api.get(`/api/chat/messages/${conversationId}`),
+  callHistory: () => api.get('/api/chat/call-history'),
   getGroupMessages: (groupId) => api.get(`/api/chat/group-messages/${groupId}`),
   deleteConversation: (id) => api.delete(`/api/chat/conversation/${id}`),
   blockUser: (id) => api.post(`/api/chat/block/${id}`),

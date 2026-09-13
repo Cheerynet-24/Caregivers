@@ -52,6 +52,7 @@ export default function Home() {
   const [messageMenu, setMessageMenu] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
+  const [callHistory, setCallHistory] = useState([])
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const [voiceFile, setVoiceFile] = useState(null)
   const [recordingVoice, setRecordingVoice] = useState(false)
@@ -76,6 +77,7 @@ export default function Home() {
     loadFriendRequests()
     loadNotifications()
     loadPosts()
+    loadCallHistory()
     getSounds().then(setCustomSounds)
   }, [])
 
@@ -228,6 +230,10 @@ export default function Home() {
       const res = await chatAPI.getConversations()
       setConversations(res.data.conversations || [])
     } catch {}
+  }
+
+  const loadCallHistory = async () => {
+    try { const res = await chatAPI.callHistory(); setCallHistory(res.data.calls || []) } catch {}
   }
 
   const loadGroups = async () => {
@@ -580,6 +586,9 @@ export default function Home() {
           <Bell size={22} />
           {notifications.length > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{notifications.length > 99 ? '99+' : notifications.length}</span>}
         </button>
+        <button onClick={() => { setTab('call-history'); setActiveChat(null); setMessages([]); loadCallHistory() }} className={`p-3 rounded-xl ${tab === 'call-history' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Call history">
+          <Phone size={22} />
+        </button>
         <button onClick={() => { setTab('wallet'); setActiveChat(null); setMessages([]); loadWallet() }} className={`p-3 rounded-xl ${tab === 'wallet' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <Wallet size={22} />
         </button>
@@ -619,6 +628,7 @@ export default function Home() {
             {tab === 'profile' && 'Profile'}
             {tab === 'friends' && 'Friends'}
             {tab === 'admin-noti' && 'From Admin Noti'}
+            {tab === 'call-history' && 'Call History'}
           </h2>
           <p className="text-xs text-gray-500">{user?.displayName || user?.username}</p>
         </div>
@@ -634,6 +644,7 @@ export default function Home() {
             {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Admin notification မရှိသေးပါ</div>}
             {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
+          {tab === 'call-history' && <div className="p-3 space-y-2">{callHistory.length === 0 && <p className="text-sm text-gray-500">Call history မရှိသေးပါ</p>}{callHistory.map(item => { const other = item.callerId === user.id ? item.receiver : item.caller; return <div key={item.id} className="rounded-xl border dark:border-gray-600 p-3 flex items-center gap-3"><Phone size={18} className="text-sky-500" /><div className="flex-1"><p className="text-sm font-medium dark:text-white">{other?.displayName || other?.username}</p><p className="text-xs text-gray-500">{item.callType} call · {item.status} · {new Date(item.createdAt).toLocaleString()}</p></div></div> })}</div>}
           {tab === 'chats' && conversations.map(c => (
             <div key={c.id} onClick={() => openPrivateChat(c.otherUser)} onContextMenu={e => { e.preventDefault(); setConversationToDelete(c) }} onTouchStart={() => beginConversationLongPress(c)} onTouchEnd={cancelConversationLongPress} onTouchMove={cancelConversationLongPress}
               className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${activeChat?.id === c.id ? 'bg-sky-50 dark:bg-sky-900/30' : ''}`}>
@@ -907,7 +918,7 @@ export default function Home() {
       {call && (
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
           <div className="flex-1 relative flex items-center justify-center">
-            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
+            <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black" />
             <video
               ref={element => { if (element && localStreamRef.current) element.srcObject = localStreamRef.current }}
               autoPlay muted playsInline

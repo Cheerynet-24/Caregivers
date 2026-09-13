@@ -44,6 +44,8 @@ model User {
   savedPosts          PostSave[]
   comments            Comment[]       @relation("CommentAuthor")
   commentLikes        CommentLike[]
+  callsMade           CallLog[]      @relation("CallsMade")
+  callsReceived       CallLog[]      @relation("CallsReceived")
 }
 
 model Message {
@@ -263,4 +265,19 @@ model CommentLike {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   @@unique([commentId, userId])
+}
+
+model CallLog {
+  id         String   @id @default(uuid())
+  callerId   String
+  receiverId String
+  caller     User     @relation("CallsMade", fields: [callerId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("CallsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+  callType   String
+  status     String   @default("completed")
+  startedAt  DateTime @default(now())
+  endedAt    DateTime?
+  createdAt  DateTime @default(now())
+  @@index([callerId, createdAt])
+  @@index([receiverId, createdAt])
 }
