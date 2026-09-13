@@ -5,6 +5,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
 const { auth } = require('../middleware/auth');
+const { compactUser } = require('../utils/helpers');
 
 const prisma = new PrismaClient();
 const mediaStorage = multer.diskStorage({
@@ -105,7 +106,7 @@ router.get('/messages/:conversationId', auth, async (req, res) => {
       orderBy: { createdAt: 'asc' },
       take: 200
     });
-    res.json({ messages });
+    res.json({ messages: messages.map(message => ({ ...message, sender: compactUser(message.sender) })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }
@@ -129,7 +130,7 @@ router.get('/group-messages/:groupId', auth, async (req, res) => {
       orderBy: { createdAt: 'asc' },
       take: 300
     });
-    res.json({ messages });
+    res.json({ messages: messages.map(message => ({ ...message, sender: compactUser(message.sender) })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }
@@ -156,7 +157,7 @@ router.get('/conversations', auth, async (req, res) => {
 
     const enriched = convs.map((c) => {
       const other = c.user1Id === req.user.id ? c.user2 : c.user1;
-      return { ...c, otherUser: other, lastMessage: c.messages?.[0] || null, messages: undefined };
+      return { ...c, otherUser: compactUser(other), lastMessage: c.messages?.[0] || null, messages: undefined };
     });
 
     res.json({ conversations: enriched });

@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { auth } = require('../middleware/auth');
-const { sanitizeUser } = require('../utils/helpers');
+const { sanitizeUser, compactUser } = require('../utils/helpers');
 
 const prisma = new PrismaClient();
 
@@ -42,7 +42,7 @@ router.get('/search', auth, async (req, res) => {
       take: 100,
       orderBy: { username: 'asc' }
     });
-    res.json({ users });
+    res.json({ users: users.map(compactUser) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Search failed' });
@@ -68,7 +68,7 @@ router.get('/friends', auth, async (req, res) => {
     const friends = friendships.map(f => {
       return f.user1Id === req.user.id ? f.user2 : f.user1;
     });
-    res.json({ friends });
+    res.json({ friends: friends.map(compactUser) });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get friends' });
   }
@@ -166,7 +166,7 @@ router.get('/friend-requests', auth, async (req, res) => {
         fromUser: { select: { id: true, username: true, displayName: true, avatar: true } }
       }
     });
-    res.json({ requests });
+    res.json({ requests: requests.map(request => ({ ...request, fromUser: compactUser(request.fromUser) })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }
