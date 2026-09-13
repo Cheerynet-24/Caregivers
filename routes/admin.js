@@ -21,10 +21,10 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Device Token Authentication Middleware
 const deviceAuth = (req, res, next) => {
-  const token = req.headers['x-admin-device'] || req.body.deviceToken || req.query.token || req.body.password;
-  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || 'wai_yan_lin_wai_05_mail';
+  const token = req.headers['x-admin-device'] || (req.body && req.body.deviceToken) || req.query.token || (req.body && req.body.password);
+  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD;
 
-  if (token && String(token).trim() === String(targetToken).trim()) {
+  if (token && targetToken && String(token).trim() === String(targetToken).trim()) {
     return next();
   }
   return res.status(403).json({ error: "Unauthorized device" });
@@ -33,9 +33,9 @@ const deviceAuth = (req, res, next) => {
 // Login route supporting device token / secret key
 router.post('/login', (req, res) => {
   const token = req.body.password || req.body.deviceToken || req.headers['x-admin-device'];
-  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || 'wai_yan_lin_wai_05_mail';
+  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD;
   
-  if (token && String(token).trim() === String(targetToken).trim()) {
+  if (token && targetToken && String(token).trim() === String(targetToken).trim()) {
     return res.json({ success: true, message: "Device authenticated" });
   }
   return res.status(401).json({ error: "Wrong password" });
@@ -52,9 +52,18 @@ router.get('/payment-info', async (req, res) => {
 });
 
 // Save Payment Info (Admin Only)
-router.post('/payment-info', deviceAuth, async (req, res) => {
+// Accept both the current frontend field names (bank_name/account_name/phone_number)
+// and the database field names (method/accountName/phoneNumber).
+router.post('/payment-info', upload.none(), deviceAuth, async (req, res) => {
   try {
-    const { method, accountName, phoneNumber } = req.body;
+    const method = req.body.method || req.body.bank_name || '';
+    const accountName = req.body.accountName || req.body.account_name || '';
+    const phoneNumber = req.body.phoneNumber || req.body.phone_number || '';
+
+    if (!method || !accountName || !phoneNumber) {
+      return res.status(400).json({ error: 'Bank/Wallet, Account Name and Phone Number are required' });
+    }
+
     const existing = await prisma.paymentInfo.findFirst();
     let result;
     if (existing) {
@@ -67,8 +76,9 @@ router.post('/payment-info', deviceAuth, async (req, res) => {
         data: { method, accountName, phoneNumber }
       });
     }
-    res.json({ success: true, message: "Payment info saved", result });
+    res.json({ success: true, message: "Payment info saved", paymentInfo: result, result });
   } catch (err) {
+    console.error('Failed to save payment info:', err);
     res.status(500).json({ error: "Failed to save payment info: " + err.message });
   }
 });
@@ -141,4 +151,3 @@ router.post('/users/:id/unmute', deviceAuth, async (req, res) => {
 });
 
 module.exports = router;
-
