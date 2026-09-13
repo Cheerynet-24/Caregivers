@@ -10,27 +10,29 @@ const prisma = new PrismaClient();
 router.post('/register', async (req, res) => {
   try {
     const { username, password, displayName, email } = req.body;
+    const cleanUsername = String(username || '').trim();
+    const cleanDisplayName = String(displayName || username || '').trim();
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
-    if (username.length < 3) {
+    if (cleanUsername.length < 3) {
       return res.status(400).json({ error: 'Username must be at least 3 characters' });
     }
     if (password.length < 4) {
       return res.status(400).json({ error: 'Password must be at least 4 characters' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { username } });
-    if (existing) {
-      return res.status(400).json({ error: 'Username already taken' });
-    }
+    const existingUsername = await prisma.user.findFirst({ where: { username: { equals: cleanUsername, mode: 'insensitive' } }, select: { id: true } });
+    if (existingUsername) return res.status(409).json({ field: 'username', error: 'ဒီ Username ကို အသုံးပြုပြီးသားဖြစ်လို့ မရပါ။ အခြား Username ရွေးပါ။' });
+    const existingDisplayName = await prisma.user.findFirst({ where: { displayName: { equals: cleanDisplayName, mode: 'insensitive' } }, select: { id: true } });
+    if (existingDisplayName) return res.status(409).json({ field: 'displayName', error: 'ဒီ Display name ကို အသုံးပြုပြီးသားဖြစ်လို့ မရပါ။ အခြား Display name ရွေးပါ။' });
 
     const hashed = await hashPassword(password);
     const user = await prisma.user.create({
       data: {
-        username,
+        username: cleanUsername,
         password: hashed,
-        displayName: displayName || username,
+        displayName: cleanDisplayName,
         email: email || null,
         isApproved: false,
         coinBalance: 100 // Welcome bonus test coins

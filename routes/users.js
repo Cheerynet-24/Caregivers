@@ -186,8 +186,13 @@ router.put('/profile', auth, async (req, res) => {
     if (username !== undefined) {
       const nextUsername = String(username).trim();
       if (nextUsername.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
-      const taken = await prisma.user.findFirst({ where: { username: nextUsername, id: { not: req.user.id } } });
-      if (taken) return res.status(409).json({ error: 'Username already taken' });
+      const taken = await prisma.user.findFirst({ where: { username: { equals: nextUsername, mode: 'insensitive' }, id: { not: req.user.id } } });
+      if (taken) return res.status(409).json({ field: 'username', error: 'ဒီ Username ကို အသုံးပြုပြီးသားဖြစ်လို့ မရပါ။' });
+    }
+    if (displayName !== undefined) {
+      const nextDisplayName = String(displayName).trim();
+      const taken = await prisma.user.findFirst({ where: { displayName: { equals: nextDisplayName, mode: 'insensitive' }, id: { not: req.user.id } } });
+      if (taken) return res.status(409).json({ field: 'displayName', error: 'ဒီ Display name ကို အသုံးပြုပြီးသားဖြစ်လို့ မရပါ။' });
     }
     const user = await prisma.user.update({
       where: { id: req.user.id },

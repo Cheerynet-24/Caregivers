@@ -9,12 +9,14 @@ export default function Register() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ username: '', password: '', displayName: '' })
   const [error, setError] = useState('')
+  const [fieldError, setFieldError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setFieldError('')
     setLoading(true)
     try {
       const result = await register(form)
@@ -24,6 +26,7 @@ export default function Register() {
       } else navigate('/')
     } catch (err) {
       setError(err.response?.data?.error || 'Register failed')
+      setFieldError(err.response?.data?.field || '')
     } finally {
       setLoading(false)
     }
@@ -49,12 +52,14 @@ export default function Register() {
           <div>
             <label className="block text-sm font-medium mb-1">{t('username')}</label>
             <input type="text" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })}
-              className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" required />
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-sky-500 outline-none ${fieldError === 'username' ? 'border-red-500' : ''}`} required />
+            {fieldError === 'username' && <p className="mt-1 text-xs text-red-600">ဒီ Username က အသုံးပြုပြီးသားပါ။</p>}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">{t('displayName')}</label>
             <input type="text" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-              className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-sky-500 outline-none" />
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-sky-500 outline-none ${fieldError === 'displayName' ? 'border-red-500' : ''}`} />
+            {fieldError === 'displayName' && <p className="mt-1 text-xs text-red-600">ဒီ Display name က အသုံးပြုပြီးသားပါ။</p>}
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">{t('password')}</label>
