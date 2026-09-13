@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { chatAPI, userAPI, groupAPI, walletAPI } from '../services/api'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
-  Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun
+  Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
+  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff
 } from 'lucide-react'
 
 export default function Home() {
@@ -27,8 +28,15 @@ export default function Home() {
   const [withdrawForm, setWithdrawForm] = useState({ amount: '', accountName: '', phoneNumber: '', bankName: '' })
   const [paymentInfo, setPaymentInfo] = useState({})
   const [dark, setDark] = useState(false)
+  const [call, setCall] = useState(null)
+  const [incomingCall, setIncomingCall] = useState(null)
+  const [mutedCall, setMutedCall] = useState(false)
+  const [cameraOff, setCameraOff] = useState(false)
   const messagesEndRef = useRef(null)
   const fileRef = useRef(null)
+  const peerRef = useRef(null)
+  const localStreamRef = useRef(null)
+  const remoteVideoRef = useRef(null)
 
   useEffect(() => {
     loadConversations()
@@ -52,6 +60,32 @@ export default function Home() {
       socket.off('message:new')
     }
   }, [socket, activeChat])
+
+  useEffect(() => {
+    if (!socket) return
+    const onOffer = ({ fromUserId, fromUsername, offer, callType }) => {
+      setIncomingCall({ fromUserId, fromUsername, offer, callType })
+    }
+    const onAnswer = async ({ answer }) => {
+      if (peerRef.current) await peerRef.current.setRemoteDescription(answer)
+    }
+    const onIce = async ({ candidate }) => {
+      if (peerRef.current && candidate) {
+        try { await peerRef.current.addIceCandidate(candidate) } catch {}
+      }
+    }
+    const onEnd = () => endCall(false)
+    socket.on('call:offer', onOffer)
+    socket.on('call:answer', onAnswer)
+    socket.on('call:ice', onIce)
+    socket.on('call:end', onEnd)
+    return () => {
+      socket.off('call:offer', onOffer)
+      socket.off('call:answer', onAnswer)
+      socket.off('call:ice', onIce)
+      socket.off('call:end', onEnd)
+    }
+  }, [socket])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -141,6 +175,81 @@ export default function Home() {
     setInput('')
   }
 
+  const createPeer = (targetUserId, callType) => {
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+    peer.onicecandidate = (event) => {
+      if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
+    }
+    peer.ontrack = (event) => {
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+    }
+    peerRef.current = peer
+    setCall({ targetUserId, callType })
+    return peer
+  }
+
+  const startCall = async (callType) => {
+    if (!activeChat?.data?.id || activeChat.type !== 'private' || !socket) return
+    try {
+      const constraints = callType === 'video' ? { audio: true, video: true } : { audio: true, video: false }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      localStreamRef.current = stream
+      const peer = createPeer(activeChat.data.id, callType)
+      stream.getTracks().forEach(track => peer.addTrack(track, stream))
+      const offer = await peer.createOffer()
+      await peer.setLocalDescription(offer)
+      socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType })
+    } catch {
+      alert('Microphone/Camera permission is required for calls.')
+    }
+  }
+
+  const acceptCall = async () => {
+    if (!incomingCall || !socket) return
+    try {
+      const constraints = incomingCall.callType === 'video' ? { audio: true, video: true } : { audio: true, video: false }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      localStreamRef.current = stream
+      const peer = createPeer(incomingCall.fromUserId, incomingCall.callType)
+      stream.getTracks().forEach(track => peer.addTrack(track, stream))
+      await peer.setRemoteDescription(incomingCall.offer)
+      const answer = await peer.createAnswer()
+      await peer.setLocalDescription(answer)
+      socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer })
+      setIncomingCall(null)
+    } catch {
+      alert('Microphone/Camera permission is required for calls.')
+    }
+  }
+
+  const endCall = (notify = true) => {
+    if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId })
+    peerRef.current?.close()
+    localStreamRef.current?.getTracks().forEach(track => track.stop())
+    peerRef.current = null
+    localStreamRef.current = null
+    setCall(null)
+    setIncomingCall(null)
+    setMutedCall(false)
+    setCameraOff(false)
+  }
+
+  const toggleMute = () => {
+    const track = localStreamRef.current?.getAudioTracks()[0]
+    if (track) {
+      track.enabled = !track.enabled
+      setMutedCall(!track.enabled)
+    }
+  }
+
+  const toggleCamera = () => {
+    const track = localStreamRef.current?.getVideoTracks()[0]
+    if (track) {
+      track.enabled = !track.enabled
+      setCameraOff(!track.enabled)
+    }
+  }
+
   const createGroup = async () => {
     if (!groupName.trim()) return
     try {
@@ -188,7 +297,7 @@ export default function Home() {
   return (
     <div className={`h-screen flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
-      <div className="w-16 md:w-20 bg-sky-600 dark:bg-gray-900 flex flex-col items-center py-4 gap-4">
+      <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 bg-sky-600 dark:bg-gray-900 flex-col items-center py-4 gap-4`}>
         <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
         <button onClick={() => setTab('chats')} className={`p-3 rounded-xl ${tab === 'chats' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <MessageCircle size={22} />
@@ -215,7 +324,7 @@ export default function Home() {
       </div>
 
       {/* List Panel */}
-      <div className="w-72 md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-col`}>
         <div className="p-4 border-b dark:border-gray-700">
           <h2 className="font-bold text-lg text-gray-800 dark:text-white">
             {tab === 'chats' && t('chats')}
@@ -334,10 +443,13 @@ export default function Home() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900">
+      <div className={`${activeChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-gray-50 dark:bg-gray-900`}>
         {activeChat ? (
           <>
             <div className="h-14 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center px-4 gap-3">
+              <button onClick={() => { setActiveChat(null); setMessages([]) }} className="md:hidden p-2 text-gray-500" aria-label="Back">
+                <ArrowLeft size={20} />
+              </button>
               <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">
                 {(activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username || '?')[0].toUpperCase()}
               </div>
@@ -351,8 +463,8 @@ export default function Home() {
               </div>
               {activeChat.type === 'private' && (
                 <>
-                  <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('call')}><Phone size={18} /></button>
-                  <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('videoCall')}><Video size={18} /></button>
+                  <button onClick={() => startCall('audio')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('call')}><Phone size={18} /></button>
+                  <button onClick={() => startCall('video')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('videoCall')}><Video size={18} /></button>
                 </>
               )}
               {activeChat.type === 'group' && activeChat.data?.inviteCode && (
@@ -414,6 +526,42 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {incomingCall && !call && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-xl">
+            <p className="text-lg font-semibold dark:text-white mb-2">Incoming {incomingCall.callType} call</p>
+            <p className="text-gray-500 mb-5">{incomingCall.fromUsername} is calling you</p>
+            <div className="flex gap-3">
+              <button onClick={() => { socket.emit('call:end', { toUserId: incomingCall.fromUserId }); setIncomingCall(null) }} className="flex-1 py-3 rounded-xl bg-red-500 text-white">Decline</button>
+              <button onClick={acceptCall} className="flex-1 py-3 rounded-xl bg-green-500 text-white">Accept</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {call && (
+        <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
+          <div className="flex-1 relative flex items-center justify-center">
+            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
+            <video
+              ref={element => { if (element && localStreamRef.current) element.srcObject = localStreamRef.current }}
+              autoPlay muted playsInline
+              className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
+            />
+            {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
+          </div>
+          <div className="p-5 flex items-center justify-center gap-4 bg-gray-900">
+            <button onClick={toggleMute} className="p-4 rounded-full bg-gray-700 text-white" title="Mute">
+              {mutedCall ? <MicOff size={22} /> : <Mic size={22} />}
+            </button>
+            {call.callType === 'video' && <button onClick={toggleCamera} className="p-4 rounded-full bg-gray-700 text-white" title="Camera">
+              {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
+            </button>}
+            <button onClick={() => endCall(true)} className="p-4 rounded-full bg-red-600 text-white" title="End call"><PhoneOff size={22} /></button>
+          </div>
+        </div>
+      )}
 
       {/* Create Group Modal */}
       {showCreateGroup && (
