@@ -20,6 +20,7 @@ export default function Home() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [wallet, setWallet] = useState(null)
+  const [walletError, setWalletError] = useState('')
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
@@ -78,12 +79,23 @@ export default function Home() {
   }
 
   const loadWallet = async () => {
+    setWalletError('')
     try {
       const res = await walletAPI.get()
       setWallet(res.data)
       const pi = await walletAPI.paymentInfo()
-      setPaymentInfo(pi.data.paymentInfo || {})
-    } catch {}
+      const info = pi.data.paymentInfo || {}
+      setPaymentInfo({
+        bank_name: info.method || '',
+        account_name: info.accountName || '',
+        phone_number: info.phoneNumber || '',
+        qr_image: info.qrCode || '',
+        instructions: info.instructions || ''
+      })
+    } catch (err) {
+      setWallet(null)
+      setWalletError(err.response?.data?.error || 'Wallet data could not be loaded')
+    }
   }
 
   const handleSearch = async () => {
@@ -273,6 +285,10 @@ export default function Home() {
                 </div>
               ))}
             </div>
+          )}
+
+          {tab === 'wallet' && walletError && (
+            <p className="p-4 text-sm text-red-500">{walletError}</p>
           )}
 
           {tab === 'wallet' && wallet && (

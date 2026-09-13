@@ -28,11 +28,6 @@ router.get('/', auth, async (req, res) => {
       where: { id: req.user.id },
       select: { coinBalance: true }
     });
-    const transactions = await prisma.transaction.findMany({
-      where: { userId: req.user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    });
     const deposits = await prisma.depositRequest.findMany({
       where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },
@@ -45,7 +40,7 @@ router.get('/', auth, async (req, res) => {
     });
     res.json({
       balance: user.coinBalance,
-      transactions,
+      transactions: [],
       depositRequests: deposits,
       withdrawRequests: withdraws
     });
