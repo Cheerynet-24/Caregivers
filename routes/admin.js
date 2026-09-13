@@ -54,7 +54,7 @@ router.get('/payment-info', async (req, res) => {
 // Save Payment Info (Admin Only)
 // Accept both the current frontend field names (bank_name/account_name/phone_number)
 // and the database field names (method/accountName/phoneNumber).
-router.post('/payment-info', upload.none(), deviceAuth, async (req, res) => {
+router.post('/payment-info', upload.single('qr_image'), deviceAuth, async (req, res) => {
   try {
     const method = req.body.method || req.body.bank_name || '';
     const accountName = req.body.accountName || req.body.account_name || '';
@@ -119,7 +119,7 @@ router.post('/users/:id/unban', deviceAuth, async (req, res) => {
       where: { id: req.params.id },
       data: { isBanned: false }
     });
-    res.json({ message: "User unbanned", user: sanitizeUser(user) });
+    res.json({ message: "User unbanned", user });
   } catch (err) {
     res.status(500).json({ error: "Failed" });
   }
