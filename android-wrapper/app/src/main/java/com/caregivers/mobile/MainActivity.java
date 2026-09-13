@@ -19,6 +19,7 @@ import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
 import android.webkit.JavascriptInterface;
+import android.widget.Toast;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
@@ -31,6 +32,7 @@ public class MainActivity extends Activity {
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
     private AudioManager audioManager;
+    private long lastBackPressedAt;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -211,5 +213,17 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() { if (webView != null) webView.destroy(); super.onDestroy(); }
 
-    @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) webView.goBack(); else super.onBackPressed(); }
+    @Override public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastBackPressedAt < 1800) {
+            super.onBackPressed();
+        } else {
+            lastBackPressedAt = now;
+            Toast.makeText(this, "နောက်တစ်ကြိမ်နှိပ်လျှင် App ပိတ်မည်", Toast.LENGTH_SHORT).show();
+        }
+    }
 }

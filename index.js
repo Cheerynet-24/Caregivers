@@ -22,6 +22,15 @@ app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
+app.get('/api/call-config', (req, res) => {
+  const urls = String(process.env.TURN_URLS || process.env.TURN_URL || '').split(',').map(value => value.trim()).filter(Boolean);
+  res.json({
+    iceServers: urls.length && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL
+      ? [{ urls, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL }]
+      : []
+  });
+});
+
 // Uploads folder setup
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {

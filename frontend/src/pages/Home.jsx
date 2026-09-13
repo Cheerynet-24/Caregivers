@@ -59,6 +59,7 @@ export default function Home() {
   const [recordingVoice, setRecordingVoice] = useState(false)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
   const [audioRoute, setAudioRoute] = useState(localStorage.getItem('caregivers-audio-route') || 'earpiece')
+  const [iceServers, setIceServers] = useState([])
   const [customSounds, setCustomSounds] = useState({})
   const soundRefs = useRef({})
   const messagesEndRef = useRef(null)
@@ -77,6 +78,7 @@ export default function Home() {
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
+    fetch('/api/call-config').then(response => response.ok ? response.json() : null).then(config => setIceServers(config?.iceServers || [])).catch(() => {})
     loadConversations()
     loadGroups()
     loadFriends()
@@ -472,7 +474,8 @@ export default function Home() {
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun.cloudflare.com:3478' },
-      { urls: 'stun:stun.nextcloud.com:443' }
+      { urls: 'stun:stun.nextcloud.com:443' },
+      ...iceServers
     ] })
     peer.onconnectionstatechange = () => {
       if (['failed', 'disconnected'].includes(peer.connectionState)) console.warn('Caregivers call connection:', peer.connectionState)
