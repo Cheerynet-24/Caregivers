@@ -60,6 +60,8 @@ export default function Home() {
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
+  const remoteStreamRef = useRef(null)
+  const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
 
@@ -103,6 +105,7 @@ export default function Home() {
     const onNotification = notification => {
       setNotifications(prev => [notification, ...prev].slice(0, 20))
       setLatestNotification(notification)
+      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('message')
     }
     socket.on('notification:new', onNotification)
     return () => socket.off('notification:new', onNotification)
@@ -140,6 +143,13 @@ export default function Home() {
   }, [messages])
 
   useEffect(() => {
+    if (remoteVideoRef.current && remoteStreamRef.current) {
+      remoteVideoRef.current.srcObject = remoteStreamRef.current
+      remoteVideoRef.current.play?.().catch(() => {})
+    }
+  }, [call])
+
+  useEffect(() => {
     if (activeChat?.id) {
       setChatBackground(localStorage.getItem(`chat-bg-${activeChat.id}`) || '')
       setChatSettings(JSON.parse(localStorage.getItem(`chat-settings-${activeChat.id}`) || '{"muted":false,"notifications":true,"blocked":false}'))
@@ -171,8 +181,17 @@ export default function Home() {
   const playCustomSound = kind => {
     const src = customSounds[kind]
     if (!src) return
+    notificationAudioRef.current?.pause()
+    notificationAudioRef.current?.removeAttribute('src')
     const audio = new Audio(src)
+    notificationAudioRef.current = audio
     audio.play().catch(() => {})
+  }
+
+  const stopNotificationSound = () => {
+    notificationAudioRef.current?.pause()
+    notificationAudioRef.current?.removeAttribute('src')
+    notificationAudioRef.current = null
   }
 
   const saveCustomSound = (kind, file) => {
@@ -276,6 +295,7 @@ export default function Home() {
 
   const openPrivateChat = async (otherUser) => {
     try {
+      stopNotificationSound()
       const res = await chatAPI.getOrCreateConversation(otherUser.id)
       const conv = res.data.conversation
       setActiveChat({ type: 'private', id: conv.id, data: otherUser })
@@ -392,7 +412,8 @@ export default function Home() {
       if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
     }
     peer.ontrack = (event) => {
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+      remoteStreamRef.current = event.streams[0]
+      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; remoteVideoRef.current.play?.().catch(() => {}) }
     }
     peerRef.current = peer
     setCall({ targetUserId, callType })
@@ -417,6 +438,7 @@ export default function Home() {
 
   const acceptCall = async () => {
     if (!incomingCall || !socket) return
+    stopNotificationSound()
     try {
       const constraints = incomingCall.callType === 'video' ? { audio: true, video: true } : { audio: true, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -434,6 +456,7 @@ export default function Home() {
   }
 
   const endCall = (notify = true) => {
+    stopNotificationSound()
     if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId })
     peerRef.current?.close()
     localStreamRef.current?.getTracks().forEach(track => track.stop())
@@ -815,7 +838,7 @@ export default function Home() {
 
       {latestNotification && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
-          <button onClick={() => setLatestNotification(null)} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
+          <button onClick={() => { stopNotificationSound(); setLatestNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
           <p className="font-bold text-sky-600 dark:text-sky-300">📣 {latestNotification.title}</p>
           <p className="mt-1 text-sm dark:text-gray-200 whitespace-pre-wrap">{latestNotification.message}</p>
         </div>
@@ -838,7 +861,7 @@ export default function Home() {
             <p className="text-lg font-semibold dark:text-white mb-2">Incoming {incomingCall.callType} call</p>
             <p className="text-gray-500 mb-5">{incomingCall.fromUsername} is calling you</p>
             <div className="flex gap-3">
-              <button onClick={() => { socket.emit('call:end', { toUserId: incomingCall.fromUserId }); setIncomingCall(null) }} className="flex-1 py-3 rounded-xl bg-red-500 text-white">Decline</button>
+              <button onClick={() => { stopNotificationSound(); socket.emit('call:end', { toUserId: incomingCall.fromUserId }); setIncomingCall(null) }} className="flex-1 py-3 rounded-xl bg-red-500 text-white">Decline</button>
               <button onClick={acceptCall} className="flex-1 py-3 rounded-xl bg-green-500 text-white">Accept</button>
             </div>
           </div>
