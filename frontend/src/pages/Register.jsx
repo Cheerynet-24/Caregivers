@@ -29,7 +29,7 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-500 to-indigo-600 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Caregivers" className="w-20 h-20 rounded-full mx-auto mb-4 object-cover border-4 border-sky-400" />
+          <img src="/favicon.jpg" alt="Caregivers" className="w-20 h-20 rounded-full mx-auto mb-4 object-cover border-4 border-sky-400" />
           <h1 className="text-3xl font-bold text-gray-800 dark:text-white">{t('register')}</h1>
         </div>
 
