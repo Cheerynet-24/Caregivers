@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "405569199451",
+    "project_id": "caregivers-774fa",
+    "storage_bucket": "caregivers-774fa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:405569199451:android:028af969ea8a12380f0e7e",
+        "android_client_info": {
+          "package_name": "com.caregivers.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBq6xuACZdGiZQrqbGjJ4nGUMKl1jxCrgA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
