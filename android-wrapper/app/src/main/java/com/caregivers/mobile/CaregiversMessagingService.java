@@ -38,15 +38,16 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Caregivers messages and calls", NotificationManager.IMPORTANCE_HIGH));
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+        int notificationId = (int) System.currentTimeMillis();
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_HIGH).setDefaults(NotificationCompat.DEFAULT_ALL).setAutoCancel(true).setContentIntent(content);
         if (!type.equals("call")) {
             RemoteInput input = new RemoteInput.Builder(REPLY_KEY).setLabel("Reply").build();
-            Intent reply = new Intent(this, NotificationReplyReceiver.class).putExtra("from_user_id", fromUserId);
+            Intent reply = new Intent(this, NotificationReplyReceiver.class).putExtra("from_user_id", fromUserId).putExtra("notification_id", notificationId);
             PendingIntent replyPending = PendingIntent.getBroadcast(this, (int) System.currentTimeMillis(), reply, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
-            builder.addAction(new NotificationCompat.Action.Builder(0, "Reply", replyPending).addRemoteInput(input).build());
+            builder.addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Reply", replyPending).addRemoteInput(input).setAllowGeneratedReplies(true).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build());
         }
-        manager.notify((int) System.currentTimeMillis(), builder.build());
+        manager.notify(notificationId, builder.build());
     }
 }
