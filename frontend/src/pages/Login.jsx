@@ -17,7 +17,8 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      await login(username, password)
+      const result = await login(username, password)
+      if (result.mustResetPassword) window.alert('ဒီဟာက temporary password ဖြစ်ပါတယ်။ Profile ထဲက Change password မှာ password အသစ်ပြောင်းပါ။')
       navigate('/')
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed')

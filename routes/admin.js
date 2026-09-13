@@ -6,7 +6,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
-const { sanitizeUser } = require('../utils/helpers');
+const { sanitizeUser, hashPassword } = require('../utils/helpers');
 
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -184,6 +184,16 @@ router.delete('/users/:id', deviceAuth, async (req, res) => {
     });
     res.json({ success: true, message: 'User deleted' });
   } catch (err) { res.status(500).json({ error: 'Failed to delete user' }); }
+});
+
+router.post('/users/:id/reset-password', deviceAuth, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const temporaryPassword = `Care${require('crypto').randomBytes(4).toString('hex')}`;
+    await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(temporaryPassword), mustResetPassword: true } });
+    res.json({ success: true, username: user.username, temporaryPassword });
+  } catch (err) { res.status(500).json({ error: 'Failed to reset password' }); }
 });
 
 // Ban / Unban users

@@ -12,6 +12,7 @@ model User {
   username            String          @unique
   email               String?         @unique
   password            String
+  mustResetPassword   Boolean         @default(false)
   displayName         String?
   bio                 String?
   avatar              String?

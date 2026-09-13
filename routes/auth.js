@@ -100,7 +100,7 @@ router.put('/password', auth, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword || String(newPassword).length < 4) return res.status(400).json({ error: 'Current password and a new password of at least 4 characters are required' });
     if (!await comparePassword(currentPassword, req.user.password)) return res.status(401).json({ error: 'Current password is incorrect' });
-    const user = await prisma.user.update({ where: { id: req.user.id }, data: { password: await hashPassword(newPassword) } });
+    const user = await prisma.user.update({ where: { id: req.user.id }, data: { password: await hashPassword(newPassword), mustResetPassword: false } });
     res.json({ user: sanitizeUser(user) });
   } catch (err) { res.status(500).json({ error: 'Password update failed' }); }
 });

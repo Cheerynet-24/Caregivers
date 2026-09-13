@@ -88,6 +88,7 @@ export const adminAPI = {
   users: (password) => api.get('/api/admin/users', { headers: { 'x-admin-password': password } }),
   approveUser: (id, password) => api.post(`/api/admin/users/${id}/approve`, {}, { headers: { 'x-admin-password': password } }),
   deleteUser: (id, password) => api.delete(`/api/admin/users/${id}`, { headers: { 'x-admin-password': password } }),
+  resetPassword: (id, password) => api.post(`/api/admin/users/${id}/reset-password`, {}, { headers: { 'x-admin-password': password } }),
   ban: (id, password) => api.post(`/api/admin/users/${id}/ban`, {}, { headers: { 'x-admin-password': password } }),
   unban: (id, password) => api.post(`/api/admin/users/${id}/unban`, {}, { headers: { 'x-admin-password': password } }),
   mute: (id, password) => api.post(`/api/admin/users/${id}/mute`, {}, { headers: { 'x-admin-password': password } }),
