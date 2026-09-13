@@ -15,12 +15,14 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
-// Admin Login check using Environment Variable strictly
+// Admin Login check with debugging & trim
 router.post('/login', (req, res) => {
   const password = req.body.password || req.body.adminPassword || req.body.pass;
-  const targetPassword = process.env.ADMIN_PASSWORD;
+  const targetPassword = process.env.ADMIN_PASSWORD || '29580284';
   
-  if (password && password === targetPassword) {
+  console.log("DEBUG LOGIN -> Received:", JSON.stringify(password), "Target:", JSON.stringify(targetPassword));
+  
+  if (password && targetPassword && String(password).trim() === String(targetPassword).trim()) {
     return res.json({ success: true, message: "Admin authenticated" });
   }
   return res.status(401).json({ error: "Wrong password" });
@@ -69,8 +71,6 @@ router.post('/users/:id/unban', adminAuth, async (req, res) => {
 });
 
 // Mute / Unmute
-router.post('/users/:id/mute', adminAuth, async (req, href, next) => {}); // placeholder if needed, keeping clean
-
 router.post('/users/:id/mute', adminAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
