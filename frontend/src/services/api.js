@@ -34,6 +34,7 @@ export const callAPI = {
 
 export const userAPI = {
   search: (q) => api.get('/api/users/search', { params: { q } }),
+  profile: (id) => api.get(`/api/users/${id}`),
   friends: () => api.get('/api/users/friends'),
   friendRequests: () => api.get('/api/users/friend-requests'),
   notifications: () => api.get('/api/users/notifications'),

@@ -34,7 +34,6 @@ router.get('/search', auth, async (req, res) => {
         id: true,
         username: true,
         displayName: true,
-        avatar: true,
         isOnline: true,
         lastSeen: true,
         bio: true
@@ -60,8 +59,8 @@ router.get('/friends', auth, async (req, res) => {
         ]
       },
       include: {
-        user1: { select: { id: true, username: true, displayName: true, avatar: true, isOnline: true, lastSeen: true } },
-        user2: { select: { id: true, username: true, displayName: true, avatar: true, isOnline: true, lastSeen: true } }
+        user1: { select: { id: true, username: true, displayName: true, isOnline: true, lastSeen: true } },
+        user2: { select: { id: true, username: true, displayName: true, isOnline: true, lastSeen: true } }
       }
     });
 
@@ -163,13 +162,21 @@ router.get('/friend-requests', auth, async (req, res) => {
     const requests = await prisma.friendRequest.findMany({
       where: { toUserId: req.user.id, status: 'pending' },
       include: {
-        fromUser: { select: { id: true, username: true, displayName: true, avatar: true } }
+        fromUser: { select: { id: true, username: true, displayName: true } }
       }
     });
     res.json({ requests: requests.map(request => ({ ...request, fromUser: compactUser(request.fromUser) })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }
+});
+
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const profile = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true, displayName: true, avatar: true, bio: true, isOnline: true, lastSeen: true } });
+    if (!profile) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: profile });
+  } catch { res.status(500).json({ error: 'Failed to load profile' }); }
 });
 
 // Update profile

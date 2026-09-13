@@ -101,7 +101,7 @@ router.get('/messages/:conversationId', auth, async (req, res) => {
     const messages = await prisma.message.findMany({
       where: { conversationId: req.params.conversationId },
       include: {
-        sender: { select: { id: true, username: true, displayName: true, avatar: true } }
+        sender: { select: { id: true, username: true, displayName: true } }
       },
       orderBy: { createdAt: 'asc' },
       take: 200
@@ -125,7 +125,7 @@ router.get('/group-messages/:groupId', auth, async (req, res) => {
     const messages = await prisma.message.findMany({
       where: { groupId: req.params.groupId },
       include: {
-        sender: { select: { id: true, username: true, displayName: true, avatar: true } }
+        sender: { select: { id: true, username: true, displayName: true } }
       },
       orderBy: { createdAt: 'asc' },
       take: 300
@@ -149,8 +149,8 @@ router.get('/conversations', auth, async (req, res) => {
       orderBy: { updatedAt: 'desc' },
       take: 50,
       include: {
-        user1: { select: { id: true, username: true, displayName: true, avatar: true, isOnline: true } },
-        user2: { select: { id: true, username: true, displayName: true, avatar: true, isOnline: true } },
+        user1: { select: { id: true, username: true, displayName: true, isOnline: true } },
+        user2: { select: { id: true, username: true, displayName: true, isOnline: true } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1 }
       }
     });
@@ -168,7 +168,7 @@ router.get('/conversations', auth, async (req, res) => {
 
 router.get('/call-history', auth, async (req, res) => {
   try {
-    const calls = await prisma.callLog.findMany({ where: { OR: [{ callerId: req.user.id }, { receiverId: req.user.id }] }, include: { caller: { select: { id: true, username: true, displayName: true, avatar: true } }, receiver: { select: { id: true, username: true, displayName: true, avatar: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
+    const calls = await prisma.callLog.findMany({ where: { OR: [{ callerId: req.user.id }, { receiverId: req.user.id }] }, include: { caller: { select: { id: true, username: true, displayName: true } }, receiver: { select: { id: true, username: true, displayName: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json({ calls });
   } catch (err) { res.status(500).json({ error: 'Failed to load call history' }); }
 });

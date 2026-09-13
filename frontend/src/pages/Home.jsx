@@ -353,6 +353,10 @@ export default function Home() {
       setSearchUsers(res.data.users || [])
     } catch {}
   }
+  const showUserProfile = userItem => {
+    setSelectedProfile(userItem)
+    userAPI.profile(userItem.id).then(res => setSelectedProfile(res.data.user)).catch(() => {})
+  }
 
   const openPrivateChat = async (otherUser, knownConversationId = null) => {
     try {
@@ -772,11 +776,11 @@ export default function Home() {
               </div>
               {searchUsers.map(u => (
                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
-                  <button onClick={() => setSelectedProfile(u)} className="shrink-0">
+                  <button onClick={() => showUserProfile(u)} className="shrink-0">
                     {u.avatar ? <img src={resolveMediaUrl(u.avatar)} alt="" className="w-9 h-9 rounded-full object-cover" /> : <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-sm">{(u.displayName || u.username)[0].toUpperCase()}</div>}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <button onClick={() => setSelectedProfile(u)} className="text-sm font-medium dark:text-white truncate text-left">{u.displayName || u.username}</button>
+                    <button onClick={() => showUserProfile(u)} className="text-sm font-medium dark:text-white truncate text-left">{u.displayName || u.username}</button>
                     <p className="text-xs text-gray-500">@{u.username}</p>
                   </div>
                   <button onClick={() => openPrivateChat(u)} className="p-1.5 text-sky-500 hover:bg-sky-50 rounded"><MessageCircle size={16} /></button>
