@@ -355,7 +355,7 @@ export default function Home() {
     <div className={`h-screen flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
       <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 bg-sky-600 dark:bg-gray-900 flex-col items-center py-4 gap-4`}>
-        <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
+        <img src="/logo.png" alt="Caregivers" className="w-10 h-10 rounded-full object-cover" />
         <button onClick={() => setTab('chats')} className={`p-3 rounded-xl ${tab === 'chats' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <MessageCircle size={22} />
         </button>
@@ -600,7 +600,7 @@ export default function Home() {
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-400">
             <div className="text-center">
-              <img src="/favicon.jpg" alt="" className="w-24 h-24 rounded-full mx-auto mb-4 object-cover opacity-50" />
+              <img src="/logo.png" alt="Caregivers" className="w-24 h-24 rounded-full mx-auto mb-4 object-cover opacity-50" />
               <p className="text-lg font-medium">{t('welcome')}</p>
               <p className="text-sm mt-1">{t('appName')}</p>
             </div>

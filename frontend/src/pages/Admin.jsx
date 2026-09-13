@@ -78,7 +78,7 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <header className="bg-gray-800 text-white px-6 py-4 flex items-center gap-4">
-        <img src="/favicon.jpg" alt="" className="w-8 h-8 rounded-full object-cover" />
+        <img src="/logo.png" alt="Caregivers" className="w-8 h-8 rounded-full object-cover" />
         <h1 className="font-bold text-lg">{t('adminPanel')} - Caregivers</h1>
         <div className="flex-1" />
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-sm px-3 py-1 bg-white/10 rounded">
