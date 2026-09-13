@@ -28,7 +28,7 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
       android: {
         priority: 'high',
         notification: {
-          channelId: type === 'call' ? 'caregivers_calls' : 'caregivers_messages',
+          channelId: 'caregivers_calls_messages_v2',
           sound: type === 'call' ? 'default' : 'default'
         }
       }

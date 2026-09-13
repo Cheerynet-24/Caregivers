@@ -11,7 +11,7 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v2";
 
     @Override public void onNewToken(@NonNull String token) {
         getSharedPreferences("caregivers", MODE_PRIVATE).edit().putString("fcm_token", token).apply();
@@ -32,7 +32,7 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         PendingIntent pending = PendingIntent.getActivity(this, 1, intent, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_HIGH).setAutoCancel(true).setContentIntent(pending);
+                .setPriority(NotificationCompat.PRIORITY_HIGH).setDefaults(NotificationCompat.DEFAULT_ALL).setAutoCancel(true).setContentIntent(pending);
         manager.notify((int) System.currentTimeMillis(), builder.build());
     }
 }

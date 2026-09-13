@@ -24,6 +24,7 @@ import com.google.firebase.messaging.FirebaseMessaging;
 public class MainActivity extends Activity {
     private static final int FILE_PICKER = 1001;
     private static final int RUNTIME_PERMISSIONS = 1002;
+    private static final int NOTIFICATION_PERMISSION = 1003;
     private WebView webView;
     private ValueCallback<Uri[]> uploadCallback;
     private PermissionRequest pendingWebPermission;
@@ -40,6 +41,7 @@ public class MainActivity extends Activity {
             audioManager.setSpeakerphoneOn(false);
         }
         setContentView(webView);
+        requestNotificationPermission();
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -144,6 +146,12 @@ public class MainActivity extends Activity {
                     audioManager.setSpeakerphoneOn(false);
                 }
             });
+        }
+    }
+
+    private void requestNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
         }
     }
 
