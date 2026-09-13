@@ -741,13 +741,7 @@ export default function Home() {
                 rows="1"
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    sendMessage()
-                  }
-                }}
-                placeholder={`${t('typeMessage')} · Shift+Enter = စာကြောင်းခြား`}
+                placeholder={t('typeMessage')}
                 className="min-w-0 flex-1 resize-none px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-2xl outline-none focus:ring-2 focus:ring-sky-400 dark:bg-gray-700 dark:text-white text-sm"
               />
               <button type="button" onClick={() => sendMessage()} className="p-2.5 bg-sky-500 text-white rounded-full hover:bg-sky-600">
