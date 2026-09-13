@@ -5,7 +5,7 @@ import { chatAPI, userAPI, groupAPI, walletAPI } from '../services/api'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
-  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin
+  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical
 } from 'lucide-react'
 
 export default function Home() {
@@ -41,6 +41,7 @@ export default function Home() {
   const [chatBackground, setChatBackground] = useState('')
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
+  const [messageMenu, setMessageMenu] = useState(null)
   const messagesEndRef = useRef(null)
   const fileRef = useRef(null)
   const chatFileRef = useRef(null)
@@ -57,7 +58,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!socket) return
-    socket.on('message:new', (msg) => {
+    const onNewMessage = (msg) => {
       if (activeChat) {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
         const matchGroup = activeChat.type === 'group' && msg.groupId === activeChat.id
@@ -66,9 +67,16 @@ export default function Home() {
         }
       }
       loadConversations()
-    })
+    }
+    const onUpdateMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg } : item))
+    const onDeleteMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg, type: 'deleted' } : item))
+    socket.on('message:new', onNewMessage)
+    socket.on('message:update', onUpdateMessage)
+    socket.on('message:delete', onDeleteMessage)
     return () => {
-      socket.off('message:new')
+      socket.off('message:new', onNewMessage)
+      socket.off('message:update', onUpdateMessage)
+      socket.off('message:delete', onDeleteMessage)
     }
   }, [socket, activeChat])
 
@@ -238,6 +246,33 @@ export default function Home() {
       ({ coords }) => sendMessage(`📍 Location: ${coords.latitude}, ${coords.longitude}\nhttps://www.google.com/maps?q=${coords.latitude},${coords.longitude}`, 'location'),
       () => alert('Location permission ကို Allow လုပ်ပြီး ပြန်ကြိုးစားပါ')
     )
+  }
+
+  const handleMessageAction = async (action, message) => {
+    setMessageMenu(null)
+    if (action === 'copy') {
+      await navigator.clipboard?.writeText(message.content || message.fileUrl || '')
+      return
+    }
+    if (action === 'share') {
+      if (navigator.share) await navigator.share({ title: 'Caregivers message', text: message.content || '', url: message.fileUrl || undefined })
+      else await navigator.clipboard?.writeText(message.content || message.fileUrl || '')
+      return
+    }
+    if (action === 'forward') {
+      if (!activeChat || !socket) return
+      const payload = activeChat.type === 'private' ? { conversationId: activeChat.id } : { groupId: activeChat.id }
+      socket.emit(activeChat.type === 'private' ? 'message:private' : 'message:group', { ...payload, content: `↪️ Forwarded: ${message.content || ''}`, type: message.type, fileUrl: message.fileUrl || undefined })
+      return
+    }
+    if (action === 'edit' && message.senderId === user.id) {
+      const content = window.prompt('Edit message', message.content || '')
+      if (content?.trim()) socket.emit('message:edit', { messageId: message.id, content })
+      return
+    }
+    if (action === 'delete' && message.senderId === user.id) {
+      if (window.confirm('Delete this message?')) socket.emit('message:delete', { messageId: message.id })
+    }
   }
 
   const createPeer = (targetUserId, callType) => {
@@ -565,7 +600,8 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div key={m.id} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[70%] px-4 py-2 rounded-2xl text-sm ${
+                  <div className="relative group max-w-[85%]">
+                  <div className={`max-w-full px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
                       : 'bg-white dark:bg-gray-700 dark:text-white rounded-bl-md shadow-sm'
@@ -573,7 +609,8 @@ export default function Home() {
                     {activeChat.type === 'group' && m.senderId !== user.id && (
                       <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mb-0.5">{m.sender?.displayName || m.sender?.username}</p>
                     )}
-                    {m.type === 'image' && m.fileUrl ? <><img src={m.fileUrl} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
+                    {m.type === 'deleted' ? <p className="italic opacity-70">This message was deleted</p>
+                      : m.type === 'image' && m.fileUrl ? <><img src={m.fileUrl} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
                       : m.type === 'video' && m.fileUrl ? <><video src={m.fileUrl} controls className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
                       : m.type === 'audio' && m.fileUrl ? <audio src={m.fileUrl} controls />
                       : m.type === 'file' && m.fileUrl ? <a href={m.fileUrl} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
@@ -582,6 +619,11 @@ export default function Home() {
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
+                  </div>
+                  <button onClick={() => setMessageMenu(messageMenu === m.id ? null : m.id)} className="absolute -right-8 top-1 p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-sky-500" title="Message actions"><MoreVertical size={17} /></button>
+                  {messageMenu === m.id && <div className={`absolute z-20 top-8 ${m.senderId === user.id ? 'right-0' : 'left-0'} bg-white dark:bg-gray-800 border rounded-xl shadow-lg p-1 min-w-32 text-xs dark:text-white`}>
+                    {['share', 'forward', 'copy', ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => handleMessageAction(action, m)} className="block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize">{action}</button>)}
+                  </div>}
                   </div>
                 </div>
               ))}

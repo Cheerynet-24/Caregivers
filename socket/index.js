@@ -82,6 +82,42 @@ function setupSocket(io, prisma) {
       }
     });
 
+    socket.on('message:edit', async ({ messageId, content }) => {
+      try {
+        if (!messageId || !String(content || '').trim()) return;
+        const message = await prisma.message.findFirst({ where: { id: messageId, senderId: userId } });
+        if (!message) return socket.emit('error', { message: 'You can only edit your own message' });
+        const updated = await prisma.message.update({
+          where: { id: messageId },
+          data: { content: String(content).trim(), editedAt: new Date() },
+          include: { sender: { select: { id: true, username: true, displayName: true, avatar: true } } }
+        });
+        if (message.conversationId) {
+          const conversation = await prisma.conversation.findUnique({ where: { id: message.conversationId } });
+          const otherId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+          io.to(`user:${otherId}`).emit('message:update', updated);
+        } else if (message.groupId) io.to(`group:${message.groupId}`).emit('message:update', updated);
+        socket.emit('message:update', updated);
+      } catch (err) { console.error('message edit error', err); }
+    });
+
+    socket.on('message:delete', async ({ messageId }) => {
+      try {
+        const message = await prisma.message.findFirst({ where: { id: messageId, senderId: userId } });
+        if (!message) return socket.emit('error', { message: 'You can only delete your own message' });
+        const deleted = await prisma.message.update({
+          where: { id: messageId },
+          data: { content: 'This message was deleted', fileUrl: null, type: 'deleted', deletedAt: new Date() }
+        });
+        if (message.conversationId) {
+          const conversation = await prisma.conversation.findUnique({ where: { id: message.conversationId } });
+          const otherId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+          io.to(`user:${otherId}`).emit('message:delete', deleted);
+        } else if (message.groupId) io.to(`group:${message.groupId}`).emit('message:delete', deleted);
+        socket.emit('message:delete', deleted);
+      } catch (err) { console.error('message delete error', err); }
+    });
+
     // Group message
     socket.on('message:group', async (data) => {
       try {
