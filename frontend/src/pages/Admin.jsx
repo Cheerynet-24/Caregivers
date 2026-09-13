@@ -77,9 +77,9 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <header className="bg-gray-800 text-white px-6 py-4 flex items-center gap-4">
+      <header className="bg-gray-800 text-white px-3 md:px-6 py-3 md:py-4 flex items-center gap-3">
         <img src="/favicon.jpg" alt="" className="w-8 h-8 rounded-full object-cover" />
-        <h1 className="font-bold text-lg">{t('adminPanel')} - Caregivers</h1>
+        <h1 className="font-bold text-sm md:text-lg truncate">{t('adminPanel')} - Caregivers</h1>
         <div className="flex-1" />
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-sm px-3 py-1 bg-white/10 rounded">
           {i18n.language === 'my' ? 'EN' : 'မြန်မာ'}
@@ -87,38 +87,38 @@ export default function Admin() {
         <button onClick={() => setAuthed(false)} className="p-2 hover:bg-white/10 rounded"><LogOut size={18} /></button>
       </header>
 
-      <div className="flex">
-        <nav className="w-56 bg-white dark:bg-gray-800 border-r min-h-[calc(100vh-64px)] p-4 space-y-1">
+      <div className="flex flex-col md:flex-row">
+        <nav className="w-full md:w-56 bg-white dark:bg-gray-800 border-b md:border-b-0 md:border-r min-h-0 md:min-h-[calc(100vh-64px)] p-2 md:p-4 flex md:block gap-1 overflow-x-auto">
           <button onClick={() => { setTab('users'); loadUsers() }}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'users' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'users' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Users size={18} /> {t('userList')}
           </button>
           <button onClick={() => { setTab('deposits'); loadDeposits() }}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'deposits' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'deposits' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <CreditCard size={18} /> {t('depositRequests')}
           </button>
           <button onClick={() => { setTab('withdraws'); loadWithdraws() }}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'withdraws' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'withdraws' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Wallet size={18} /> {t('withdrawRequests')}
           </button>
           <button onClick={() => { setTab('payment'); loadPayment() }}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'payment' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'payment' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <CreditCard size={18} /> {t('setPaymentInfo')}
           </button>
           <button onClick={() => setTab('coins')}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'coins' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'coins' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Plus size={18} /> {t('walletManage')}
           </button>
           <button onClick={() => setTab('broadcast')}
-            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'broadcast' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'broadcast' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Bell size={18} /> အသိပေးစာပို့ရန်
           </button>
         </nav>
 
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="flex-1 min-w-0 w-full p-3 md:p-6 overflow-auto">
           {tab === 'users' && (
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow overflow-hidden">
-              <table className="w-full text-sm">
+              <table className="hidden md:table w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
                     <th className="text-left p-3">User</th>
@@ -152,6 +152,34 @@ export default function Admin() {
                   ))}
                 </tbody>
               </table>
+              <div className="md:hidden divide-y dark:divide-gray-700">
+                {users.map(u => (
+                  <div key={u.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 dark:text-white break-words">{u.displayName || u.username}</p>
+                        <p className="text-xs text-gray-500 break-all">@{u.username}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-yellow-100 text-yellow-700 px-2 py-1 text-xs">{u.coinBalance || 0} coins</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {u.isBanned && <span className="rounded-full bg-red-100 text-red-600 px-2 py-1">Banned</span>}
+                      {u.isMuted && <span className="rounded-full bg-orange-100 text-orange-600 px-2 py-1">Muted</span>}
+                      {u.isOnline && !u.isBanned && <span className="rounded-full bg-green-100 text-green-600 px-2 py-1">Online</span>}
+                      {!u.isBanned && !u.isMuted && !u.isOnline && <span className="rounded-full bg-gray-100 text-gray-500 px-2 py-1">Offline</span>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {u.isBanned
+                        ? <button onClick={() => adminAPI.unban(u.id, password).then(loadUsers)} className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs">{t('unban')}</button>
+                        : <button onClick={() => adminAPI.ban(u.id, password).then(loadUsers)} className="px-3 py-2 bg-red-100 text-red-700 rounded-lg text-xs">{t('ban')}</button>}
+                      {u.isMuted
+                        ? <button onClick={() => adminAPI.unmute(u.id, password).then(loadUsers)} className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs">{t('unmute')}</button>
+                        : <button onClick={() => adminAPI.mute(u.id, password).then(loadUsers)} className="px-3 py-2 bg-orange-100 text-orange-700 rounded-lg text-xs">{t('mute')}</button>}
+                    </div>
+                  </div>
+                ))}
+                {users.length === 0 && <p className="p-4 text-sm text-gray-500">No users</p>}
+              </div>
             </div>
           )}
 
