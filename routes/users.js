@@ -175,7 +175,7 @@ router.get('/friend-requests', auth, async (req, res) => {
 // Update profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, displayName, bio, avatar } = req.body;
+    const { username, displayName, bio, avatar, allowMessagesFrom, allowPostsFrom } = req.body;
     if (username !== undefined) {
       const nextUsername = String(username).trim();
       if (nextUsername.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
@@ -188,7 +188,9 @@ router.put('/profile', auth, async (req, res) => {
         ...(username !== undefined && { username: String(username).trim() }),
         ...(displayName !== undefined && { displayName }),
         ...(bio !== undefined && { bio }),
-        ...(avatar !== undefined && { avatar })
+        ...(avatar !== undefined && { avatar }),
+        ...(allowMessagesFrom !== undefined && { allowMessagesFrom: ['everyone', 'friends'].includes(allowMessagesFrom) ? allowMessagesFrom : 'everyone' }),
+        ...(allowPostsFrom !== undefined && { allowPostsFrom: ['everyone', 'friends'].includes(allowPostsFrom) ? allowPostsFrom : 'everyone' }),
       }
     });
     res.json({ user: sanitizeUser(user) });

@@ -19,6 +19,8 @@ model User {
   isBanned            Boolean         @default(false)
   isMuted             Boolean         @default(false)
   isApproved          Boolean         @default(true)
+  allowMessagesFrom   String          @default("everyone")
+  allowPostsFrom      String          @default("everyone")
   coinBalance         Float           @default(0)
   role                String          @default("user")
   createdAt           DateTime        @default(now())

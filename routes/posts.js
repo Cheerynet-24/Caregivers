@@ -45,7 +45,9 @@ const shapePost = (post, userId) => ({
 
 router.get('/', auth, async (req, res) => {
   try {
-    const posts = await prisma.post.findMany({ include: postInclude, orderBy: { createdAt: 'desc' }, take: 100 });
+    const friendships = await prisma.friendship.findMany({ where: { OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }] }, select: { user1Id: true, user2Id: true } });
+    const friendIds = friendships.map(friendship => friendship.user1Id === req.user.id ? friendship.user2Id : friendship.user1Id);
+    const posts = await prisma.post.findMany({ where: { OR: [{ authorId: req.user.id }, { author: { allowPostsFrom: 'everyone' } }, { authorId: { in: friendIds } }] }, include: postInclude, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json({ posts: posts.map(post => shapePost(post, req.user.id)) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to load feed' }); }
 });

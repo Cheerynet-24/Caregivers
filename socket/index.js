@@ -54,6 +54,11 @@ function setupSocket(io, prisma) {
         });
         if (!conversation) return socket.emit('error', { message: 'Conversation not found' });
         const otherUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+        const otherUser = await prisma.user.findUnique({ where: { id: otherUserId }, select: { allowMessagesFrom: true } });
+        if (otherUser?.allowMessagesFrom === 'friends') {
+          const friendship = await prisma.friendship.findFirst({ where: { OR: [{ user1Id: userId, user2Id: otherUserId }, { user1Id: otherUserId, user2Id: userId }] } });
+          if (!friendship) return socket.emit('error', { message: 'This user accepts messages from friends only' });
+        }
         const blocked = await prisma.blockedUser.findFirst({
           where: { OR: [{ blockerId: userId, blockedId: otherUserId }, { blockerId: otherUserId, blockedId: userId }] }
         });

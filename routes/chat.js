@@ -31,6 +31,12 @@ router.post('/conversation', auth, async (req, res) => {
   try {
     const { otherUserId } = req.body;
     if (!otherUserId) return res.status(400).json({ error: 'otherUserId required' });
+    const otherUser = await prisma.user.findUnique({ where: { id: otherUserId }, select: { allowMessagesFrom: true } });
+    if (!otherUser) return res.status(404).json({ error: 'User not found' });
+    if (otherUser.allowMessagesFrom === 'friends') {
+      const friendship = await prisma.friendship.findFirst({ where: { OR: [{ user1Id: req.user.id, user2Id: otherUserId }, { user1Id: otherUserId, user2Id: req.user.id }] } });
+      if (!friendship) return res.status(403).json({ error: 'This user accepts messages from friends only' });
+    }
     const blocked = await prisma.blockedUser.findFirst({ where: { OR: [{ blockerId: req.user.id, blockedId: otherUserId }, { blockerId: otherUserId, blockedId: req.user.id }] } });
     if (blocked) return res.status(403).json({ error: 'This user is blocked' });
 

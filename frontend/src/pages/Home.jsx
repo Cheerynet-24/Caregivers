@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
+import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
@@ -17,6 +18,7 @@ export default function Home() {
   const [conversations, setConversations] = useState([])
   const [groups, setGroups] = useState([])
   const [friends, setFriends] = useState([])
+  const [friendRequests, setFriendRequests] = useState([])
   const [searchUsers, setSearchUsers] = useState([])
   const [searchQ, setSearchQ] = useState('')
   const [activeChat, setActiveChat] = useState(null) // { type: 'private'|'group', id, data }
@@ -48,7 +50,7 @@ export default function Home() {
   const [posts, setPosts] = useState([])
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
-  const [customSounds, setCustomSounds] = useState(() => JSON.parse(localStorage.getItem('caregivers-sounds') || '{}'))
+  const [customSounds, setCustomSounds] = useState({})
   const soundRefs = useRef({})
   const messagesEndRef = useRef(null)
   const fileRef = useRef(null)
@@ -61,8 +63,10 @@ export default function Home() {
     loadConversations()
     loadGroups()
     loadFriends()
+    loadFriendRequests()
     loadNotifications()
     loadPosts()
+    getSounds().then(setCustomSounds)
   }, [])
 
   useEffect(() => {
@@ -176,8 +180,7 @@ export default function Home() {
     reader.onload = () => {
       const next = { ...customSounds, [kind]: reader.result }
       setCustomSounds(next)
-      try { localStorage.setItem('caregivers-sounds', JSON.stringify(next)) } catch { return alert('ဒီ audio ကိုသိမ်းရန် file သေးသေးတစ်ခုရွေးပါ') }
-      playCustomSound(kind)
+      saveSounds(next).catch(() => alert('အသံဖိုင်ကို သိမ်း၍မရပါ')).then(() => playCustomSound(kind))
     }
     reader.readAsDataURL(file)
   }
@@ -211,6 +214,17 @@ export default function Home() {
       const res = await userAPI.friends()
       setFriends(res.data.friends || [])
     } catch {}
+  }
+
+  const loadFriendRequests = async () => {
+    try { const res = await userAPI.friendRequests(); setFriendRequests(res.data.requests || []) } catch {}
+  }
+
+  const respondToFriendRequest = async (id, action) => {
+    try {
+      await userAPI[action === 'accept' ? 'acceptRequest' : 'rejectRequest'](id)
+      await Promise.all([loadFriends(), loadFriendRequests()])
+    } catch (err) { alert(err.response?.data?.error || 'Request update failed') }
   }
 
   const loadNotifications = async () => {
@@ -485,6 +499,9 @@ export default function Home() {
         <button onClick={() => { setTab('search'); handleSearch() }} className={`p-3 rounded-xl ${tab === 'search' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <Search size={22} />
         </button>
+        <button onClick={() => { setTab('friends'); setActiveChat(null); setMessages([]); loadFriends(); loadFriendRequests() }} className={`p-3 rounded-xl ${tab === 'friends' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Friends">
+          <UserPlus size={22} />
+        </button>
         <button onClick={() => { setTab('wallet'); setActiveChat(null); setMessages([]); loadWallet() }} className={`p-3 rounded-xl ${tab === 'wallet' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <Wallet size={22} />
         </button>
@@ -522,6 +539,7 @@ export default function Home() {
             {tab === 'wallet' && t('wallet')}
             {tab === 'feed' && 'Feed'}
             {tab === 'profile' && 'Profile'}
+            {tab === 'friends' && 'Friends'}
           </h2>
           <p className="text-xs text-gray-500">{user?.displayName || user?.username}</p>
         </div>
@@ -529,6 +547,10 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto">
           {tab === 'feed' && <FeedPanel user={user} posts={posts} onRefresh={loadPosts} />}
           {tab === 'profile' && <ProfilePanel user={user} setUser={setUser} posts={posts} onRefreshPosts={loadPosts} />}
+          {tab === 'friends' && <div className="p-3 space-y-4">
+            <section><h3 className="font-bold dark:text-white mb-2">Friends ({friends.length})</h3>{friends.length === 0 && <p className="text-sm text-gray-500">No friends yet</p>}{friends.map(friend => <div key={friend.id} className="p-2 flex items-center gap-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"><div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(friend.displayName || friend.username)[0].toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium dark:text-white truncate">{friend.displayName || friend.username}</p><p className="text-xs text-gray-500">@{friend.username}</p></div><button onClick={() => openPrivateChat(friend)} className="p-2 text-sky-500"><MessageCircle size={17} /></button></div>)}</section>
+            <section><h3 className="font-bold dark:text-white mb-2">Friend Requests ({friendRequests.length})</h3>{friendRequests.length === 0 && <p className="text-sm text-gray-500">No pending requests</p>}{friendRequests.map(request => <div key={request.id} className="p-2 flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-700"><div className="flex-1"><p className="text-sm font-medium dark:text-white">{request.fromUser?.displayName || request.fromUser?.username}</p><p className="text-xs text-gray-500">wants to be your friend</p></div><button onClick={() => respondToFriendRequest(request.id, 'accept')} className="px-2 py-1 text-xs rounded bg-green-500 text-white">Accept</button><button onClick={() => respondToFriendRequest(request.id, 'decline')} className="px-2 py-1 text-xs rounded bg-red-500 text-white">Decline</button></div>)}</section>
+          </div>}
           {tab === 'chats' && conversations.map(c => (
             <div key={c.id} onClick={() => openPrivateChat(c.otherUser)} onContextMenu={e => { e.preventDefault(); setConversationToDelete(c) }} onTouchStart={() => beginConversationLongPress(c)} onTouchEnd={cancelConversationLongPress} onTouchMove={cancelConversationLongPress}
               className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${activeChat?.id === c.id ? 'bg-sky-50 dark:bg-sky-900/30' : ''}`}>
