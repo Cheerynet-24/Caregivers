@@ -39,6 +39,7 @@ export default function Home() {
   const [incomingCall, setIncomingCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
   const [cameraOff, setCameraOff] = useState(false)
+  const [audioRoute, setAudioRoute] = useState('ear')
   const [showDeveloper, setShowDeveloper] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [latestNotification, setLatestNotification] = useState(null)
@@ -65,7 +66,9 @@ export default function Home() {
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
+  const remoteAudioRef = useRef(null)
   const remoteStreamRef = useRef(null)
+  const pendingIceRef = useRef([])
   const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
@@ -127,11 +130,16 @@ export default function Home() {
       setIncomingCall({ fromUserId, fromUsername, offer, callType })
     }
     const onAnswer = async ({ answer }) => {
-      if (peerRef.current) await peerRef.current.setRemoteDescription(answer)
+      if (peerRef.current) {
+        await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer))
+        const queued = pendingIceRef.current.splice(0)
+        for (const candidate of queued) { try { await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
+      }
     }
     const onIce = async ({ candidate }) => {
       if (peerRef.current && candidate) {
-        try { await peerRef.current.addIceCandidate(candidate) } catch {}
+        if (!peerRef.current.remoteDescription) pendingIceRef.current.push(candidate)
+        else { try { await peerRef.current.addIceCandidate(candidate) } catch {} }
       }
     }
     const onEnd = () => endCall(false)
@@ -443,13 +451,18 @@ export default function Home() {
   }
 
   const createPeer = (targetUserId, callType) => {
-    const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+    pendingIceRef.current = []
+    remoteStreamRef.current = null
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] })
     peer.onicecandidate = (event) => {
       if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
     }
     peer.ontrack = (event) => {
-      remoteStreamRef.current = event.streams[0]
-      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; remoteVideoRef.current.play?.().catch(() => {}) }
+      const stream = event.streams[0] || remoteStreamRef.current || new MediaStream()
+      if (!event.streams[0]) stream.addTrack(event.track)
+      remoteStreamRef.current = stream
+      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.play?.().catch(() => {}) }
+      if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.play?.().catch(() => {}) }
     }
     peerRef.current = peer
     setCall({ targetUserId, callType })
@@ -467,7 +480,7 @@ export default function Home() {
       const offer = await peer.createOffer()
       await peer.setLocalDescription(offer)
       socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType })
-    } catch {
+    } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
   }
@@ -482,11 +495,13 @@ export default function Home() {
       const peer = createPeer(incomingCall.fromUserId, incomingCall.callType)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
       await peer.setRemoteDescription(incomingCall.offer)
+      const queued = pendingIceRef.current.splice(0)
+      for (const candidate of queued) { try { await peer.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
       const answer = await peer.createAnswer()
       await peer.setLocalDescription(answer)
       socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer })
       setIncomingCall(null)
-    } catch {
+    } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
   }
@@ -518,6 +533,11 @@ export default function Home() {
       track.enabled = !track.enabled
       setCameraOff(!track.enabled)
     }
+  }
+
+  const changeAudioRoute = route => {
+    setAudioRoute(route)
+    window.AndroidAudio?.setRoute?.(route)
   }
 
   const createGroup = async () => {
@@ -919,6 +939,7 @@ export default function Home() {
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
           <div className="flex-1 relative flex items-center justify-center">
             <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover bg-black" />
+            <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
             <video
               ref={element => { if (element && localStreamRef.current) element.srcObject = localStreamRef.current }}
               autoPlay muted playsInline
@@ -926,7 +947,8 @@ export default function Home() {
             />
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
           </div>
-          <div className="p-5 flex items-center justify-center gap-4 bg-gray-900">
+          <div className="p-5 flex items-center justify-center gap-4 bg-gray-900 relative">
+            {call.callType === 'audio' && <div className="absolute -top-12 flex gap-2"><button onClick={() => changeAudioRoute('ear')} className={`px-3 py-2 rounded-lg text-xs ${audioRoute === 'ear' ? 'bg-sky-500 text-white' : 'bg-gray-700 text-gray-200'}`}>Ear</button><button onClick={() => changeAudioRoute('speaker')} className={`px-3 py-2 rounded-lg text-xs ${audioRoute === 'speaker' ? 'bg-sky-500 text-white' : 'bg-gray-700 text-gray-200'}`}>Speaker</button><button onClick={() => changeAudioRoute('bluetooth')} className={`px-3 py-2 rounded-lg text-xs ${audioRoute === 'bluetooth' ? 'bg-sky-500 text-white' : 'bg-gray-700 text-gray-200'}`}>Bluetooth</button></div>}
             <button onClick={toggleMute} className="p-4 rounded-full bg-gray-700 text-white" title="Mute">
               {mutedCall ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
