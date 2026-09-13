@@ -223,12 +223,16 @@ export default function Home() {
   const cancelConversationLongPress = () => window.clearTimeout(longPressTimer.current)
   const confirmDeleteConversation = async () => {
     if (!conversationToDelete) return
+    const target = conversationToDelete
+    setConversations(prev => prev.filter(item => item.id !== target.id))
+    setConversationToDelete(null)
+    if (activeChat?.id === target.id) { setActiveChat(null); setMessages([]) }
     try {
-      await chatAPI.deleteConversation(conversationToDelete.id)
-      if (activeChat?.id === conversationToDelete.id) { setActiveChat(null); setMessages([]) }
-      setConversationToDelete(null)
-      loadConversations()
-    } catch (err) { alert(err.response?.data?.error || 'Conversation delete failed') }
+      await chatAPI.deleteConversation(target.id)
+    } catch (err) {
+      await loadConversations()
+      alert(err.response?.data?.error || 'Conversation delete failed')
+    }
   }
 
   const playCustomSound = kind => {
@@ -1046,8 +1050,8 @@ export default function Home() {
             <h3 className="text-lg font-bold dark:text-white">Delete conversation?</h3>
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">ဒီ conversation တစ်ခုလုံးကို ဖျက်မလား။ OK နှိပ်မှသာ ဖျက်ပါမယ်။</p>
             <div className="mt-5 flex gap-3 justify-end">
-              <button onClick={() => setConversationToDelete(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Cancel</button>
-              <button onClick={confirmDeleteConversation} className="px-4 py-2 rounded-lg bg-red-500 text-white">OK</button>
+              <button type="button" onClick={() => setConversationToDelete(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Cancel</button>
+              <button type="button" onPointerDown={e => e.stopPropagation()} onClick={confirmDeleteConversation} className="px-4 py-2 rounded-lg bg-red-500 text-white">OK</button>
             </div>
           </div>
         </div>
