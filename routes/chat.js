@@ -40,6 +40,13 @@ router.post('/conversation', auth, async (req, res) => {
 // Get messages for conversation
 router.get('/messages/:conversationId', auth, async (req, res) => {
   try {
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: req.params.conversationId,
+        OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }]
+      }
+    });
+    if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
     const messages = await prisma.message.findMany({
       where: { conversationId: req.params.conversationId },
       include: {

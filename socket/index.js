@@ -46,6 +46,14 @@ function setupSocket(io, prisma) {
         const { conversationId, content, type = 'text', fileUrl } = data;
         if (!conversationId || (!content && !fileUrl)) return;
 
+        const conversation = await prisma.conversation.findFirst({
+          where: {
+            id: conversationId,
+            OR: [{ user1Id: userId }, { user2Id: userId }]
+          }
+        });
+        if (!conversation) return socket.emit('error', { message: 'Conversation not found' });
+
         const msg = await prisma.message.create({
           data: {
             conversationId,
@@ -65,8 +73,7 @@ function setupSocket(io, prisma) {
         });
 
         // Find other user and emit
-        const conv = await prisma.conversation.findUnique({ where: { id: conversationId } });
-        const otherId = conv.user1Id === userId ? conv.user2Id : conv.user1Id;
+        const otherId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
 
         io.to(`user:${otherId}`).emit('message:new', msg);
         socket.emit('message:new', msg);

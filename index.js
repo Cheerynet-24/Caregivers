@@ -4,9 +4,11 @@ const { Server } = require('socket.io');
 const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
+const { PrismaClient } = require('@prisma/client');
 
 const app = express();
 const server = http.createServer(app);
+const prisma = new PrismaClient();
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -37,7 +39,7 @@ try { app.use('/api/admin', require('./routes/admin')); } catch (e) { console.lo
 // Socket.io Setup
 try {
   const registerSocketHandlers = require('./socket');
-  registerSocketHandlers(io);
+  registerSocketHandlers(io, prisma);
 } catch (e) {
   console.log("Socket handler loaded separately or not found.");
 }
@@ -60,4 +62,3 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running and listening on port ${PORT}`);
 });
-

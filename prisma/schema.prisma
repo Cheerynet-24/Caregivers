@@ -8,42 +8,79 @@ generator client {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  username     String        @unique
-  email        String?       @unique
-  password     String
-  displayName  String?
-  avatar       String?
-  isOnline     Boolean       @default(false)
-  isBanned     Boolean       @default(false)
-  isMuted      Boolean       @default(false)
-  coinBalance  Float         @default(0)
-  role         String        @default("user")
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now()) @updatedAt
-  lastSeen     DateTime      @default(now())
-  messagesSent Message[]     @relation("SentMessages")
-  messagesRecv Message[]     @relation("ReceivedMessages")
-  groupMembers GroupMember[]
+  id                  String          @id @default(uuid())
+  username            String          @unique
+  email               String?         @unique
+  password            String
+  displayName         String?
+  bio                 String?
+  avatar              String?
+  isOnline            Boolean         @default(false)
+  isBanned            Boolean         @default(false)
+  isMuted             Boolean         @default(false)
+  coinBalance         Float           @default(0)
+  role                String          @default("user")
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @default(now()) @updatedAt
+  lastSeen            DateTime        @default(now())
+  messagesSent        Message[]       @relation("SentMessages")
+  messagesRecv        Message[]       @relation("ReceivedMessages")
+  groupMembers        GroupMember[]
+  groupsCreated       Group[]         @relation("GroupCreator")
+  conversationsAsUser1 Conversation[] @relation("ConversationUser1")
+  conversationsAsUser2 Conversation[] @relation("ConversationUser2")
+  friendshipsAsUser1  Friendship[]    @relation("FriendshipUser1")
+  friendshipsAsUser2  Friendship[]    @relation("FriendshipUser2")
+  requestsSent        FriendRequest[] @relation("FriendRequestFrom")
+  requestsReceived    FriendRequest[] @relation("FriendRequestTo")
+  deposits            DepositRequest[]
+  withdrawals         WithdrawRequest[]
 }
 
 model Message {
-  id         String   @id @default(uuid())
-  senderId   String
-  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
-  receiverId String?
-  receiver   User?    @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  groupId    String?
-  group      Group?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  content    String
-  mediaUrl   String?
-  createdAt  DateTime @default(now())
+  id             String         @id @default(uuid())
+  senderId       String
+  sender         User           @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId     String?
+  receiver       User?          @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  conversationId String?
+  conversation   Conversation?  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  groupId        String?
+  group          Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  content        String?
+  mediaUrl       String?
+  fileUrl        String?
+  type           String          @default("text")
+  createdAt      DateTime        @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([groupId, createdAt])
+}
+
+model Conversation {
+  id      String    @id @default(uuid())
+  user1Id String
+  user1   User      @relation("ConversationUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id String
+  user2   User      @relation("ConversationUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  isGroup Boolean   @default(false)
+  messages Message[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([user1Id, user2Id])
+  @@index([user1Id])
+  @@index([user2Id])
 }
 
 model Group {
   id          String        @id @default(uuid())
   name        String
-  adminId     String
+  description String?
+  inviteCode  String?       @unique
+  adminId     String?
+  createdById String?
+  createdBy    User?         @relation("GroupCreator", fields: [createdById], references: [id])
   createdAt   DateTime      @default(now())
   members     GroupMember[]
   messages    Message[]
@@ -54,26 +91,54 @@ model GroupMember {
   groupId String
   group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   userId  String
-  user    User   @relation(fields: [userId], references: [id])
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    String @default("member")
 
   @@unique([groupId, userId])
+}
+
+model Friendship {
+  id      String @id @default(uuid())
+  user1Id String
+  user1   User   @relation("FriendshipUser1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2Id String
+  user2   User   @relation("FriendshipUser2", fields: [user2Id], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([user1Id, user2Id])
+}
+
+model FriendRequest {
+  id         String   @id @default(uuid())
+  fromUserId String
+  fromUser   User     @relation("FriendRequestFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("FriendRequestTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+
+  @@index([toUserId, status])
 }
 
 model DepositRequest {
   id          String   @id @default(uuid())
   userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   method      String?
   accountName String?
   phoneNumber String?
   amount      Float
   screenshot  String?
   note        String?
+  adminNote   String?
   status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 }
+
 model WithdrawRequest {
   id          String   @id @default(uuid())
   userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   method      String?
   accountName String
   phoneNumber String
@@ -81,16 +146,17 @@ model WithdrawRequest {
   amount      Float
   qrCode      String?
   note        String?
+  adminNote   String?
   status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 }
 
 model PaymentInfo {
-  id          String   @id @default(uuid())
-  method      String
-  accountName String
-  phoneNumber String
+  id           String   @id @default(uuid())
+  method       String
+  accountName  String
+  phoneNumber  String
   instructions String?
-  qrCode      String?
-  updatedAt   DateTime @updatedAt
+  qrCode       String?
+  updatedAt    DateTime @updatedAt
 }

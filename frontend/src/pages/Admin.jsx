@@ -163,7 +163,7 @@ export default function Admin() {
                     <p className="text-xs text-gray-500">{new Date(d.createdAt).toLocaleString()} · {d.status}</p>
                     {d.screenshot && <a href={d.screenshot} target="_blank" className="text-sky-500 text-xs">Screenshot</a>}
                   </div>
-                  {d.status === 'pending' && (
+                  {d.status?.toLowerCase() === 'pending' && (
                     <div className="flex gap-2">
                       <button onClick={() => adminAPI.approveDeposit(d.id, password).then(loadDeposits)} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm flex items-center gap-1"><Check size={14} />{t('approve')}</button>
                       <button onClick={() => adminAPI.rejectDeposit(d.id, password).then(loadDeposits)} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm flex items-center gap-1"><X size={14} />{t('reject')}</button>
@@ -188,7 +188,7 @@ export default function Admin() {
                       <p className="text-xs text-gray-500">{new Date(w.createdAt).toLocaleString()} · {w.status}</p>
                       {w.qrCode && <img src={w.qrCode} alt="QR" className="mt-2 w-24 h-24 object-contain" />}
                     </div>
-                    {w.status === 'pending' && (
+                    {w.status?.toLowerCase() === 'pending' && (
                       <div className="flex gap-2">
                         <button onClick={() => adminAPI.approveWithdraw(w.id, password).then(loadWithdraws)} className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm">{t('approve')}</button>
                         <button onClick={() => adminAPI.rejectWithdraw(w.id, password).then(loadWithdraws)} className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-sm">{t('reject')}</button>
