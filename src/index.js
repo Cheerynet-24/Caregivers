@@ -18,16 +18,42 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// API Routes များကို ချိတ်ဆက်ခြင်း
+// API Routes များကို တစ်ခုချင်းစီ သီးသန့်ချိတ်ဆက်ခြင်း
 try {
   app.use('/api/auth', require('./routes/auth'));
-  app.use('/api/users', require('./routes/users'));
-  app.use('/api/chat', require('./routes/chat'));
-  app.use('/api/groups', require('./routes/groups'));
-  app.use('/api/wallet', require('./routes/wallet'));
-  app.use('/api/admin', require('./routes/admin'));
 } catch (e) {
-  console.log("Some routes might be missing, running base server...");
+  console.log("Error loading /api/auth:", e.message);
+}
+
+try {
+  app.use('/api/users', require('./routes/users'));
+} catch (e) {
+  console.log("Error loading /api/users:", e.message);
+}
+
+try {
+  app.use('/api/chat', require('./routes/chat'));
+} catch (e) {
+  console.log("Error loading /api/chat:", e.message);
+}
+
+try {
+  app.use('/api/groups', require('./routes/groups'));
+} catch (e) {
+  console.log("Error loading /api/groups:", e.message);
+}
+
+try {
+  app.use('/api/wallet', require('./routes/wallet'));
+} catch (e) {
+  console.log("Error loading /api/wallet:", e.message);
+}
+
+try {
+  app.use('/api/admin', require('./routes/admin'));
+  console.log("Admin route loaded successfully!");
+} catch (e) {
+  console.log("Error loading /api/admin:", e.message);
 }
 
 // Socket.io Setup
