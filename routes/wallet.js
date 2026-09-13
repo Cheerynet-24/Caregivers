@@ -58,11 +58,15 @@ router.post('/deposit', auth, upload.single('screenshot'), async (req, res) => {
     }
     const screenshot = req.file ? `/uploads/${req.file.filename}` : null;
     const note = req.body.note || null;
-    const paymentInfo = await prisma.paymentInfo.findFirst();
+    const selectedAccount = req.body.accountId
+      ? await prisma.paymentAccount.findFirst({ where: { id: req.body.accountId, isActive: true } })
+      : await prisma.paymentAccount.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'asc' } });
+    const paymentInfo = selectedAccount || await prisma.paymentInfo.findFirst();
 
     const request = await prisma.depositRequest.create({
       data: {
         userId: req.user.id,
+        paymentAccountId: selectedAccount?.id || null,
         method: paymentInfo?.method || null,
         accountName: paymentInfo?.accountName || null,
         phoneNumber: paymentInfo?.phoneNumber || null,
@@ -123,8 +127,10 @@ router.post('/withdraw', auth, upload.single('qrCode'), async (req, res) => {
 // Get site payment info (bank details set by admin)
 router.get('/payment-info', auth, async (req, res) => {
   try {
-    const info = await prisma.paymentInfo.findFirst();
-    res.json({ paymentInfo: info || { method: '', accountName: '', phoneNumber: '', qrCode: '', instructions: '' } });
+    const accounts = await prisma.paymentAccount.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } });
+    const legacy = accounts.length ? null : await prisma.paymentInfo.findFirst();
+    const fallback = legacy || { method: '', accountName: '', phoneNumber: '', qrCode: '', instructions: '' };
+    res.json({ paymentInfo: fallback, paymentAccounts: accounts });
   } catch (err) {
     console.error('Failed to load payment info:', err);
     res.status(500).json({ error: 'Failed' });

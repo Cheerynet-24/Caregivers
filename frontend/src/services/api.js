@@ -24,6 +24,7 @@ export const userAPI = {
   search: (q) => api.get('/api/users/search', { params: { q } }),
   friends: () => api.get('/api/users/friends'),
   friendRequests: () => api.get('/api/users/friend-requests'),
+  notifications: () => api.get('/api/users/notifications'),
   sendRequest: (toUserId) => api.post('/api/users/friend-request', { toUserId }),
   acceptRequest: (id) => api.post(`/api/users/friend-request/${id}/accept`),
   rejectRequest: (id) => api.post(`/api/users/friend-request/${id}/reject`),
@@ -34,7 +35,8 @@ export const chatAPI = {
   getConversations: () => api.get('/api/chat/conversations'),
   getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
   getMessages: (conversationId) => api.get(`/api/chat/messages/${conversationId}`),
-  getGroupMessages: (groupId) => api.get(`/api/chat/group-messages/${groupId}`)
+  getGroupMessages: (groupId) => api.get(`/api/chat/group-messages/${groupId}`),
+  upload: (formData) => api.post('/api/chat/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 
 export const groupAPI = {
@@ -73,6 +75,12 @@ export const adminAPI = {
   withdraws: (password) => api.get('/api/admin/withdraws', { headers: { 'x-admin-password': password } }),
   approveWithdraw: (id, password, adminNote) => api.post(`/api/admin/withdraws/${id}/approve`, { adminNote }, { headers: { 'x-admin-password': password } }),
   rejectWithdraw: (id, password, adminNote) => api.post(`/api/admin/withdraws/${id}/reject`, { adminNote }, { headers: { 'x-admin-password': password } }),
+  paymentAccounts: (password) => api.get('/api/admin/payment-accounts', { headers: { 'x-admin-password': password } }),
+  addPaymentAccount: (formData, password) => api.post('/api/admin/payment-accounts', formData, {
+    headers: { 'x-admin-password': password, 'Content-Type': 'multipart/form-data' }
+  }),
+  deletePaymentAccount: (id, password) => api.delete(`/api/admin/payment-accounts/${id}`, { headers: { 'x-admin-password': password } }),
+  broadcast: (data, password) => api.post('/api/admin/broadcast', data, { headers: { 'x-admin-password': password } }),
   getPaymentInfo: (password) => api.get('/api/admin/payment-info', { headers: { 'x-admin-password': password } }),
   setPaymentInfo: (formData, password) => api.post('/api/admin/payment-info', formData, {
     headers: { 'x-admin-password': password, 'Content-Type': 'multipart/form-data' }

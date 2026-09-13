@@ -86,6 +86,64 @@ router.post('/payment-info', upload.single('qr_image'), deviceAuth, async (req, 
   }
 });
 
+// Multiple receiving accounts
+router.get('/payment-accounts', deviceAuth, async (req, res) => {
+  try {
+    const accounts = await prisma.paymentAccount.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ accounts });
+  } catch (err) {
+    console.error('Failed to load payment accounts:', err);
+    res.status(500).json({ error: 'Failed to load payment accounts' });
+  }
+});
+
+router.post('/payment-accounts', upload.single('qr_image'), deviceAuth, async (req, res) => {
+  try {
+    const method = String(req.body.method || req.body.bank_name || '').trim();
+    const accountName = String(req.body.accountName || req.body.account_name || '').trim();
+    const phoneNumber = String(req.body.phoneNumber || req.body.phone_number || '').trim();
+    if (!method || !accountName || !phoneNumber) {
+      return res.status(400).json({ error: 'Bank/Wallet, Account Name and Phone Number are required' });
+    }
+    const account = await prisma.paymentAccount.create({
+      data: {
+        method,
+        accountName,
+        phoneNumber,
+        instructions: String(req.body.instructions || '').trim() || null,
+        qrCode: req.file ? `/uploads/${req.file.filename}` : null
+      }
+    });
+    res.status(201).json({ success: true, message: 'Payment account added', account });
+  } catch (err) {
+    console.error('Failed to add payment account:', err);
+    res.status(500).json({ error: 'Failed to add payment account' });
+  }
+});
+
+router.delete('/payment-accounts/:id', deviceAuth, async (req, res) => {
+  try {
+    await prisma.paymentAccount.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Payment account deleted' });
+  } catch (err) {
+    res.status(404).json({ error: 'Payment account not found' });
+  }
+});
+
+router.post('/broadcast', deviceAuth, async (req, res) => {
+  try {
+    const title = String(req.body.title || 'အသိပေးချက်').trim();
+    const message = String(req.body.message || '').trim();
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+    const notification = await prisma.notification.create({ data: { title, message } });
+    req.app.get('io')?.emit('notification:new', notification);
+    res.status(201).json({ success: true, notification });
+  } catch (err) {
+    console.error('Failed to broadcast notification:', err);
+    res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
+
 // All users list
 router.get('/users', deviceAuth, async (req, res) => {
   try {

@@ -5,7 +5,7 @@ import { chatAPI, userAPI, groupAPI, walletAPI } from '../services/api'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
-  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff
+  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2
 } from 'lucide-react'
 
 export default function Home() {
@@ -25,6 +25,9 @@ export default function Home() {
   const [showCreateGroup, setShowCreateGroup] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
+  const [paymentAccounts, setPaymentAccounts] = useState([])
+  const [selectedPaymentAccount, setSelectedPaymentAccount] = useState('')
+  const [walletSuccess, setWalletSuccess] = useState('')
   const [withdrawForm, setWithdrawForm] = useState({ amount: '', accountName: '', phoneNumber: '', bankName: '' })
   const [paymentInfo, setPaymentInfo] = useState({})
   const [dark, setDark] = useState(false)
@@ -32,8 +35,15 @@ export default function Home() {
   const [incomingCall, setIncomingCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
   const [cameraOff, setCameraOff] = useState(false)
+  const [showDeveloper, setShowDeveloper] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [latestNotification, setLatestNotification] = useState(null)
+  const [chatBackground, setChatBackground] = useState('')
+  const [showStickers, setShowStickers] = useState(false)
+  const [showBackgrounds, setShowBackgrounds] = useState(false)
   const messagesEndRef = useRef(null)
   const fileRef = useRef(null)
+  const chatFileRef = useRef(null)
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
@@ -42,6 +52,7 @@ export default function Home() {
     loadConversations()
     loadGroups()
     loadFriends()
+    loadNotifications()
   }, [])
 
   useEffect(() => {
@@ -60,6 +71,16 @@ export default function Home() {
       socket.off('message:new')
     }
   }, [socket, activeChat])
+
+  useEffect(() => {
+    if (!socket) return
+    const onNotification = notification => {
+      setNotifications(prev => [notification, ...prev].slice(0, 20))
+      setLatestNotification(notification)
+    }
+    socket.on('notification:new', onNotification)
+    return () => socket.off('notification:new', onNotification)
+  }, [socket])
 
   useEffect(() => {
     if (!socket) return
@@ -91,6 +112,10 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  useEffect(() => {
+    if (activeChat?.id) setChatBackground(localStorage.getItem(`chat-bg-${activeChat.id}`) || '')
+  }, [activeChat?.id])
+
   const loadConversations = async () => {
     try {
       const res = await chatAPI.getConversations()
@@ -112,6 +137,13 @@ export default function Home() {
     } catch {}
   }
 
+  const loadNotifications = async () => {
+    try {
+      const res = await userAPI.notifications()
+      setNotifications(res.data.notifications || [])
+    } catch {}
+  }
+
   const loadWallet = async () => {
     setWalletError('')
     try {
@@ -119,6 +151,9 @@ export default function Home() {
       setWallet(res.data)
       const pi = await walletAPI.paymentInfo()
       const info = pi.data.paymentInfo || {}
+      const accounts = pi.data.paymentAccounts || []
+      setPaymentAccounts(accounts)
+      setSelectedPaymentAccount(prev => prev || accounts[0]?.id || '')
       setPaymentInfo({
         bank_name: info.method || '',
         account_name: info.accountName || '',
@@ -159,20 +194,41 @@ export default function Home() {
     } catch {}
   }
 
-  const sendMessage = () => {
-    if (!input.trim() || !activeChat || !socket) return
+  const sendMessage = async (overrideContent = null, overrideType = 'text') => {
+    if ((!input.trim() && !overrideContent && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
+    let content = overrideContent || input.trim()
+    let type = overrideType
+    let fileUrl
+    if (chatFileRef.current?.files?.[0]) {
+      const formData = new FormData()
+      formData.append('file', chatFileRef.current.files[0])
+      try {
+        const uploaded = await chatAPI.upload(formData)
+        fileUrl = uploaded.data.fileUrl
+        type = uploaded.data.type
+      } catch (err) {
+        alert(err.response?.data?.error || 'File upload failed')
+        return
+      }
+      chatFileRef.current.value = ''
+    }
     if (activeChat.type === 'private') {
       socket.emit('message:private', {
         conversationId: activeChat.id,
-        content: input.trim()
+        content,
+        type,
+        fileUrl
       })
     } else {
       socket.emit('message:group', {
         groupId: activeChat.id,
-        content: input.trim()
+        content,
+        type,
+        fileUrl
       })
     }
     setInput('')
+    setShowStickers(false)
   }
 
   const createPeer = (targetUserId, callType) => {
@@ -264,10 +320,11 @@ export default function Home() {
     e.preventDefault()
     const formData = new FormData()
     formData.append('amount', depositAmount)
+    if (selectedPaymentAccount) formData.append('accountId', selectedPaymentAccount)
     if (fileRef.current?.files[0]) formData.append('screenshot', fileRef.current.files[0])
     try {
       await walletAPI.deposit(formData)
-      alert(t('success'))
+      setWalletSuccess('တင်သွင်းမှုအောင်မြင်ပါသည်')
       setDepositAmount('')
       loadWallet()
     } catch (err) {
@@ -281,7 +338,7 @@ export default function Home() {
     Object.entries(withdrawForm).forEach(([k, v]) => formData.append(k, v))
     try {
       await walletAPI.withdraw(formData)
-      alert(t('success'))
+      setWalletSuccess('တင်သွင်းမှုအောင်မြင်ပါသည်')
       setWithdrawForm({ amount: '', accountName: '', phoneNumber: '', bankName: '' })
       loadWallet()
     } catch (err) {
@@ -312,6 +369,9 @@ export default function Home() {
           <Wallet size={22} />
         </button>
         <div className="flex-1" />
+        <button onClick={() => setShowDeveloper(true)} className="p-3 text-white/70 hover:bg-white/10 rounded-xl" title="Developer">
+          <Code2 size={20} />
+        </button>
         <button onClick={toggleDark} className="p-3 text-white/70 hover:bg-white/10 rounded-xl">
           {dark ? <Sun size={20} /> : <Moon size={20} />}
         </button>
@@ -407,13 +467,19 @@ export default function Home() {
                 <p className="text-3xl font-bold">{wallet.balance} <span className="text-lg">{t('coins')}</span></p>
               </div>
 
-              {paymentInfo.account_name && (
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-3 text-sm">
-                  <p className="font-semibold mb-1 dark:text-white">{t('paymentInfo')}</p>
-                  <p className="dark:text-gray-300">{paymentInfo.bank_name}</p>
-                  <p className="dark:text-gray-300">{paymentInfo.account_name}</p>
-                  <p className="dark:text-gray-300">{paymentInfo.phone_number}</p>
-                  {paymentInfo.qr_image && <img src={paymentInfo.qr_image} alt="QR" className="mt-2 w-32 h-32 object-contain" />}
+              {(paymentAccounts.length > 0 || paymentInfo.account_name) && (
+                <div className="space-y-2">
+                  <p className="font-semibold text-sm dark:text-white">{t('paymentInfo')}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {(paymentAccounts.length ? paymentAccounts : [{ id: 'legacy', method: paymentInfo.bank_name, accountName: paymentInfo.account_name, phoneNumber: paymentInfo.phone_number, qrCode: paymentInfo.qr_image }]).map(account => (
+                      <button type="button" key={account.id} onClick={() => account.id !== 'legacy' && setSelectedPaymentAccount(account.id)} className={`text-left border rounded-xl p-3 text-sm ${selectedPaymentAccount === account.id ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/30' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'}`}>
+                        <p className="font-semibold dark:text-white">{account.method}</p>
+                        <p className="dark:text-gray-300">{account.accountName}</p>
+                        <p className="dark:text-gray-300">{account.phoneNumber}</p>
+                        {account.qrCode && <img src={account.qrCode} alt="QR" className="mt-2 w-16 h-16 object-contain" />}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -422,6 +488,7 @@ export default function Home() {
                 <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)}
                   placeholder={t('amount')} className="w-full px-3 py-2 border rounded-lg text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" required />
                 <input type="file" ref={fileRef} accept="image/*" className="text-xs" />
+                {walletSuccess && <p className="rounded-lg bg-green-100 text-green-700 px-3 py-2 text-sm">{walletSuccess}</p>}
                 <button type="submit" className="w-full bg-green-500 text-white py-2 rounded-lg text-sm">{t('submit')}</button>
               </form>
 
@@ -446,7 +513,7 @@ export default function Home() {
       <div className={`${activeChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col bg-gray-50 dark:bg-gray-900`}>
         {activeChat ? (
           <>
-            <div className="h-14 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center px-4 gap-3">
+            <div className="relative h-14 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center px-4 gap-3">
               <button onClick={() => { setActiveChat(null); setMessages([]) }} className="md:hidden p-2 text-gray-500" aria-label="Back">
                 <ArrowLeft size={20} />
               </button>
@@ -467,6 +534,10 @@ export default function Home() {
                   <button onClick={() => startCall('video')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('videoCall')}><Video size={18} /></button>
                 </>
               )}
+              <button onClick={() => setShowBackgrounds(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Chat background"><Settings size={18} /></button>
+              {showBackgrounds && <div className="absolute right-3 top-12 z-20 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 flex gap-2">
+                {['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); setShowBackgrounds(false) }} className={`w-7 h-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}
+              </div>}
               {activeChat.type === 'group' && activeChat.data?.inviteCode && (
                 <button
                   onClick={() => {
@@ -479,7 +550,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className={`flex-1 overflow-y-auto p-4 space-y-3 ${chatBackground}`}>
               {messages.length === 0 && (
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
@@ -493,7 +564,11 @@ export default function Home() {
                     {activeChat.type === 'group' && m.senderId !== user.id && (
                       <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mb-0.5">{m.sender?.displayName || m.sender?.username}</p>
                     )}
-                    <p>{m.content}</p>
+                    {m.type === 'image' && m.fileUrl ? <img src={m.fileUrl} alt={m.content || 'Image'} className="max-w-full rounded-lg" />
+                      : m.type === 'video' && m.fileUrl ? <video src={m.fileUrl} controls className="max-w-full rounded-lg" />
+                      : m.type === 'audio' && m.fileUrl ? <audio src={m.fileUrl} controls />
+                      : m.type === 'file' && m.fileUrl ? <a href={m.fileUrl} target="_blank" rel="noreferrer" className="underline">{m.content || 'Download file'}</a>
+                      : <p className={m.type === 'sticker' ? 'text-5xl' : ''}>{m.content}</p>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
@@ -503,7 +578,13 @@ export default function Home() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-2">
+            <div className="p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-2 items-center relative">
+              <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
+              <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
+              <button onClick={() => setShowStickers(v => !v)} className="p-2 text-gray-500 text-lg" title="Sticker">☺</button>
+              {showStickers && <div className="absolute bottom-14 left-2 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 grid grid-cols-5 gap-2">
+                {['😀','😂','😍','🥰','😎','😢','😡','👍','❤️','🎉','🙏','🔥','👏','🤝','✨'].map(sticker => <button key={sticker} onClick={() => sendMessage(sticker, 'sticker')} className="text-2xl hover:bg-gray-100 rounded p-1">{sticker}</button>)}
+              </div>}
               <input
                 value={input}
                 onChange={e => setInput(e.target.value)}
@@ -527,6 +608,25 @@ export default function Home() {
         )}
       </div>
 
+      {latestNotification && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
+          <button onClick={() => setLatestNotification(null)} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
+          <p className="font-bold text-sky-600 dark:text-sky-300">📣 {latestNotification.title}</p>
+          <p className="mt-1 text-sm dark:text-gray-200 whitespace-pre-wrap">{latestNotification.message}</p>
+        </div>
+      )}
+      {showDeveloper && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowDeveloper(false)}>
+          <div className="w-full max-w-sm rounded-3xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white p-7 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="text-5xl mb-3">🧑‍💻✨</div>
+            <h2 className="text-2xl font-bold">Developer - Mg Flâsh</h2>
+            <p className="mt-3 text-white/90">Caregivers ကို တည်ဆောက်ပေးသူ</p>
+            <a href="https://t.me/ckstore22" target="_blank" rel="noreferrer" className="inline-block mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 underline">🔗 t.me/ckstore22</a>
+            <p className="mt-5 font-medium">အားလုံးပဲ အဆင်ပြေကြပါစေခဗျာ 🙏💙</p>
+            <button onClick={() => setShowDeveloper(false)} className="mt-6 px-5 py-2 rounded-full bg-white text-sky-700 font-semibold">ပိတ်မည်</button>
+          </div>
+        </div>
+      )}
       {incomingCall && !call && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-xl">

@@ -6,6 +6,15 @@ const { sanitizeUser } = require('../utils/helpers');
 
 const prisma = new PrismaClient();
 
+router.get('/notifications', auth, async (req, res) => {
+  try {
+    const notifications = await prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+    res.json({ notifications });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load notifications' });
+  }
+});
+
 // Search all users (for "Search Friend")
 router.get('/search', auth, async (req, res) => {
   try {

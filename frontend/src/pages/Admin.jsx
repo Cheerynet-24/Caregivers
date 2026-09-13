@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { adminAPI } from '../services/api'
-import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus } from 'lucide-react'
+import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus, Trash2, Bell } from 'lucide-react'
 
 export default function Admin() {
   const { t, i18n } = useTranslation()
@@ -13,6 +13,10 @@ export default function Admin() {
   const [deposits, setDeposits] = useState([])
   const [withdraws, setWithdraws] = useState([])
   const [paymentForm, setPaymentForm] = useState({ bank_name: '', account_name: '', phone_number: '', instructions: '' })
+  const [paymentAccounts, setPaymentAccounts] = useState([])
+  const [paymentSuccess, setPaymentSuccess] = useState('')
+  const [broadcastForm, setBroadcastForm] = useState({ title: 'အသိပေးချက်', message: '' })
+  const [broadcastSuccess, setBroadcastSuccess] = useState('')
   const [coinForm, setCoinForm] = useState({ userId: '', amount: '', type: 'add' })
 
   const handleLogin = async (e) => {
@@ -49,15 +53,8 @@ export default function Admin() {
 
   const loadPayment = async () => {
     try {
-      const res = await adminAPI.getPaymentInfo(password)
-      const info = res.data.paymentInfo || {}
-      setPaymentForm(prev => ({
-        ...prev,
-        bank_name: info.method || '',
-        account_name: info.accountName || '',
-        phone_number: info.phoneNumber || '',
-        instructions: info.instructions || ''
-      }))
+      const res = await adminAPI.paymentAccounts(password)
+      setPaymentAccounts(res.data.accounts || [])
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load payment info')
     }
@@ -111,6 +108,10 @@ export default function Admin() {
           <button onClick={() => setTab('coins')}
             className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'coins' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Plus size={18} /> {t('walletManage')}
+          </button>
+          <button onClick={() => setTab('broadcast')}
+            className={`w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'broadcast' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            <Bell size={18} /> အသိပေးစာပို့ရန်
           </button>
         </nav>
 
@@ -202,32 +203,68 @@ export default function Admin() {
           )}
 
           {tab === 'payment' && (
-            <form onSubmit={async (e) => {
+            <div className="max-w-2xl space-y-4">
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
+                <h2 className="font-bold text-lg dark:text-white mb-3">{t('setPaymentInfo')}</h2>
+                {paymentAccounts.length === 0 && <p className="text-sm text-gray-500 mb-3">No receiving accounts added yet.</p>}
+                <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                  {paymentAccounts.map(account => (
+                    <div key={account.id} className="border dark:border-gray-600 rounded-xl p-3 relative">
+                      <button onClick={async () => { await adminAPI.deletePaymentAccount(account.id, password); setPaymentAccounts(prev => prev.filter(a => a.id !== account.id)); setPaymentSuccess('Payment account deleted') }} className="absolute top-2 right-2 text-red-500" title="Delete"><Trash2 size={16} /></button>
+                      <p className="font-semibold dark:text-white pr-6">{account.method}</p>
+                      <p className="text-sm dark:text-gray-300">{account.accountName}</p>
+                      <p className="text-sm dark:text-gray-300">{account.phoneNumber}</p>
+                      {account.qrCode && <img src={account.qrCode} alt="QR" className="mt-2 w-16 h-16 object-contain" />}
+                    </div>
+                  ))}
+                </div>
+                <form onSubmit={async e => {
+                  e.preventDefault()
+                  try {
+                    setError('')
+                    const fd = new FormData()
+                    Object.entries(paymentForm).forEach(([k, v]) => fd.append(k, v || ''))
+                    const file = e.currentTarget.qr?.files?.[0]
+                    if (file) fd.append('qr_image', file)
+                    const res = await adminAPI.addPaymentAccount(fd, password)
+                    setPaymentAccounts(prev => [res.data.account, ...prev])
+                    setPaymentForm({ bank_name: '', account_name: '', phone_number: '', instructions: '' })
+                    e.currentTarget.reset()
+                    setPaymentSuccess('Payment account added successfully')
+                  } catch (err) {
+                    setError(err.response?.data?.error || 'Failed to add payment account')
+                  }
+                }} className="space-y-3">
+                  {paymentSuccess && <p className="rounded-lg bg-green-100 text-green-700 px-3 py-2 text-sm">{paymentSuccess}</p>}
+                  {error && <p className="text-red-500 text-sm">{error}</p>}
+                  <input value={paymentForm.bank_name} onChange={e => setPaymentForm({...paymentForm, bank_name: e.target.value})} placeholder="Bank / Wallet Name" required className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                  <input value={paymentForm.account_name} onChange={e => setPaymentForm({...paymentForm, account_name: e.target.value})} placeholder={t('accountName')} required className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                  <input value={paymentForm.phone_number} onChange={e => setPaymentForm({...paymentForm, phone_number: e.target.value})} placeholder={t('phoneNumber')} required className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+                  <textarea value={paymentForm.instructions} onChange={e => setPaymentForm({...paymentForm, instructions: e.target.value})} placeholder="Instructions" className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" rows={2} />
+                  <input type="file" name="qr" accept="image/*" className="text-sm" />
+                  <button type="submit" className="w-full bg-sky-500 text-white py-2.5 rounded-lg">{t('submit')} Account</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {tab === 'broadcast' && (
+            <form onSubmit={async e => {
               e.preventDefault()
               try {
-                setError('')
-                const fd = new FormData()
-                Object.entries(paymentForm).forEach(([k, v]) => fd.append(k, v || ''))
-                const file = e.currentTarget.qr?.files?.[0]
-                if (file) fd.append('qr_image', file)
-                await adminAPI.setPaymentInfo(fd, password)
-                alert(t('success'))
+                setBroadcastSuccess('')
+                await adminAPI.broadcast(broadcastForm, password)
+                setBroadcastForm({ title: 'အသိပေးချက်', message: '' })
+                setBroadcastSuccess('အသိပေးစာ အောင်မြင်စွာ ပို့ပြီးပါပြီ')
               } catch (err) {
-                setError(err.response?.data?.error || 'Failed to save payment info')
+                setError(err.response?.data?.error || 'Failed to send notification')
               }
-            }} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow max-w-md space-y-3">
-              <h2 className="font-bold text-lg dark:text-white mb-2">{t('setPaymentInfo')}</h2>
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-              <input value={paymentForm.bank_name || ''} onChange={e => setPaymentForm({...paymentForm, bank_name: e.target.value})}
-                placeholder="Bank Name" className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-              <input value={paymentForm.account_name || ''} onChange={e => setPaymentForm({...paymentForm, account_name: e.target.value})}
-                placeholder={t('accountName')} className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-              <input value={paymentForm.phone_number || ''} onChange={e => setPaymentForm({...paymentForm, phone_number: e.target.value})}
-                placeholder={t('phoneNumber')} className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
-              <textarea value={paymentForm.instructions || ''} onChange={e => setPaymentForm({...paymentForm, instructions: e.target.value})}
-                placeholder="Instructions" className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" rows={3} />
-              <input type="file" name="qr" accept="image/*" className="text-sm" />
-              <button type="submit" className="w-full bg-sky-500 text-white py-2.5 rounded-lg">{t('submit')}</button>
+            }} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow max-w-lg space-y-3">
+              <h2 className="font-bold text-lg dark:text-white">User များထံ အသိပေးစာပို့ရန်</h2>
+              {broadcastSuccess && <p className="rounded-lg bg-green-100 text-green-700 px-3 py-2 text-sm">{broadcastSuccess}</p>}
+              <input value={broadcastForm.title} onChange={e => setBroadcastForm({ ...broadcastForm, title: e.target.value })} placeholder="ခေါင်းစဉ်" className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              <textarea value={broadcastForm.message} onChange={e => setBroadcastForm({ ...broadcastForm, message: e.target.value })} placeholder="အသိပေးလိုသောစာသား" required rows={6} className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
+              <button type="submit" className="w-full bg-sky-500 text-white py-2.5 rounded-lg">📣 အသိပေးစာ ပို့မည်</button>
             </form>
           )}
 

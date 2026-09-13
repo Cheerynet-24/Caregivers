@@ -123,6 +123,7 @@ model FriendRequest {
 model DepositRequest {
   id          String   @id @default(uuid())
   userId      String
+  paymentAccountId String?
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   method      String?
   accountName String?
@@ -159,4 +160,23 @@ model PaymentInfo {
   instructions String?
   qrCode       String?
   updatedAt    DateTime @updatedAt
+}
+
+model PaymentAccount {
+  id           String   @id @default(uuid())
+  method       String
+  accountName  String
+  phoneNumber  String
+  instructions String?
+  qrCode       String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  createdAt DateTime @default(now())
 }
