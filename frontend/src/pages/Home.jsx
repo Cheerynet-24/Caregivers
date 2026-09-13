@@ -42,6 +42,7 @@ export default function Home() {
   const [showDeveloper, setShowDeveloper] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [latestNotification, setLatestNotification] = useState(null)
+  const [latestMessageNotification, setLatestMessageNotification] = useState(null)
   const [chatBackground, setChatBackground] = useState('')
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
@@ -78,7 +79,10 @@ export default function Home() {
   useEffect(() => {
     if (!socket) return
     const onNewMessage = (msg) => {
-      if (msg.senderId !== user.id && !chatSettings.muted && chatSettings.notifications) playCustomSound('message')
+      const isIncoming = msg.senderId !== user.id
+      const isCurrentChat = activeChat && ((activeChat.type === 'private' && msg.conversationId === activeChat.id) || (activeChat.type === 'group' && msg.groupId === activeChat.id))
+      if (isIncoming && !isCurrentChat) setLatestMessageNotification(msg)
+      if (isIncoming && !chatSettings.muted && chatSettings.notifications) playCustomSound('message')
       if (activeChat) {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
         const matchGroup = activeChat.type === 'group' && msg.groupId === activeChat.id
@@ -303,6 +307,14 @@ export default function Home() {
       setMessages(msgs.data.messages || [])
       setTab('chats')
     } catch {}
+  }
+
+  const replyToMessageNotification = async () => {
+    const sender = latestMessageNotification?.sender
+    if (!sender) return
+    setLatestMessageNotification(null)
+    stopNotificationSound()
+    await openPrivateChat(sender)
   }
 
   const openGroupChat = async (group) => {
@@ -841,6 +853,12 @@ export default function Home() {
           <button onClick={() => { stopNotificationSound(); setLatestNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
           <p className="font-bold text-sky-600 dark:text-sky-300">📣 {latestNotification.title}</p>
           <p className="mt-1 text-sm dark:text-gray-200 whitespace-pre-wrap">{latestNotification.message}</p>
+        </div>
+      )}
+      {latestMessageNotification && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
+          <button onClick={() => { stopNotificationSound(); setLatestMessageNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
+          <div className="flex items-start gap-3 pr-5"><div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || '?')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><p className="font-bold text-sky-600 dark:text-sky-300">{latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || 'New message'}</p><p className="mt-1 text-sm dark:text-gray-200 truncate">{latestMessageNotification.content || (latestMessageNotification.type === 'audio' ? 'Voice message' : 'Attachment')}</p><button onClick={replyToMessageNotification} className="mt-3 px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm">Reply</button></div></div>
         </div>
       )}
       {showDeveloper && (
