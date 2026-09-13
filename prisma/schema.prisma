@@ -62,22 +62,25 @@ model GroupMember {
 model DepositRequest {
   id          String   @id @default(uuid())
   userId      String
-  method      String
-  accountName String
-  phoneNumber String
+  method      String?
+  accountName String?
+  phoneNumber String?
   amount      Float
   screenshot  String?
+  note        String?
   status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 }
-
 model WithdrawRequest {
   id          String   @id @default(uuid())
   userId      String
-  method      String
+  method      String?
   accountName String
   phoneNumber String
+  bankName    String?
   amount      Float
+  qrCode      String?
+  note        String?
   status      String   @default("PENDING")
   createdAt   DateTime @default(now())
 }

@@ -58,10 +58,14 @@ router.post('/deposit', auth, upload.single('screenshot'), async (req, res) => {
     }
     const screenshot = req.file ? `/uploads/${req.file.filename}` : null;
     const note = req.body.note || null;
+    const paymentInfo = await prisma.paymentInfo.findFirst();
 
     const request = await prisma.depositRequest.create({
       data: {
         userId: req.user.id,
+        method: paymentInfo?.method || null,
+        accountName: paymentInfo?.accountName || null,
+        phoneNumber: paymentInfo?.phoneNumber || null,
         amount,
         screenshot,
         note
@@ -100,6 +104,7 @@ router.post('/withdraw', auth, upload.single('qrCode'), async (req, res) => {
     const request = await prisma.withdrawRequest.create({
       data: {
         userId: req.user.id,
+        method: bankName || null,
         amount,
         accountName,
         phoneNumber,
