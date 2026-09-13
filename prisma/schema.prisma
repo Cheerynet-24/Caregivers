@@ -1,168 +1,91 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model User {
-  id            String   @id @default(uuid())
-  username      String   @unique
-  email         String?  @unique
-  password      String
-  displayName   String?
-  avatar        String?
-  bio           String?
-  isOnline      Boolean  @default(false)
-  lastSeen      DateTime @default(now())
-  isBanned      Boolean  @default(false)
-  isMuted       Boolean  @default(false)
-  coinBalance   Int      @default(0)
-  role          String   @default("user") // user | admin
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  sentMessages      Message[]       @relation("SentMessages")
-  memberships       GroupMember[]
-  friendships1      Friendship[]    @relation("User1")
-  friendships2      Friendship[]    @relation("User2")
-  sentRequests      FriendRequest[] @relation("FromUser")
-  receivedRequests  FriendRequest[] @relation("ToUser")
-  transactions      Transaction[]
-  depositRequests   DepositRequest[]
-  withdrawRequests  WithdrawRequest[]
-  createdGroups     Group[]         @relation("GroupCreator")
-}
-
-model Friendship {
-  id        String   @id @default(uuid())
-  user1Id   String
-  user2Id   String
-  createdAt DateTime @default(now())
-
-  user1 User @relation("User1", fields: [user1Id], references: [id], onDelete: Cascade)
-  user2 User @relation("User2", fields: [user2Id], references: [id], onDelete: Cascade)
-
-  @@unique([user1Id, user2Id])
-}
-
-model FriendRequest {
-  id         String   @id @default(uuid())
-  fromUserId String
-  toUserId   String
-  status     String   @default("pending") // pending | accepted | rejected
-  createdAt  DateTime @default(now())
-
-  fromUser User @relation("FromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
-  toUser   User @relation("ToUser", fields: [toUserId], references: [id], onDelete: Cascade)
-
-  @@unique([fromUserId, toUserId])
-}
-
-model Group {
-  id          String   @id @default(uuid())
-  name        String
-  description String?
-  avatar      String?
-  inviteCode  String   @unique @default(uuid())
-  createdById String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  creator  User          @relation("GroupCreator", fields: [createdById], references: [id])
-  members  GroupMember[]
-  messages Message[]
-}
-
-model GroupMember {
-  id       String   @id @default(uuid())
-  groupId  String
-  userId   String
-  role     String   @default("member") // member | admin
-  joinedAt DateTime @default(now())
-
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([groupId, userId])
-}
-
-model Conversation {
-  id        String   @id @default(uuid())
-  isGroup   Boolean  @default(false)
-  groupId   String?
-  user1Id   String?
-  user2Id   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  messages Message[]
+  id           String        @id @default(uuid())
+  username     String        @unique
+  email        String?       @unique
+  password     String
+  displayName  String?
+  avatar       String?
+  isOnline     Boolean       @default(false)
+  isBanned     Boolean       @default(false)
+  isMuted      Boolean       @default(false)
+  coinBalance  Float         @default(0)
+  role         String        @default("user")
+  createdAt    DateTime      @default(now())
+  lastSeen     DateTime      @default(now())
+  messagesSent Message[]     @relation("SentMessages")
+  messagesRecv Message[]     @relation("ReceivedMessages")
+  groupMembers GroupMember[]
 }
 
 model Message {
-  id             String   @id @default(uuid())
-  conversationId String?
-  groupId        String?
-  senderId       String
-  content        String?
-  type           String   @default("text") // text | image | file | system
-  fileUrl        String?
-  isRead         Boolean  @default(false)
-  createdAt      DateTime @default(now())
-
-  sender       User          @relation("SentMessages", fields: [senderId], references: [id])
-  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  group        Group?        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String?
+  receiver   User?    @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  groupId    String?
+  group      Group?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  content    String
+  mediaUrl   String?
+  createdAt  DateTime @default(now())
 }
 
-model Transaction {
-  id          String   @id @default(uuid())
-  userId      String
-  type        String   // deposit | withdraw | admin_add | admin_remove
-  amount      Int
-  status      String   @default("completed") // pending | completed | rejected
-  description String?
-  createdAt   DateTime @default(now())
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  adminId     String
+  createdAt   DateTime      @default(now())
+  members     GroupMember[]
+  messages    Message[]
+}
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+model GroupMember {
+  id      String @id @default(uuid())
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
 }
 
 model DepositRequest {
   id          String   @id @default(uuid())
   userId      String
-  amount      Int
+  method      String
+  accountName String
+  phoneNumber String
+  amount      Float
   screenshot  String?
-  note        String?
-  status      String   @default("pending") // pending | approved | rejected
-  adminNote   String?
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model WithdrawRequest {
-  id            String   @id @default(uuid())
-  userId        String
-  amount        Int
-  accountName   String
-  phoneNumber   String
-  qrCode        String?
-  bankName      String?
-  note          String?
-  status        String   @default("pending") // pending | approved | rejected
-  adminNote     String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid())
+  userId      String
+  method      String
+  accountName String
+  phoneNumber String
+  amount      Float
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
 }
 
-model SiteSetting {
-  id        String   @id @default(uuid())
-  key       String   @unique
-  value     String
-  updatedAt DateTime @updatedAt
+model PaymentInfo {
+  id          String   @id @default(uuid())
+  method      String
+  accountName String
+  phoneNumber String
+  updatedAt   DateTime @updatedAt
 }
+
