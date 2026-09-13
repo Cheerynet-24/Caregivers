@@ -5,6 +5,7 @@ const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
 const { PrismaClient } = require('@prisma/client');
+const twilio = require('twilio');
 
 const app = express();
 const server = http.createServer(app);
@@ -22,7 +23,16 @@ app.use(cors());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
-app.get('/api/call-config', (req, res) => {
+app.get('/api/call-config', async (req, res) => {
+  if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    try {
+      const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      const token = await client.tokens.create({ ttl: 3600 });
+      return res.json({ iceServers: token.iceServers || [] });
+    } catch (error) {
+      console.error('TURN token error:', error.code || error.message);
+    }
+  }
   const urls = String(process.env.TURN_URLS || process.env.TURN_URL || '').split(',').map(value => value.trim()).filter(Boolean);
   res.json({
     iceServers: urls.length && process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL
