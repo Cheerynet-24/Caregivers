@@ -31,6 +31,8 @@ router.post('/conversation', auth, async (req, res) => {
   try {
     const { otherUserId } = req.body;
     if (!otherUserId) return res.status(400).json({ error: 'otherUserId required' });
+    const blocked = await prisma.blockedUser.findFirst({ where: { OR: [{ blockerId: req.user.id, blockedId: otherUserId }, { blockerId: otherUserId, blockedId: req.user.id }] } });
+    if (blocked) return res.status(403).json({ error: 'This user is blocked' });
 
     let conv = await prisma.conversation.findFirst({
       where: {
@@ -56,6 +58,28 @@ router.post('/conversation', auth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }
+});
+
+router.delete('/conversation/:id', auth, async (req, res) => {
+  const conversation = await prisma.conversation.findFirst({ where: { id: req.params.id, OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }] } });
+  if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+  await prisma.conversation.delete({ where: { id: conversation.id } });
+  res.json({ success: true });
+});
+
+router.post('/block/:userId', auth, async (req, res) => {
+  if (req.params.userId === req.user.id) return res.status(400).json({ error: 'Invalid user' });
+  const block = await prisma.blockedUser.upsert({
+    where: { blockerId_blockedId: { blockerId: req.user.id, blockedId: req.params.userId } },
+    update: {},
+    create: { blockerId: req.user.id, blockedId: req.params.userId }
+  });
+  res.json({ success: true, block });
+});
+
+router.delete('/block/:userId', auth, async (req, res) => {
+  await prisma.blockedUser.deleteMany({ where: { blockerId: req.user.id, blockedId: req.params.userId } });
+  res.json({ success: true });
 });
 
 // Get messages for conversation

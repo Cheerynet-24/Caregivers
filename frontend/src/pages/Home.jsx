@@ -5,7 +5,8 @@ import { chatAPI, userAPI, groupAPI, walletAPI } from '../services/api'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
-  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical
+  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
+  VolumeX, BellOff, Trash2, Ban, Music
 } from 'lucide-react'
 
 export default function Home() {
@@ -42,6 +43,10 @@ export default function Home() {
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
+  const [showChatSettings, setShowChatSettings] = useState(false)
+  const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
+  const [customSounds, setCustomSounds] = useState(() => JSON.parse(localStorage.getItem('caregivers-sounds') || '{}'))
+  const soundRefs = useRef({})
   const messagesEndRef = useRef(null)
   const fileRef = useRef(null)
   const chatFileRef = useRef(null)
@@ -59,6 +64,7 @@ export default function Home() {
   useEffect(() => {
     if (!socket) return
     const onNewMessage = (msg) => {
+      if (msg.senderId !== user.id && !chatSettings.muted && chatSettings.notifications) playCustomSound('message')
       if (activeChat) {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
         const matchGroup = activeChat.type === 'group' && msg.groupId === activeChat.id
@@ -78,7 +84,7 @@ export default function Home() {
       socket.off('message:update', onUpdateMessage)
       socket.off('message:delete', onDeleteMessage)
     }
-  }, [socket, activeChat])
+  }, [socket, activeChat, chatSettings])
 
   useEffect(() => {
     if (!socket) return
@@ -93,6 +99,7 @@ export default function Home() {
   useEffect(() => {
     if (!socket) return
     const onOffer = ({ fromUserId, fromUsername, offer, callType }) => {
+      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
       setIncomingCall({ fromUserId, fromUsername, offer, callType })
     }
     const onAnswer = async ({ answer }) => {
@@ -114,15 +121,46 @@ export default function Home() {
       socket.off('call:ice', onIce)
       socket.off('call:end', onEnd)
     }
-  }, [socket])
+  }, [socket, chatSettings])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   useEffect(() => {
-    if (activeChat?.id) setChatBackground(localStorage.getItem(`chat-bg-${activeChat.id}`) || '')
+    if (activeChat?.id) {
+      setChatBackground(localStorage.getItem(`chat-bg-${activeChat.id}`) || '')
+      setChatSettings(JSON.parse(localStorage.getItem(`chat-settings-${activeChat.id}`) || '{"muted":false,"notifications":true,"blocked":false}'))
+      setShowChatSettings(false)
+    }
   }, [activeChat?.id])
+
+  const saveChatSettings = next => {
+    setChatSettings(next)
+    if (activeChat?.id) localStorage.setItem(`chat-settings-${activeChat.id}`, JSON.stringify(next))
+  }
+
+  const playCustomSound = kind => {
+    const src = customSounds[kind]
+    if (!src) return
+    const audio = new Audio(src)
+    audio.play().catch(() => {})
+    window.setTimeout(() => { audio.pause(); audio.currentTime = 0 }, 9000)
+  }
+
+  const saveCustomSound = (kind, file) => {
+    if (!file) return
+    if (!file.type.startsWith('audio/')) return alert('Audio file ပဲ ရွေးပါ')
+    if (file.size > 3 * 1024 * 1024) return alert('Audio file size 3MB ထက်မကျော်ပါစေနဲ့')
+    const reader = new FileReader()
+    reader.onload = () => {
+      const next = { ...customSounds, [kind]: reader.result }
+      setCustomSounds(next)
+      try { localStorage.setItem('caregivers-sounds', JSON.stringify(next)) } catch { return alert('ဒီ audio ကိုသိမ်းရန် file သေးသေးတစ်ခုရွေးပါ') }
+      playCustomSound(kind)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const loadConversations = async () => {
     try {
@@ -582,6 +620,17 @@ export default function Home() {
               {showBackgrounds && <div className="absolute right-3 top-12 z-20 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 flex gap-2">
                 {['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); setShowBackgrounds(false) }} className={`w-7 h-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}
               </div>}
+              {activeChat.type === 'private' && <>
+                <button onClick={() => setShowChatSettings(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Conversation settings"><Music size={18} /></button>
+                {showChatSettings && <div className="absolute right-3 top-12 z-30 w-72 bg-white dark:bg-gray-800 border rounded-xl shadow-xl p-3 space-y-2 text-sm dark:text-white">
+                  <button onClick={() => saveChatSettings({ ...chatSettings, muted: !chatSettings.muted })} className="w-full flex items-center gap-2 text-left p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><VolumeX size={16} /> {chatSettings.muted ? 'Unmute conversation' : 'Mute conversation'}</button>
+                  <button onClick={() => saveChatSettings({ ...chatSettings, notifications: !chatSettings.notifications })} className="w-full flex items-center gap-2 text-left p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><BellOff size={16} /> {chatSettings.notifications ? 'Turn notifications off' : 'Turn notifications on'}</button>
+                  <label className="block p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><span className="flex items-center gap-2"><Music size={16} /> Message sound (max 9 sec)</span><input type="file" accept="audio/*" className="mt-1 w-full text-xs" onChange={e => saveCustomSound('message', e.target.files[0])} /></label>
+                  <label className="block p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><span className="flex items-center gap-2"><Phone size={16} /> Call sound (max 9 sec)</span><input type="file" accept="audio/*" className="mt-1 w-full text-xs" onChange={e => saveCustomSound('call', e.target.files[0])} /></label>
+                  <button onClick={async () => { await chatAPI[chatSettings.blocked ? 'unblockUser' : 'blockUser'](activeChat.data.id); saveChatSettings({ ...chatSettings, blocked: !chatSettings.blocked }); setShowChatSettings(false) }} className="w-full flex items-center gap-2 text-left p-2 text-orange-600 rounded-lg hover:bg-orange-50"><Ban size={16} /> {chatSettings.blocked ? 'Unblock user' : 'Block user'}</button>
+                  <button onClick={async () => { if (window.confirm('Delete this conversation?')) { await chatAPI.deleteConversation(activeChat.id); setActiveChat(null); setMessages([]); loadConversations(); setShowChatSettings(false) } }} className="w-full flex items-center gap-2 text-left p-2 text-red-600 rounded-lg hover:bg-red-50"><Trash2 size={16} /> Delete conversation</button>
+                </div>}
+              </>}
               {activeChat.type === 'group' && activeChat.data?.inviteCode && (
                 <button
                   onClick={() => {

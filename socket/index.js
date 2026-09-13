@@ -53,6 +53,11 @@ function setupSocket(io, prisma) {
           }
         });
         if (!conversation) return socket.emit('error', { message: 'Conversation not found' });
+        const otherUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+        const blocked = await prisma.blockedUser.findFirst({
+          where: { OR: [{ blockerId: userId, blockedId: otherUserId }, { blockerId: otherUserId, blockedId: userId }] }
+        });
+        if (blocked) return socket.emit('error', { message: 'This user is blocked' });
 
         const msg = await prisma.message.create({
           data: {
@@ -73,7 +78,7 @@ function setupSocket(io, prisma) {
         });
 
         // Find other user and emit
-        const otherId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
+        const otherId = otherUserId;
 
         io.to(`user:${otherId}`).emit('message:new', msg);
         socket.emit('message:new', msg);

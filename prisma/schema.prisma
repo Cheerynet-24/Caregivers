@@ -182,3 +182,13 @@ model Notification {
   message   String
   createdAt DateTime @default(now())
 }
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}

@@ -36,6 +36,9 @@ export const chatAPI = {
   getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
   getMessages: (conversationId) => api.get(`/api/chat/messages/${conversationId}`),
   getGroupMessages: (groupId) => api.get(`/api/chat/group-messages/${groupId}`),
+  deleteConversation: (id) => api.delete(`/api/chat/conversation/${id}`),
+  blockUser: (id) => api.post(`/api/chat/block/${id}`),
+  unblockUser: (id) => api.delete(`/api/chat/block/${id}`),
   upload: (formData) => api.post('/api/chat/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 
