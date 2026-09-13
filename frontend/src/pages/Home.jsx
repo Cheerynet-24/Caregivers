@@ -564,6 +564,7 @@ export default function Home() {
 
   const startCall = async (callType) => {
     if (!activeChat?.data?.id || activeChat.type !== 'private' || !socket) return
+    if (!socket.connected) { setCallStatus('Signaling unavailable'); alert('Server connection မရှိသေးပါ။ App ကို ပြန်ဖွင့်ပြီး စမ်းပါ။'); return }
     try {
       const constraints = callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
@@ -575,7 +576,9 @@ export default function Home() {
       setTimeout(() => { if (peer.connectionState === 'new') peer.restartIce?.() }, 8000)
       const offer = await peer.createOffer()
       await peer.setLocalDescription(offer)
-      socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType })
+      let delivered = false
+      socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType }, () => { delivered = true })
+      setTimeout(() => { if (!delivered && peerRef.current === peer) setCallStatus('Signaling failed') }, 5000)
     } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
@@ -583,6 +586,7 @@ export default function Home() {
 
   const acceptCall = async () => {
     if (!incomingCall || !socket) return
+    if (!socket.connected) { setCallStatus('Signaling unavailable'); return }
     stopNotificationSound()
     try {
       const constraints = incomingCall.callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
@@ -597,7 +601,7 @@ export default function Home() {
       for (const candidate of queued) { try { await peer.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
       const answer = await peer.createAnswer()
       await peer.setLocalDescription(answer)
-      socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer })
+      socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer }, () => {})
       setIncomingCall(null)
     } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)

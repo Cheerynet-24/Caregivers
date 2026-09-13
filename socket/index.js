@@ -203,7 +203,7 @@ function setupSocket(io, prisma) {
     });
 
     // WebRTC signaling for 1-1 calls
-    socket.on('call:offer', (data) => {
+    socket.on('call:offer', (data, acknowledge) => {
       prisma.callLog.create({ data: { callerId: userId, receiverId: data.toUserId, callType: data.callType || 'audio', status: 'ringing' } }).catch(err => console.error('call log error', err));
       prisma.user.findUnique({ where: { id: data.toUserId }, select: { fcmToken: true } }).then(receiver => sendPush(receiver?.fcmToken, {
         title: `Incoming ${data.callType || 'audio'} call`,
@@ -217,13 +217,15 @@ function setupSocket(io, prisma) {
         offer: data.offer,
         callType: data.callType // 'audio' | 'video'
       });
+      if (typeof acknowledge === 'function') acknowledge({ ok: true });
     });
 
-    socket.on('call:answer', (data) => {
+    socket.on('call:answer', (data, acknowledge) => {
       io.to(`user:${data.toUserId}`).emit('call:answer', {
         fromUserId: userId,
         answer: data.answer
       });
+      if (typeof acknowledge === 'function') acknowledge({ ok: true });
     });
 
     socket.on('call:ice', (data) => {
