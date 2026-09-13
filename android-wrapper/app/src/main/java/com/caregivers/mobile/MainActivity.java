@@ -138,9 +138,12 @@ public class MainActivity extends Activity {
 
     private void performBackAction() {
         if (webView == null) { finish(); return; }
+        final boolean[] callbackReturned = {false};
         webView.evaluateJavascript("window.CaregiversHandleBack ? window.CaregiversHandleBack() : false", value -> {
+            callbackReturned[0] = true;
             if (!"true".equals(value) && !"\"true\"".equals(value)) finish();
         });
+        new android.os.Handler(getMainLooper()).postDelayed(() -> { if (!callbackReturned[0]) finish(); }, 300);
     }
 
     private void readReplyIntent(Intent intent) {
