@@ -29,7 +29,7 @@ export const authAPI = {
 }
 
 export const callAPI = {
-  config: () => api.get('/api/call-config')
+  config: () => api.get('/api/call-config', { timeout: 4000 })
 }
 
 export const userAPI = {
