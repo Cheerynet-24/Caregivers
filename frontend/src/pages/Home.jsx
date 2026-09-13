@@ -8,13 +8,13 @@ import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
-  VolumeX, BellOff, Trash2, Ban, Music
+  VolumeX, BellOff, Bell, Trash2, Ban, Music
 } from 'lucide-react'
 
 export default function Home() {
   const { t, i18n } = useTranslation()
   const { user, socket, logout, setUser } = useAuth()
-  const [tab, setTab] = useState('chats') // chats | groups | search | wallet | feed | profile
+  const [tab, setTab] = useState('chats') // chats | groups | search | wallet | feed | profile | admin-noti
   const [conversations, setConversations] = useState([])
   const [groups, setGroups] = useState([])
   const [friends, setFriends] = useState([])
@@ -502,6 +502,10 @@ export default function Home() {
         <button onClick={() => { setTab('friends'); setActiveChat(null); setMessages([]); loadFriends(); loadFriendRequests() }} className={`p-3 rounded-xl ${tab === 'friends' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Friends">
           <UserPlus size={22} />
         </button>
+        <button onClick={() => { setTab('admin-noti'); setActiveChat(null); setMessages([]); loadNotifications() }} className={`relative p-3 rounded-xl ${tab === 'admin-noti' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="From Admin Noti">
+          <Bell size={22} />
+          {notifications.length > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{notifications.length > 99 ? '99+' : notifications.length}</span>}
+        </button>
         <button onClick={() => { setTab('wallet'); setActiveChat(null); setMessages([]); loadWallet() }} className={`p-3 rounded-xl ${tab === 'wallet' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <Wallet size={22} />
         </button>
@@ -540,6 +544,7 @@ export default function Home() {
             {tab === 'feed' && 'Feed'}
             {tab === 'profile' && 'Profile'}
             {tab === 'friends' && 'Friends'}
+            {tab === 'admin-noti' && 'From Admin Noti'}
           </h2>
           <p className="text-xs text-gray-500">{user?.displayName || user?.username}</p>
         </div>
@@ -550,6 +555,10 @@ export default function Home() {
           {tab === 'friends' && <div className="p-3 space-y-4">
             <section><h3 className="font-bold dark:text-white mb-2">Friends ({friends.length})</h3>{friends.length === 0 && <p className="text-sm text-gray-500">No friends yet</p>}{friends.map(friend => <div key={friend.id} className="p-2 flex items-center gap-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"><div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(friend.displayName || friend.username)[0].toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium dark:text-white truncate">{friend.displayName || friend.username}</p><p className="text-xs text-gray-500">@{friend.username}</p></div><button onClick={() => openPrivateChat(friend)} className="p-2 text-sky-500"><MessageCircle size={17} /></button></div>)}</section>
             <section><h3 className="font-bold dark:text-white mb-2">Friend Requests ({friendRequests.length})</h3>{friendRequests.length === 0 && <p className="text-sm text-gray-500">No pending requests</p>}{friendRequests.map(request => <div key={request.id} className="p-2 flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-700"><div className="flex-1"><p className="text-sm font-medium dark:text-white">{request.fromUser?.displayName || request.fromUser?.username}</p><p className="text-xs text-gray-500">wants to be your friend</p></div><button onClick={() => respondToFriendRequest(request.id, 'accept')} className="px-2 py-1 text-xs rounded bg-green-500 text-white">Accept</button><button onClick={() => respondToFriendRequest(request.id, 'decline')} className="px-2 py-1 text-xs rounded bg-red-500 text-white">Decline</button></div>)}</section>
+          </div>}
+          {tab === 'admin-noti' && <div className="p-3 space-y-3">
+            {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Admin notification မရှိသေးပါ</div>}
+            {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
           {tab === 'chats' && conversations.map(c => (
             <div key={c.id} onClick={() => openPrivateChat(c.otherUser)} onContextMenu={e => { e.preventDefault(); setConversationToDelete(c) }} onTouchStart={() => beginConversationLongPress(c)} onTouchEnd={cancelConversationLongPress} onTouchMove={cancelConversationLongPress}
