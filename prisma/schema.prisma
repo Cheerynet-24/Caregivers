@@ -20,6 +20,7 @@ model User {
   coinBalance  Float         @default(0)
   role         String        @default("user")
   createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   lastSeen     DateTime      @default(now())
   messagesSent Message[]     @relation("SentMessages")
   messagesRecv Message[]     @relation("ReceivedMessages")
