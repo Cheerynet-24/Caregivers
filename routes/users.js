@@ -175,10 +175,17 @@ router.get('/friend-requests', auth, async (req, res) => {
 // Update profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { displayName, bio, avatar } = req.body;
+    const { username, displayName, bio, avatar } = req.body;
+    if (username !== undefined) {
+      const nextUsername = String(username).trim();
+      if (nextUsername.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
+      const taken = await prisma.user.findFirst({ where: { username: nextUsername, id: { not: req.user.id } } });
+      if (taken) return res.status(409).json({ error: 'Username already taken' });
+    }
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: {
+        ...(username !== undefined && { username: String(username).trim() }),
         ...(displayName !== undefined && { displayName }),
         ...(bio !== undefined && { bio }),
         ...(avatar !== undefined && { avatar })

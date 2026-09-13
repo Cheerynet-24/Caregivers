@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, resolveMediaUrl } from '../services/api'
+import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
+import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
 import {
-  MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
+  MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
   VolumeX, BellOff, Trash2, Ban, Music
@@ -11,8 +12,8 @@ import {
 
 export default function Home() {
   const { t, i18n } = useTranslation()
-  const { user, socket, logout } = useAuth()
-  const [tab, setTab] = useState('chats') // chats | groups | friends | search | wallet
+  const { user, socket, logout, setUser } = useAuth()
+  const [tab, setTab] = useState('chats') // chats | groups | search | wallet | feed | profile
   const [conversations, setConversations] = useState([])
   const [groups, setGroups] = useState([])
   const [friends, setFriends] = useState([])
@@ -44,6 +45,8 @@ export default function Home() {
   const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
+  const [posts, setPosts] = useState([])
+  const [conversationToDelete, setConversationToDelete] = useState(null)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
   const [customSounds, setCustomSounds] = useState(() => JSON.parse(localStorage.getItem('caregivers-sounds') || '{}'))
   const soundRefs = useRef({})
@@ -59,6 +62,7 @@ export default function Home() {
     loadGroups()
     loadFriends()
     loadNotifications()
+    loadPosts()
   }, [])
 
   useEffect(() => {
@@ -140,6 +144,22 @@ export default function Home() {
     if (activeChat?.id) localStorage.setItem(`chat-settings-${activeChat.id}`, JSON.stringify(next))
   }
 
+  const longPressTimer = useRef(null)
+  const beginConversationLongPress = conversation => {
+    window.clearTimeout(longPressTimer.current)
+    longPressTimer.current = window.setTimeout(() => setConversationToDelete(conversation), 650)
+  }
+  const cancelConversationLongPress = () => window.clearTimeout(longPressTimer.current)
+  const confirmDeleteConversation = async () => {
+    if (!conversationToDelete) return
+    try {
+      await chatAPI.deleteConversation(conversationToDelete.id)
+      if (activeChat?.id === conversationToDelete.id) { setActiveChat(null); setMessages([]) }
+      setConversationToDelete(null)
+      loadConversations()
+    } catch (err) { alert(err.response?.data?.error || 'Conversation delete failed') }
+  }
+
   const playCustomSound = kind => {
     const src = customSounds[kind]
     if (!src) return
@@ -197,6 +217,14 @@ export default function Home() {
     try {
       const res = await userAPI.notifications()
       setNotifications(res.data.notifications || [])
+    } catch {}
+  }
+
+  const loadPosts = async (items) => {
+    if (items) return setPosts(items)
+    try {
+      const res = await postsAPI.list()
+      setPosts(res.data.posts || [])
     } catch {}
   }
 
@@ -460,7 +488,13 @@ export default function Home() {
         <button onClick={() => { setTab('wallet'); setActiveChat(null); setMessages([]); loadWallet() }} className={`p-3 rounded-xl ${tab === 'wallet' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <Wallet size={22} />
         </button>
+        <button onClick={() => { setTab('feed'); setActiveChat(null); setMessages([]); loadPosts() }} className={`p-3 rounded-xl ${tab === 'feed' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Feed">
+          <Rss size={22} />
+        </button>
         <div className="flex-1" />
+        <button onClick={() => { setTab('profile'); setActiveChat(null); setMessages([]) }} className={`p-3 rounded-xl ${tab === 'profile' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Profile">
+          <UserCircle size={22} />
+        </button>
         <button onClick={() => setShowDeveloper(true)} className="p-3 text-white/70 hover:bg-white/10 rounded-xl" title="Developer">
           <Code2 size={20} />
         </button>
@@ -486,14 +520,17 @@ export default function Home() {
             {tab === 'groups' && t('groups')}
             {tab === 'search' && t('searchFriend')}
             {tab === 'wallet' && t('wallet')}
-            {tab === 'friends' && t('friends')}
+            {tab === 'feed' && 'Feed'}
+            {tab === 'profile' && 'Profile'}
           </h2>
           <p className="text-xs text-gray-500">{user?.displayName || user?.username}</p>
         </div>
 
         <div className="flex-1 overflow-y-auto">
+          {tab === 'feed' && <FeedPanel user={user} posts={posts} onRefresh={loadPosts} />}
+          {tab === 'profile' && <ProfilePanel user={user} setUser={setUser} posts={posts} onRefreshPosts={loadPosts} />}
           {tab === 'chats' && conversations.map(c => (
-            <div key={c.id} onClick={() => openPrivateChat(c.otherUser)}
+            <div key={c.id} onClick={() => openPrivateChat(c.otherUser)} onContextMenu={e => { e.preventDefault(); setConversationToDelete(c) }} onTouchStart={() => beginConversationLongPress(c)} onTouchEnd={cancelConversationLongPress} onTouchMove={cancelConversationLongPress}
               className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${activeChat?.id === c.id ? 'bg-sky-50 dark:bg-sky-900/30' : ''}`}>
               <div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">
                 {(c.otherUser?.displayName || c.otherUser?.username || '?')[0].toUpperCase()}
@@ -562,11 +599,11 @@ export default function Home() {
                 <p className="text-3xl font-bold">{wallet.balance} <span className="text-lg">{t('coins')}</span></p>
               </div>
 
-              {(paymentAccounts.length > 0 || paymentInfo.account_name) && (
+              {paymentAccounts.length > 0 && (
                 <div className="space-y-2">
                   <p className="font-semibold text-sm dark:text-white">{t('paymentInfo')}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {(paymentAccounts.length ? paymentAccounts : [{ id: 'legacy', method: paymentInfo.bank_name, accountName: paymentInfo.account_name, phoneNumber: paymentInfo.phone_number, qrCode: paymentInfo.qr_image }]).map(account => (
+                    {paymentAccounts.map(account => (
                       <button type="button" key={account.id} onClick={() => account.id !== 'legacy' && setSelectedPaymentAccount(account.id)} className={`text-left border rounded-xl p-3 text-sm ${selectedPaymentAccount === account.id ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/30' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'}`}>
                         <p className="font-semibold dark:text-white">{account.method}</p>
                         <p className="dark:text-gray-300">{account.accountName}</p>
@@ -790,6 +827,18 @@ export default function Home() {
               placeholder={t('groupName')}
               className="w-full px-4 py-3 border rounded-xl mb-4 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
             <button onClick={createGroup} className="w-full bg-sky-500 text-white py-3 rounded-xl font-medium">{t('submit')}</button>
+          </div>
+        </div>
+      )}
+      {conversationToDelete && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4" onClick={() => setConversationToDelete(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold dark:text-white">Delete conversation?</h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-300">ဒီ conversation တစ်ခုလုံးကို ဖျက်မလား။ OK နှိပ်မှသာ ဖျက်ပါမယ်။</p>
+            <div className="mt-5 flex gap-3 justify-end">
+              <button onClick={() => setConversationToDelete(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Cancel</button>
+              <button onClick={confirmDeleteConversation} className="px-4 py-2 rounded-lg bg-red-500 text-white">OK</button>
+            </div>
           </div>
         </div>
       )}

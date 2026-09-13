@@ -22,6 +22,7 @@ export const authAPI = {
   register: (data) => api.post('/api/auth/register', data),
   login: (data) => api.post('/api/auth/login', data),
   me: () => api.get('/api/auth/me'),
+  changePassword: (data) => api.put('/api/auth/password', data),
   logout: () => api.post('/api/auth/logout'),
   deleteAccount: () => api.delete('/api/auth/me')
 }
@@ -35,6 +36,18 @@ export const userAPI = {
   acceptRequest: (id) => api.post(`/api/users/friend-request/${id}/accept`),
   rejectRequest: (id) => api.post(`/api/users/friend-request/${id}/reject`),
   updateProfile: (data) => api.put('/api/users/profile', data)
+}
+
+export const postsAPI = {
+  list: () => api.get('/api/posts'),
+  saved: () => api.get('/api/posts/saved'),
+  create: (formData) => api.post('/api/posts', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  edit: (id, data) => api.put(`/api/posts/${id}`, data),
+  remove: (id) => api.delete(`/api/posts/${id}`),
+  like: (id) => api.post(`/api/posts/${id}/like`),
+  save: (id) => api.post(`/api/posts/${id}/save`),
+  comment: (id, data) => api.post(`/api/posts/${id}/comments`, data),
+  likeComment: (id) => api.post(`/api/posts/comments/${id}/like`)
 }
 
 export const chatAPI = {

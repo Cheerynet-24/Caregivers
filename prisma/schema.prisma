@@ -36,6 +36,11 @@ model User {
   requestsReceived    FriendRequest[] @relation("FriendRequestTo")
   deposits            DepositRequest[]
   withdrawals         WithdrawRequest[]
+  posts               Post[]          @relation("PostAuthor")
+  postLikes           PostLike[]
+  savedPosts          PostSave[]
+  comments            Comment[]       @relation("CommentAuthor")
+  commentLikes        CommentLike[]
 }
 
 model Message {
@@ -192,4 +197,67 @@ model BlockedUser {
 
   @@unique([blockerId, blockedId])
   @@index([blockerId])
+}
+
+
+model Post {
+  id          String       @id @default(uuid())
+  authorId    String
+  author      User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  caption     String?
+  mediaUrl    String?
+  mediaType   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  likes       PostLike[]
+  saves       PostSave[]
+  comments    Comment[]
+  @@index([createdAt])
+  @@index([authorId, createdAt])
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([postId, userId])
+}
+
+model PostSave {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([postId, userId])
+}
+
+model Comment {
+  id        String        @id @default(uuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  content   String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User          @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+  likes     CommentLike[]
+  @@index([postId, createdAt])
+}
+
+model CommentLike {
+  id        String   @id @default(uuid())
+  commentId String
+  userId    String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([commentId, userId])
 }
