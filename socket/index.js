@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { sendPush } = require('../utils/firebase');
 
 function setupSocket(io, prisma) {
   // Auth middleware for socket
@@ -54,7 +55,7 @@ function setupSocket(io, prisma) {
         });
         if (!conversation) return socket.emit('error', { message: 'Conversation not found' });
         const otherUserId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;
-        const otherUser = await prisma.user.findUnique({ where: { id: otherUserId }, select: { allowMessagesFrom: true } });
+        const otherUser = await prisma.user.findUnique({ where: { id: otherUserId }, select: { allowMessagesFrom: true, fcmToken: true } });
         if (otherUser?.allowMessagesFrom === 'friends') {
           const friendship = await prisma.friendship.findFirst({ where: { OR: [{ user1Id: userId, user2Id: otherUserId }, { user1Id: otherUserId, user2Id: userId }] } });
           if (!friendship) return socket.emit('error', { message: 'This user accepts messages from friends only' });
@@ -86,6 +87,12 @@ function setupSocket(io, prisma) {
         const otherId = otherUserId;
 
         io.to(`user:${otherId}`).emit('message:new', msg);
+        sendPush(otherUser.fcmToken, {
+          title: socket.user.displayName || socket.user.username || 'New message',
+          body: content || (type === 'audio' ? 'Voice message' : 'Attachment'),
+          type: 'message',
+          data: { fromUserId: userId, conversationId }
+        });
         socket.emit('message:new', msg);
       } catch (err) {
         console.error('private msg error', err);
@@ -198,6 +205,12 @@ function setupSocket(io, prisma) {
     // WebRTC signaling for 1-1 calls
     socket.on('call:offer', (data) => {
       prisma.callLog.create({ data: { callerId: userId, receiverId: data.toUserId, callType: data.callType || 'audio', status: 'ringing' } }).catch(err => console.error('call log error', err));
+      prisma.user.findUnique({ where: { id: data.toUserId }, select: { fcmToken: true } }).then(receiver => sendPush(receiver?.fcmToken, {
+        title: `Incoming ${data.callType || 'audio'} call`,
+        body: `${socket.user.displayName || socket.user.username} is calling you`,
+        type: 'call',
+        data: { fromUserId: userId, callType: data.callType || 'audio' }
+      })).catch(err => console.error('call push error', err));
       io.to(`user:${data.toUserId}`).emit('call:offer', {
         fromUserId: userId,
         fromUsername: socket.user.username,
