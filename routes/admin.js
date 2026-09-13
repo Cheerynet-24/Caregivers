@@ -21,8 +21,8 @@ const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Device Token Authentication Middleware
 const deviceAuth = (req, res, next) => {
-  const token = req.headers['x-admin-device'] || req.query.token || req.body.deviceToken || req.body.password;
-  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || '29580284';
+  const token = req.headers['x-admin-device'] || req.body.deviceToken || req.query.token || req.body.password;
+  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || 'wai_yan_lin_wai_05_mail';
 
   if (token && String(token).trim() === String(targetToken).trim()) {
     return next();
@@ -30,10 +30,10 @@ const deviceAuth = (req, res, next) => {
   return res.status(403).json({ error: "Unauthorized device" });
 };
 
-// Login route
+// Login route supporting device token / secret key
 router.post('/login', (req, res) => {
   const token = req.body.password || req.body.deviceToken || req.headers['x-admin-device'];
-  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || '29580284';
+  const targetToken = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || 'wai_yan_lin_wai_05_mail';
   
   if (token && String(token).trim() === String(targetToken).trim()) {
     return res.json({ success: true, message: "Device authenticated" });
@@ -73,7 +73,7 @@ router.post('/payment-info', deviceAuth, async (req, res) => {
   }
 });
 
-// All users
+// All users list
 router.get('/users', deviceAuth, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
@@ -90,7 +90,7 @@ router.get('/users', deviceAuth, async (req, res) => {
   }
 });
 
-// Ban / Unban
+// Ban / Unban users
 router.post('/users/:id/ban', deviceAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
@@ -115,7 +115,7 @@ router.post('/users/:id/unban', deviceAuth, async (req, res) => {
   }
 });
 
-// Mute / Unmute
+// Mute / Unmute users
 router.post('/users/:id/mute', deviceAuth, async (req, res) => {
   try {
     const user = await prisma.user.update({
