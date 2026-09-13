@@ -66,6 +66,7 @@ export default function Home() {
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
   const remoteStreamRef = useRef(null)
+  const pendingIceRef = useRef([])
   const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
@@ -127,12 +128,16 @@ export default function Home() {
       setIncomingCall({ fromUserId, fromUsername, offer, callType })
     }
     const onAnswer = async ({ answer }) => {
-      if (peerRef.current) await peerRef.current.setRemoteDescription(answer)
+      if (peerRef.current) {
+        await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer))
+        const queued = pendingIceRef.current.splice(0)
+        for (const candidate of queued) { try { await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
+      }
     }
     const onIce = async ({ candidate }) => {
-      if (peerRef.current && candidate) {
-        try { await peerRef.current.addIceCandidate(candidate) } catch {}
-      }
+      if (!candidate) return
+      if (!peerRef.current?.remoteDescription) pendingIceRef.current.push(candidate)
+      else { try { await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
     }
     const onEnd = () => endCall(false)
     socket.on('call:offer', onOffer)
@@ -443,7 +448,12 @@ export default function Home() {
   }
 
   const createPeer = (targetUserId, callType) => {
-    const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] })
+    pendingIceRef.current = []
+    const peer = new RTCPeerConnection({ iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun.cloudflare.com:3478' }
+    ] })
     peer.onicecandidate = (event) => {
       if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
     }
@@ -467,7 +477,7 @@ export default function Home() {
       const offer = await peer.createOffer()
       await peer.setLocalDescription(offer)
       socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType })
-    } catch {
+    } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
   }
@@ -482,11 +492,13 @@ export default function Home() {
       const peer = createPeer(incomingCall.fromUserId, incomingCall.callType)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
       await peer.setRemoteDescription(incomingCall.offer)
+      const queued = pendingIceRef.current.splice(0)
+      for (const candidate of queued) { try { await peer.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
       const answer = await peer.createAnswer()
       await peer.setLocalDescription(answer)
       socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer })
       setIncomingCall(null)
-    } catch {
+    } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
   }
