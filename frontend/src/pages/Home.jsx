@@ -43,6 +43,9 @@ export default function Home() {
   const [notifications, setNotifications] = useState([])
   const [latestNotification, setLatestNotification] = useState(null)
   const [latestMessageNotification, setLatestMessageNotification] = useState(null)
+  const [popupReply, setPopupReply] = useState('')
+  const [popupReplying, setPopupReplying] = useState(false)
+  const [sendingPopupReply, setSendingPopupReply] = useState(false)
   const [chatBackground, setChatBackground] = useState('')
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
@@ -310,11 +313,26 @@ export default function Home() {
   }
 
   const replyToMessageNotification = async () => {
-    const sender = latestMessageNotification?.sender
-    if (!sender) return
-    setLatestMessageNotification(null)
+    if (!latestMessageNotification?.sender) return
+    setPopupReply('')
+    setPopupReplying(true)
     stopNotificationSound()
-    await openPrivateChat(sender)
+  }
+
+  const sendPopupReply = async e => {
+    e.preventDefault()
+    const text = popupReply.trim()
+    const sender = latestMessageNotification?.sender
+    if (!text || !sender || !socket || sendingPopupReply) return
+    setSendingPopupReply(true)
+    try {
+      const res = await chatAPI.getOrCreateConversation(sender.id)
+      socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' })
+      setPopupReply('')
+      setPopupReplying(false)
+      setLatestMessageNotification(null)
+    } catch (err) { alert(err.response?.data?.error || 'Reply failed') }
+    finally { setSendingPopupReply(false) }
   }
 
   const openGroupChat = async (group) => {
@@ -857,8 +875,8 @@ export default function Home() {
       )}
       {latestMessageNotification && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
-          <button onClick={() => { stopNotificationSound(); setLatestMessageNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
-          <div className="flex items-start gap-3 pr-5"><div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || '?')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><p className="font-bold text-sky-600 dark:text-sky-300">{latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || 'New message'}</p><p className="mt-1 text-sm dark:text-gray-200 truncate">{latestMessageNotification.content || (latestMessageNotification.type === 'audio' ? 'Voice message' : 'Attachment')}</p><button onClick={replyToMessageNotification} className="mt-3 px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm">Reply</button></div></div>
+          <button onClick={() => { stopNotificationSound(); setPopupReplying(false); setPopupReply(''); setLatestMessageNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
+          <div className="flex items-start gap-3 pr-5"><div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || '?')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><p className="font-bold text-sky-600 dark:text-sky-300">{latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || 'New message'}</p><p className="mt-1 text-sm dark:text-gray-200 truncate">{latestMessageNotification.content || (latestMessageNotification.type === 'audio' ? 'Voice message' : 'Attachment')}</p>{!popupReplying ? <div className="mt-3 flex gap-2"><button onClick={replyToMessageNotification} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm">Reply</button><button onClick={() => { stopNotificationSound(); openPrivateChat(latestMessageNotification.sender); setLatestMessageNotification(null) }} className="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-600 dark:text-sky-300 text-sm">Open chat</button></div> : <form onSubmit={sendPopupReply} className="mt-3 flex gap-2"><input autoFocus value={popupReply} onChange={e => setPopupReply(e.target.value)} placeholder="Reply..." className="min-w-0 flex-1 px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" /><button disabled={sendingPopupReply} className="px-3 py-2 rounded-lg bg-sky-500 text-white disabled:opacity-60">{sendingPopupReply ? 'Sending...' : 'Send'}</button></form>}</div></div>
         </div>
       )}
       {showDeveloper && (
