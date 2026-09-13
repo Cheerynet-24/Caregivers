@@ -146,21 +146,18 @@ router.get('/conversations', auth, async (req, res) => {
         ]
       },
       orderBy: { updatedAt: 'desc' },
-      take: 50
+      take: 50,
+      include: {
+        user1: { select: { id: true, username: true, displayName: true, avatar: true, isOnline: true } },
+        user2: { select: { id: true, username: true, displayName: true, avatar: true, isOnline: true } },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 }
+      }
     });
 
-    const enriched = await Promise.all(convs.map(async (c) => {
-      const otherId = c.user1Id === req.user.id ? c.user2Id : c.user1Id;
-      const other = await prisma.user.findUnique({
-        where: { id: otherId },
-        select: { id: true, username: true, displayName: true, avatar: true, isOnline: true }
-      });
-      const lastMsg = await prisma.message.findFirst({
-        where: { conversationId: c.id },
-        orderBy: { createdAt: 'desc' }
-      });
-      return { ...c, otherUser: other, lastMessage: lastMsg };
-    }));
+    const enriched = convs.map((c) => {
+      const other = c.user1Id === req.user.id ? c.user2 : c.user1;
+      return { ...c, otherUser: other, lastMessage: c.messages?.[0] || null, messages: undefined };
+    });
 
     res.json({ conversations: enriched });
   } catch (err) {

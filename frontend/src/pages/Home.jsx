@@ -108,7 +108,12 @@ export default function Home() {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
         const matchGroup = activeChat.type === 'group' && msg.groupId === activeChat.id
         if (matchPrivate || matchGroup) {
-          setMessages(prev => [...prev, msg])
+          setMessages(prev => {
+            const pendingIndex = prev.findIndex(item => item.pending && item.senderId === msg.senderId && item.content === msg.content && item.type === msg.type)
+            if (pendingIndex >= 0) return prev.map((item, index) => index === pendingIndex ? msg : item)
+            if (prev.some(item => item.id === msg.id)) return prev
+            return [...prev, msg]
+          })
         }
       }
       loadConversations()
@@ -345,15 +350,14 @@ export default function Home() {
     } catch {}
   }
 
-  const openPrivateChat = async (otherUser) => {
+  const openPrivateChat = async (otherUser, knownConversationId = null) => {
     try {
       stopNotificationSound()
-      const res = await chatAPI.getOrCreateConversation(otherUser.id)
-      const conv = res.data.conversation
-      setActiveChat({ type: 'private', id: conv.id, data: otherUser })
-      const msgs = await chatAPI.getMessages(conv.id)
-      setMessages(msgs.data.messages || [])
       setTab('chats')
+      const conv = knownConversationId ? { id: knownConversationId } : (await chatAPI.getOrCreateConversation(otherUser.id)).data.conversation
+      setActiveChat({ type: 'private', id: conv.id, data: otherUser })
+      setMessages([])
+      chatAPI.getMessages(conv.id).then(msgs => setMessages(msgs.data.messages || [])).catch(() => {})
     } catch {}
   }
 
@@ -411,6 +415,8 @@ export default function Home() {
       setVoiceFile(null)
     }
     if (activeChat.type === 'private') {
+      const pendingMessage = { id: `pending-${Date.now()}`, senderId: user.id, content, type, fileUrl, createdAt: new Date().toISOString(), pending: true }
+      setMessages(prev => [...prev, pendingMessage])
       socket.emit('message:private', {
         conversationId: activeChat.id,
         content,
@@ -418,6 +424,8 @@ export default function Home() {
         fileUrl
       })
     } else {
+      const pendingMessage = { id: `pending-${Date.now()}`, senderId: user.id, content, type, fileUrl, createdAt: new Date().toISOString(), pending: true }
+      setMessages(prev => [...prev, pendingMessage])
       socket.emit('message:group', {
         groupId: activeChat.id,
         content,
@@ -716,7 +724,7 @@ export default function Home() {
           </div>}
           {tab === 'call-history' && <div className="p-3 space-y-2">{callHistory.length === 0 && <p className="text-sm text-gray-500">Call history မရှိသေးပါ</p>}{callHistory.map(item => { const other = item.callerId === user.id ? item.receiver : item.caller; return <div key={item.id} className="rounded-xl border dark:border-gray-600 p-3 flex items-center gap-3"><Phone size={18} className="text-sky-500" /><div className="flex-1"><p className="text-sm font-medium dark:text-white">{other?.displayName || other?.username}</p><p className="text-xs text-gray-500">{item.callType} call · {item.status} · {new Date(item.createdAt).toLocaleString()}</p></div></div> })}</div>}
           {tab === 'chats' && conversations.map(c => (
-            <div key={c.id} onClick={() => openPrivateChat(c.otherUser)} onContextMenu={e => { e.preventDefault(); setConversationToDelete(c) }} onTouchStart={() => beginConversationLongPress(c)} onTouchEnd={cancelConversationLongPress} onTouchMove={cancelConversationLongPress}
+            <div key={c.id} onClick={() => openPrivateChat(c.otherUser, c.id)} onContextMenu={e => { e.preventDefault(); setConversationToDelete(c) }} onTouchStart={() => beginConversationLongPress(c)} onTouchEnd={cancelConversationLongPress} onTouchMove={cancelConversationLongPress}
               className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${activeChat?.id === c.id ? 'bg-sky-50 dark:bg-sky-900/30' : ''}`}>
               <div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">
                 {(c.otherUser?.displayName || c.otherUser?.username || '?')[0].toUpperCase()}
