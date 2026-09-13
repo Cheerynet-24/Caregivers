@@ -16,6 +16,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ConsoleMessage;
 
 public class MainActivity extends Activity {
     private static final int FILE_PICKER = 1001;
@@ -67,6 +68,10 @@ public class MainActivity extends Activity {
             } catch (Exception ignored) {}
         });
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override public boolean onConsoleMessage(ConsoleMessage message) {
+                android.util.Log.d("CaregiversWeb", message.message() + " @" + message.lineNumber());
+                return true;
+            }
             @Override public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (uploadCallback != null) uploadCallback.onReceiveValue(null);
                 uploadCallback = callback;
@@ -88,6 +93,7 @@ public class MainActivity extends Activity {
                     if (cameraOk && micOk) {
                         request.grant(request.getResources());
                     } else {
+                        if (pendingWebPermission != null) pendingWebPermission.deny();
                         pendingWebPermission = request;
                         requestRuntimePermissions();
                     }

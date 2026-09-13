@@ -348,7 +348,7 @@ export default function Home() {
       await peer.setLocalDescription(offer)
       socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType })
     } catch {
-      alert('Microphone/Camera permission is required for calls.')
+      alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
   }
 
@@ -366,7 +366,7 @@ export default function Home() {
       socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer })
       setIncomingCall(null)
     } catch {
-      alert('Microphone/Camera permission is required for calls.')
+      alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
     }
   }
 
