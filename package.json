@@ -2,10 +2,10 @@
   "name": "caregivers",
   "version": "1.0.0",
   "description": "Caregivers Messenger App with Admin Panel",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
     "build": "cd frontend && npm install && npm run build",
-    "start": "npx prisma db push && node src/index.js",
+    "start": "npx prisma db push && node index.js",
     "postinstall": "npx prisma generate"
   },
   "dependencies": {
@@ -21,4 +21,3 @@
     "prisma": "^5.0.0"
   }
 }
-
