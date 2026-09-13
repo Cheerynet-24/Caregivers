@@ -36,6 +36,7 @@ export default function Home() {
   const [paymentInfo, setPaymentInfo] = useState({})
   const [dark, setDark] = useState(false)
   const [call, setCall] = useState(null)
+  const [callStatus, setCallStatus] = useState('')
   const [incomingCall, setIncomingCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
   const [cameraOff, setCameraOff] = useState(false)
@@ -489,7 +490,13 @@ export default function Home() {
       ...configuredIceServers
     ] })
     peer.onconnectionstatechange = () => {
-      if (['failed', 'disconnected'].includes(peer.connectionState)) console.warn('Caregivers call connection:', peer.connectionState)
+      if (peer.connectionState === 'connected') setCallStatus('Connected')
+      else if (peer.connectionState === 'connecting') setCallStatus('Connecting')
+      else if (['failed', 'disconnected'].includes(peer.connectionState)) setCallStatus('Connection failed')
+    }
+    peer.oniceconnectionstatechange = () => {
+      if (['checking', 'connected'].includes(peer.iceConnectionState) && peer.connectionState !== 'connected') setCallStatus('My Connecting')
+      if (peer.iceConnectionState === 'failed') setCallStatus('Connection failed')
     }
     peer.onicecandidate = (event) => {
       if (event.candidate) socket.emit('call:ice', { toUserId: targetUserId, candidate: event.candidate })
@@ -498,6 +505,7 @@ export default function Home() {
       remoteStreamRef.current = event.streams[0]
       if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = event.streams[0]; remoteVideoRef.current.play?.().catch(() => {}) }
       if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = event.streams[0]; remoteAudioRef.current.play?.().catch(() => {}) }
+      setCallStatus('Connected')
     }
     peerRef.current = peer
     setCall({ targetUserId, callType })
@@ -510,6 +518,7 @@ export default function Home() {
       const constraints = callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       localStreamRef.current = stream
+      setCallStatus('Calling')
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
       const peer = createPeer(activeChat.data.id, callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
@@ -529,6 +538,7 @@ export default function Home() {
       const constraints = incomingCall.callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       localStreamRef.current = stream
+      setCallStatus('Connecting')
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
       const peer = createPeer(incomingCall.fromUserId, incomingCall.callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
@@ -552,6 +562,7 @@ export default function Home() {
     peerRef.current = null
     localStreamRef.current = null
     setCall(null)
+    setCallStatus('')
     setIncomingCall(null)
     setMutedCall(false)
     setCameraOff(false)
@@ -987,6 +998,7 @@ export default function Home() {
               autoPlay muted playsInline
               className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
             />
+            <div className="absolute top-4 left-4 rounded-lg bg-black/60 px-3 py-2 text-white text-sm">{callStatus || 'Calling'}</div>
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
           </div>
           <div className="p-4 flex flex-wrap items-center justify-center gap-3 bg-gray-900">
