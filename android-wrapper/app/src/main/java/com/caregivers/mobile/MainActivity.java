@@ -216,7 +216,7 @@ public class MainActivity extends Activity {
     @Override public void onBackPressed() {
         if (webView != null) {
             webView.evaluateJavascript("window.CaregiversHandleBack ? window.CaregiversHandleBack() : false", value -> {
-                if (!"true".equals(value)) handleAppBack();
+                if (!"true".equals(value) && !"\"true\"".equals(value)) handleAppBack();
             });
             return;
         }
@@ -228,12 +228,6 @@ public class MainActivity extends Activity {
             webView.goBack();
             return;
         }
-        long now = System.currentTimeMillis();
-        if (now - lastBackPressedAt < 1800) {
-            super.onBackPressed();
-        } else {
-            lastBackPressedAt = now;
-            Toast.makeText(this, "နောက်တစ်ကြိမ်နှိပ်လျှင် App ပိတ်မည်", Toast.LENGTH_SHORT).show();
-        }
+        Toast.makeText(this, "Chats စာမျက်နှာမှာ ရှိနေပါတယ်", Toast.LENGTH_SHORT).show();
     }
 }

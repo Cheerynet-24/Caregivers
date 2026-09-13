@@ -28,7 +28,7 @@ app.get('/api/call-config', async (req, res) => {
     try {
       const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
       const token = await client.tokens.create({ ttl: 3600 });
-      return res.json({ iceServers: token.iceServers || [] });
+      return res.json({ iceServers: token.iceServers || token.ice_servers || [] });
     } catch (error) {
       console.error('TURN token error:', error.code || error.message);
     }

@@ -479,14 +479,14 @@ export default function Home() {
     }
   }
 
-  const createPeer = (targetUserId, callType) => {
+  const createPeer = (targetUserId, callType, configuredIceServers = iceServers) => {
     pendingIceRef.current = []
     const peer = new RTCPeerConnection({ iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun.cloudflare.com:3478' },
       { urls: 'stun:stun.nextcloud.com:443' },
-      ...iceServers
+      ...configuredIceServers
     ] })
     peer.onconnectionstatechange = () => {
       if (['failed', 'disconnected'].includes(peer.connectionState)) console.warn('Caregivers call connection:', peer.connectionState)
@@ -507,10 +507,11 @@ export default function Home() {
   const startCall = async (callType) => {
     if (!activeChat?.data?.id || activeChat.type !== 'private' || !socket) return
     try {
-      const constraints = callType === 'video' ? { audio: true, video: true } : { audio: true, video: false }
+      const constraints = callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       localStreamRef.current = stream
-      const peer = createPeer(activeChat.data.id, callType)
+      const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
+      const peer = createPeer(activeChat.data.id, callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
       setTimeout(() => { if (peer.connectionState === 'new') peer.restartIce?.() }, 8000)
       const offer = await peer.createOffer()
@@ -525,10 +526,11 @@ export default function Home() {
     if (!incomingCall || !socket) return
     stopNotificationSound()
     try {
-      const constraints = incomingCall.callType === 'video' ? { audio: true, video: true } : { audio: true, video: false }
+      const constraints = incomingCall.callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       localStreamRef.current = stream
-      const peer = createPeer(incomingCall.fromUserId, incomingCall.callType)
+      const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
+      const peer = createPeer(incomingCall.fromUserId, incomingCall.callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
       await peer.setRemoteDescription(incomingCall.offer)
       const queued = pendingIceRef.current.splice(0)
