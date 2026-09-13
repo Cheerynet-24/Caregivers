@@ -5,7 +5,7 @@ import { chatAPI, userAPI, groupAPI, walletAPI } from '../services/api'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
-  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2
+  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin
 } from 'lucide-react'
 
 export default function Home() {
@@ -206,6 +206,7 @@ export default function Home() {
         const uploaded = await chatAPI.upload(formData)
         fileUrl = uploaded.data.fileUrl
         type = uploaded.data.type
+        content = uploaded.data.name
       } catch (err) {
         alert(err.response?.data?.error || 'File upload failed')
         return
@@ -229,6 +230,14 @@ export default function Home() {
     }
     setInput('')
     setShowStickers(false)
+  }
+
+  const sendLocation = () => {
+    if (!navigator.geolocation) return alert('ဒီ browser မှာ Location မပံ့ပိုးပါ')
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => sendMessage(`📍 Location: ${coords.latitude}, ${coords.longitude}\nhttps://www.google.com/maps?q=${coords.latitude},${coords.longitude}`, 'location'),
+      () => alert('Location permission ကို Allow လုပ်ပြီး ပြန်ကြိုးစားပါ')
+    )
   }
 
   const createPeer = (targetUserId, callType) => {
@@ -564,10 +573,11 @@ export default function Home() {
                     {activeChat.type === 'group' && m.senderId !== user.id && (
                       <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mb-0.5">{m.sender?.displayName || m.sender?.username}</p>
                     )}
-                    {m.type === 'image' && m.fileUrl ? <img src={m.fileUrl} alt={m.content || 'Image'} className="max-w-full rounded-lg" />
-                      : m.type === 'video' && m.fileUrl ? <video src={m.fileUrl} controls className="max-w-full rounded-lg" />
+                    {m.type === 'image' && m.fileUrl ? <><img src={m.fileUrl} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
+                      : m.type === 'video' && m.fileUrl ? <><video src={m.fileUrl} controls className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
                       : m.type === 'audio' && m.fileUrl ? <audio src={m.fileUrl} controls />
-                      : m.type === 'file' && m.fileUrl ? <a href={m.fileUrl} target="_blank" rel="noreferrer" className="underline">{m.content || 'Download file'}</a>
+                      : m.type === 'file' && m.fileUrl ? <a href={m.fileUrl} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
+                      : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
                       : <p className={m.type === 'sticker' ? 'text-5xl' : ''}>{m.content}</p>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -581,6 +591,7 @@ export default function Home() {
             <div className="p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-2 items-center relative">
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
+              <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
               <button onClick={() => setShowStickers(v => !v)} className="p-2 text-gray-500 text-lg" title="Sticker">☺</button>
               {showStickers && <div className="absolute bottom-14 left-2 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 grid grid-cols-5 gap-2">
                 {['😀','😂','😍','🥰','😎','😢','😡','👍','❤️','🎉','🙏','🔥','👏','🤝','✨'].map(sticker => <button key={sticker} onClick={() => sendMessage(sticker, 'sticker')} className="text-2xl hover:bg-gray-100 rounded p-1">{sticker}</button>)}
