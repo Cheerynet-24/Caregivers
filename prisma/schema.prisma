@@ -13,6 +13,7 @@ model User {
   email               String?         @unique
   password            String
   mustResetPassword   Boolean         @default(false)
+  fcmToken            String?
   displayName         String?
   bio                 String?
   avatar              String?

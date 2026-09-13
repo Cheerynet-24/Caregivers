@@ -18,6 +18,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
     private static final int FILE_PICKER = 1001;
@@ -53,6 +54,13 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setTextZoom(100);
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
+                    String js = "javascript:(async()=>{const t=localStorage.getItem('token');if(t)await fetch('/api/auth/fcm-token',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({token:'" + token + "'})})})()";
+                    view.evaluateJavascript(js, null);
+                });
+            }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
                 if (url.startsWith("https://") || url.startsWith("http://")) { view.loadUrl(url); return true; }

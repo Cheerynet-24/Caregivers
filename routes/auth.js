@@ -105,6 +105,15 @@ router.put('/password', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Password update failed' }); }
 });
 
+router.put('/fcm-token', auth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token || String(token).length > 4096) return res.status(400).json({ error: 'Valid FCM token required' });
+    await prisma.user.update({ where: { id: req.user.id }, data: { fcmToken: String(token) } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'FCM token registration failed' }); }
+});
+
 // Logout (set offline)
 router.post('/logout', auth, async (req, res) => {
   await prisma.user.update({

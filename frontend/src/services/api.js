@@ -22,6 +22,7 @@ export const authAPI = {
   register: (data) => api.post('/api/auth/register', data),
   login: (data) => api.post('/api/auth/login', data),
   me: () => api.get('/api/auth/me'),
+  saveFcmToken: (token) => api.put('/api/auth/fcm-token', { token }),
   changePassword: (data) => api.put('/api/auth/password', data),
   logout: () => api.post('/api/auth/logout'),
   deleteAccount: () => api.delete('/api/auth/me')
