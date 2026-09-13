@@ -56,6 +56,7 @@ export default function Home() {
   const [posts, setPosts] = useState([])
   const [callHistory, setCallHistory] = useState([])
   const [conversationToDelete, setConversationToDelete] = useState(null)
+  const [selectedProfile, setSelectedProfile] = useState(null)
   const [voiceFile, setVoiceFile] = useState(null)
   const [recordingVoice, setRecordingVoice] = useState(false)
   const [chatSettings, setChatSettings] = useState({ muted: false, notifications: true, blocked: false })
@@ -759,11 +760,11 @@ export default function Home() {
               </div>
               {searchUsers.map(u => (
                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg">
-                  <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-sm">
-                    {(u.displayName || u.username)[0].toUpperCase()}
-                  </div>
+                  <button onClick={() => setSelectedProfile(u)} className="shrink-0">
+                    {u.avatar ? <img src={resolveMediaUrl(u.avatar)} alt="" className="w-9 h-9 rounded-full object-cover" /> : <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-sm">{(u.displayName || u.username)[0].toUpperCase()}</div>}
+                  </button>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium dark:text-white truncate">{u.displayName || u.username}</p>
+                    <button onClick={() => setSelectedProfile(u)} className="text-sm font-medium dark:text-white truncate text-left">{u.displayName || u.username}</button>
                     <p className="text-xs text-gray-500">@{u.username}</p>
                   </div>
                   <button onClick={() => openPrivateChat(u)} className="p-1.5 text-sky-500 hover:bg-sky-50 rounded"><MessageCircle size={16} /></button>
@@ -1040,6 +1041,17 @@ export default function Home() {
               <button onClick={() => setConversationToDelete(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Cancel</button>
               <button onClick={confirmDeleteConversation} className="px-4 py-2 rounded-lg bg-red-500 text-white">OK</button>
             </div>
+          </div>
+        </div>
+      )}
+      {selectedProfile && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={() => setSelectedProfile(null)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-6 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            {selectedProfile.avatar ? <img src={resolveMediaUrl(selectedProfile.avatar)} alt="" className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-sky-200" /> : <div className="w-28 h-28 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-4xl mx-auto">{(selectedProfile.displayName || selectedProfile.username || '?')[0].toUpperCase()}</div>}
+            <h3 className="mt-4 text-xl font-bold dark:text-white">{selectedProfile.displayName || selectedProfile.username}</h3>
+            <p className="text-sm text-gray-500">@{selectedProfile.username}</p>
+            {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
+            <div className="mt-5 flex gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => setSelectedProfile(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
           </div>
         </div>
       )}

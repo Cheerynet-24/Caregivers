@@ -224,10 +224,6 @@ public class MainActivity extends Activity {
     }
 
     private void handleAppBack() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-            return;
-        }
         Toast.makeText(this, "Chats စာမျက်နှာမှာ ရှိနေပါတယ်", Toast.LENGTH_SHORT).show();
     }
 }
