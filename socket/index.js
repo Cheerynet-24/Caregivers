@@ -209,7 +209,7 @@ function setupSocket(io, prisma) {
         title: `Incoming ${data.callType || 'audio'} call`,
         body: `${socket.user.displayName || socket.user.username} is calling you`,
         type: 'call',
-        data: { fromUserId: userId, callType: data.callType || 'audio' }
+        data: { fromUserId: userId, callerName: socket.user.displayName || socket.user.username, callType: data.callType || 'audio' }
       })).catch(err => console.error('call push error', err));
       io.to(`user:${data.toUserId}`).emit('call:offer', {
         fromUserId: userId,

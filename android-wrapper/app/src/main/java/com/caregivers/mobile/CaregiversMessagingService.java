@@ -12,7 +12,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages_v2";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v3";
+    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v3";
     public static final String REPLY_KEY = "caregivers_reply";
 
     @Override public void onNewToken(@NonNull String token) {
@@ -21,8 +22,9 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
 
     @Override public void onMessageReceived(@NonNull RemoteMessage message) {
         String type = message.getData().getOrDefault("type", "message");
-        String title = value(message, "title", type.equals("call") ? "Incoming call" : "Caregivers");
-        String body = value(message, "body", type.equals("call") ? "Someone is calling you" : "New message");
+        String callerName = message.getData().getOrDefault("callerName", "Someone");
+        String title = value(message, "title", type.equals("call") ? callerName : "Caregivers");
+        String body = value(message, "body", type.equals("call") ? "Incoming call" : "New message");
         showNotification(type, title, body, message.getData().getOrDefault("fromUserId", ""));
     }
 
@@ -35,13 +37,22 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
 
     private void showNotification(String type, String title, String body, String fromUserId) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Caregivers messages and calls", NotificationManager.IMPORTANCE_HIGH));
+        String channelId = type.equals("call") ? CALL_CHANNEL_ID : CHANNEL_ID;
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel channel = new NotificationChannel(channelId, type.equals("call") ? "Incoming Caregivers calls" : "Caregivers messages", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription(type.equals("call") ? "Incoming audio and video calls" : "New messages");
+            channel.enableVibration(true);
+            manager.createNotificationChannel(channel);
+        }
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent content = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         int notificationId = (int) System.currentTimeMillis();
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_HIGH).setDefaults(NotificationCompat.DEFAULT_ALL).setAutoCancel(true).setContentIntent(content);
+                .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(type.equals("call") ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)
+                .setColor(android.graphics.Color.rgb(14, 165, 233)).setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(!type.equals("call")).setContentIntent(content);
+        if (type.equals("call")) builder.setOngoing(true).setTimeoutAfter(60000);
         if (!type.equals("call")) {
             RemoteInput input = new RemoteInput.Builder(REPLY_KEY).setLabel("Reply").build();
             Intent reply = new Intent(this, NotificationReplyReceiver.class).putExtra("from_user_id", fromUserId).putExtra("notification_id", notificationId);
