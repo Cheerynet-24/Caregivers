@@ -131,6 +131,16 @@ public class MainActivity extends Activity {
         });
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
+        }
+    }
+
+    private void performBackAction() {
+        if (webView == null) { finish(); return; }
+        webView.evaluateJavascript("window.CaregiversHandleBack ? window.CaregiversHandleBack() : false", value -> {
+            if (!"true".equals(value) && !"\"true\"".equals(value)) finish();
+        });
     }
 
     private void readReplyIntent(Intent intent) {
@@ -241,13 +251,7 @@ public class MainActivity extends Activity {
     @Override protected void onDestroy() { if (webView != null) webView.destroy(); super.onDestroy(); }
 
     @Override public void onBackPressed() {
-        if (webView != null) {
-            webView.evaluateJavascript("window.CaregiversHandleBack ? window.CaregiversHandleBack() : false", value -> {
-                if (!"true".equals(value) && !"\"true\"".equals(value)) handleAppBack();
-            });
-            return;
-        }
-        handleAppBack();
+        performBackAction();
     }
 
     private void handleAppBack() {
