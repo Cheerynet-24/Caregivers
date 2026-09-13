@@ -214,6 +214,16 @@ public class MainActivity extends Activity {
     @Override protected void onDestroy() { if (webView != null) webView.destroy(); super.onDestroy(); }
 
     @Override public void onBackPressed() {
+        if (webView != null) {
+            webView.evaluateJavascript("window.CaregiversHandleBack ? window.CaregiversHandleBack() : false", value -> {
+                if (!"true".equals(value)) handleAppBack();
+            });
+            return;
+        }
+        handleAppBack();
+    }
+
+    private void handleAppBack() {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
             return;

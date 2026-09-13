@@ -192,6 +192,17 @@ export default function Home() {
     }
   }, [activeChat?.id])
 
+  useEffect(() => {
+    window.CaregiversHandleBack = () => {
+      if (!activeChat) return false
+      setActiveChat(null)
+      setMessages([])
+      setTab('chats')
+      return true
+    }
+    return () => { delete window.CaregiversHandleBack }
+  }, [activeChat])
+
   const saveChatSettings = next => {
     setChatSettings(next)
     if (activeChat?.id) localStorage.setItem(`chat-settings-${activeChat.id}`, JSON.stringify(next))
