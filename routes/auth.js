@@ -32,14 +32,14 @@ router.post('/register', async (req, res) => {
         password: hashed,
         displayName: displayName || username,
         email: email || null,
+        isApproved: false,
         coinBalance: 100 // Welcome bonus test coins
       }
     });
 
-    const token = generateToken(user);
     res.status(201).json({
-      message: 'Registered successfully',
-      token,
+      message: 'Registration submitted. Please wait for admin approval.',
+      pendingApproval: true,
       user: sanitizeUser(user)
     });
   } catch (err) {
@@ -62,6 +62,9 @@ router.post('/login', async (req, res) => {
     }
     if (user.isBanned) {
       return res.status(403).json({ error: 'Account is banned' });
+    }
+    if (!user.isApproved) {
+      return res.status(403).json({ error: 'Account is waiting for admin approval' });
     }
 
     const match = await comparePassword(password, user.password);
@@ -101,4 +104,23 @@ router.post('/logout', auth, async (req, res) => {
   res.json({ message: 'Logged out' });
 });
 
+router.delete('/me', auth, async (req, res) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.message.deleteMany({ where: { senderId: req.user.id } });
+      await tx.groupMember.deleteMany({ where: { userId: req.user.id } });
+      await tx.friendship.deleteMany({ where: { OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }] } });
+      await tx.friendRequest.deleteMany({ where: { OR: [{ fromUserId: req.user.id }, { toUserId: req.user.id }] } });
+      await tx.depositRequest.deleteMany({ where: { userId: req.user.id } });
+      await tx.withdrawRequest.deleteMany({ where: { userId: req.user.id } });
+      await tx.conversation.deleteMany({ where: { OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }] } });
+      await tx.group.updateMany({ where: { createdById: req.user.id }, data: { createdById: null } });
+      await tx.user.delete({ where: { id: req.user.id } });
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Account deletion failed:', err);
+    res.status(500).json({ error: 'Account deletion failed' });
+  }
+});
 module.exports = router;

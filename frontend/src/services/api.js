@@ -1,6 +1,11 @@
 import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL || ''
+export const resolveMediaUrl = (url) => {
+  if (!url || url.startsWith('data:') || /^https?:\/\//i.test(url)) return url
+  const base = API_URL || window.location.origin
+  return `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}`
+}
 
 const api = axios.create({
   baseURL: API_URL,
@@ -17,7 +22,8 @@ export const authAPI = {
   register: (data) => api.post('/api/auth/register', data),
   login: (data) => api.post('/api/auth/login', data),
   me: () => api.get('/api/auth/me'),
-  logout: () => api.post('/api/auth/logout')
+  logout: () => api.post('/api/auth/logout'),
+  deleteAccount: () => api.delete('/api/auth/me')
 }
 
 export const userAPI = {
@@ -67,6 +73,8 @@ export const walletAPI = {
 export const adminAPI = {
   login: (password) => api.post('/api/admin/login', { password }),
   users: (password) => api.get('/api/admin/users', { headers: { 'x-admin-password': password } }),
+  approveUser: (id, password) => api.post(`/api/admin/users/${id}/approve`, {}, { headers: { 'x-admin-password': password } }),
+  deleteUser: (id, password) => api.delete(`/api/admin/users/${id}`, { headers: { 'x-admin-password': password } }),
   ban: (id, password) => api.post(`/api/admin/users/${id}/ban`, {}, { headers: { 'x-admin-password': password } }),
   unban: (id, password) => api.post(`/api/admin/users/${id}/unban`, {}, { headers: { 'x-admin-password': password } }),
   mute: (id, password) => api.post(`/api/admin/users/${id}/mute`, {}, { headers: { 'x-admin-password': password } }),

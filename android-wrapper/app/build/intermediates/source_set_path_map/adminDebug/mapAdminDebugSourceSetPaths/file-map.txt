@@ -1,0 +1,9 @@
+com.caregivers.mobile.app-admin-0 /home/ubuntu/Caregivers/android-wrapper/app/build/generated/res/pngs/admin/debug
+com.caregivers.mobile.app-admin-1 /home/ubuntu/Caregivers/android-wrapper/app/build/generated/res/resValues/admin/debug
+com.caregivers.mobile.app-packageAdminDebugResources-2 /home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/incremental/adminDebug/packageAdminDebugResources/merged.dir
+com.caregivers.mobile.app-packageAdminDebugResources-3 /home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/incremental/adminDebug/packageAdminDebugResources/stripped.dir
+com.caregivers.mobile.app-adminDebug-4 /home/ubuntu/Caregivers/android-wrapper/app/build/intermediates/merged_res/adminDebug/mergeAdminDebugResources
+com.caregivers.mobile.app-admin-5 /home/ubuntu/Caregivers/android-wrapper/app/src/admin/res
+com.caregivers.mobile.app-adminDebug-6 /home/ubuntu/Caregivers/android-wrapper/app/src/adminDebug/res
+com.caregivers.mobile.app-debug-7 /home/ubuntu/Caregivers/android-wrapper/app/src/debug/res
+com.caregivers.mobile.app-main-8 /home/ubuntu/Caregivers/android-wrapper/app/src/main/res

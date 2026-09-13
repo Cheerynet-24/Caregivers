@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { adminAPI } from '../services/api'
+import { adminAPI, resolveMediaUrl } from '../services/api'
 import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus, Trash2, Bell } from 'lucide-react'
 
 export default function Admin() {
@@ -136,17 +136,20 @@ export default function Admin() {
                       </td>
                       <td className="p-3 dark:text-white">{u.coinBalance}</td>
                       <td className="p-3">
+                        {!u.isApproved && <span className="text-yellow-600 text-xs font-medium">Pending approval</span>}
                         {u.isBanned && <span className="text-red-500 text-xs font-medium">Banned</span>}
                         {u.isMuted && <span className="text-orange-500 text-xs font-medium ml-1">Muted</span>}
                         {u.isOnline && !u.isBanned && <span className="text-green-500 text-xs">Online</span>}
                       </td>
                       <td className="p-3 flex gap-1 flex-wrap">
+                        {!u.isApproved && <button onClick={() => adminAPI.approveUser(u.id, password).then(loadUsers)} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Approve</button>}
                         {u.isBanned
                           ? <button onClick={() => adminAPI.unban(u.id, password).then(loadUsers)} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">{t('unban')}</button>
                           : <button onClick={() => adminAPI.ban(u.id, password).then(loadUsers)} className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">{t('ban')}</button>}
                         {u.isMuted
                           ? <button onClick={() => adminAPI.unmute(u.id, password).then(loadUsers)} className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">{t('unmute')}</button>
                           : <button onClick={() => adminAPI.mute(u.id, password).then(loadUsers)} className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs">{t('mute')}</button>}
+                        <button onClick={async () => { if (window.confirm(`Delete ${u.username}?`)) { await adminAPI.deleteUser(u.id, password); loadUsers() } }} className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Delete</button>
                       </td>
                     </tr>
                   ))}
@@ -163,6 +166,7 @@ export default function Admin() {
                       <span className="shrink-0 rounded-full bg-yellow-100 text-yellow-700 px-2 py-1 text-xs">{u.coinBalance || 0} coins</span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
+                      {!u.isApproved && <span className="rounded-full bg-blue-100 text-blue-700 px-2 py-1">Pending approval</span>}
                       {u.isBanned && <span className="rounded-full bg-red-100 text-red-600 px-2 py-1">Banned</span>}
                       {u.isMuted && <span className="rounded-full bg-orange-100 text-orange-600 px-2 py-1">Muted</span>}
                       {u.isOnline && !u.isBanned && <span className="rounded-full bg-green-100 text-green-600 px-2 py-1">Online</span>}
@@ -175,6 +179,8 @@ export default function Admin() {
                       {u.isMuted
                         ? <button onClick={() => adminAPI.unmute(u.id, password).then(loadUsers)} className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-xs">{t('unmute')}</button>
                         : <button onClick={() => adminAPI.mute(u.id, password).then(loadUsers)} className="px-3 py-2 bg-orange-100 text-orange-700 rounded-lg text-xs">{t('mute')}</button>}
+                      {!u.isApproved && <button onClick={() => adminAPI.approveUser(u.id, password).then(loadUsers)} className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-xs">Approve</button>}
+                      <button onClick={async () => { if (window.confirm(`Delete ${u.username}?`)) { await adminAPI.deleteUser(u.id, password); loadUsers() } }} className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-xs">Delete</button>
                     </div>
                   </div>
                 ))}
@@ -190,7 +196,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <p className="font-medium dark:text-white">{d.user?.username} — {d.amount} coins</p>
                     <p className="text-xs text-gray-500">{new Date(d.createdAt).toLocaleString()} · {d.status}</p>
-                    {d.screenshot && <a href={d.screenshot} target="_blank" className="text-sky-500 text-xs">Screenshot</a>}
+                    {d.screenshot && <a href={resolveMediaUrl(d.screenshot)} target="_blank" rel="noreferrer" className="text-sky-500 text-xs">Screenshot</a>}
                   </div>
                   {d.status?.toLowerCase() === 'pending' && (
                     <div className="flex gap-2">
@@ -215,7 +221,7 @@ export default function Admin() {
                         {w.accountName} · {w.phoneNumber} · {w.bankName}
                       </p>
                       <p className="text-xs text-gray-500">{new Date(w.createdAt).toLocaleString()} · {w.status}</p>
-                      {w.qrCode && <img src={w.qrCode} alt="QR" className="mt-2 w-24 h-24 object-contain" />}
+                      {w.qrCode && <img src={resolveMediaUrl(w.qrCode)} alt="QR" className="mt-2 w-24 h-24 object-contain" />}
                     </div>
                     {w.status?.toLowerCase() === 'pending' && (
                       <div className="flex gap-2">
@@ -242,7 +248,7 @@ export default function Admin() {
                       <p className="font-semibold dark:text-white pr-6">{account.method}</p>
                       <p className="text-sm dark:text-gray-300">{account.accountName}</p>
                       <p className="text-sm dark:text-gray-300">{account.phoneNumber}</p>
-                      {account.qrCode && <img src={account.qrCode} alt="QR" className="mt-2 w-16 h-16 object-contain" />}
+                      {account.qrCode && <img src={resolveMediaUrl(account.qrCode)} alt="QR" className="mt-2 w-16 h-16 object-contain" />}
                     </div>
                   ))}
                 </div>

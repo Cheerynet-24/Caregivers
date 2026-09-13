@@ -1,0 +1,6 @@
+R_DEF: Internal format may change without notice
+local
+drawable app_logo
+string app_name
+string start_url
+style AppTheme

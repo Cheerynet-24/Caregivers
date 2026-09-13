@@ -151,7 +151,7 @@ router.get('/users', deviceAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, username: true, displayName: true, email: true,
-        isOnline: true, isBanned: true, isMuted: true,
+        isOnline: true, isBanned: true, isMuted: true, isApproved: true,
         coinBalance: true, role: true, createdAt: true, lastSeen: true
       }
     });
@@ -159,6 +159,30 @@ router.get('/users', deviceAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Failed" });
   }
+});
+
+router.post('/users/:id/approve', deviceAuth, async (req, res) => {
+  try {
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { isApproved: true } });
+    res.json({ message: 'User approved', user: sanitizeUser(user) });
+  } catch (err) { res.status(404).json({ error: 'User not found' }); }
+});
+
+router.delete('/users/:id', deviceAuth, async (req, res) => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.message.deleteMany({ where: { senderId: req.params.id } });
+      await tx.groupMember.deleteMany({ where: { userId: req.params.id } });
+      await tx.friendship.deleteMany({ where: { OR: [{ user1Id: req.params.id }, { user2Id: req.params.id }] } });
+      await tx.friendRequest.deleteMany({ where: { OR: [{ fromUserId: req.params.id }, { toUserId: req.params.id }] } });
+      await tx.depositRequest.deleteMany({ where: { userId: req.params.id } });
+      await tx.withdrawRequest.deleteMany({ where: { userId: req.params.id } });
+      await tx.conversation.deleteMany({ where: { OR: [{ user1Id: req.params.id }, { user2Id: req.params.id }] } });
+      await tx.group.updateMany({ where: { createdById: req.params.id }, data: { createdById: null } });
+      await tx.user.delete({ where: { id: req.params.id } });
+    });
+    res.json({ success: true, message: 'User deleted' });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete user' }); }
 });
 
 // Ban / Unban users

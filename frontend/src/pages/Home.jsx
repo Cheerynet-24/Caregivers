@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { chatAPI, userAPI, groupAPI, walletAPI } from '../services/api'
+import { authAPI, chatAPI, userAPI, groupAPI, walletAPI, resolveMediaUrl } from '../services/api'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
@@ -160,6 +160,16 @@ export default function Home() {
       playCustomSound(kind)
     }
     reader.readAsDataURL(file)
+  }
+
+  const deleteMyAccount = async () => {
+    if (!window.confirm('သင့်အကောင့်နှင့် ဒေတာအားလုံးကို ဖျက်မလား?')) return
+    try {
+      await authAPI.deleteAccount()
+      await logout()
+    } catch (err) {
+      alert(err.response?.data?.error || 'အကောင့်ဖျက်၍မရပါ')
+    }
   }
 
   const loadConversations = async () => {
@@ -460,6 +470,9 @@ export default function Home() {
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-white text-xs font-bold px-2 py-1 rounded bg-white/20">
           {i18n.language === 'my' ? 'EN' : 'မြန်'}
         </button>
+        <button onClick={deleteMyAccount} className="p-3 text-white/70 hover:bg-red-500/30 rounded-xl" title="Delete account">
+          <Trash2 size={20} />
+        </button>
         <button onClick={logout} className="p-3 text-white/70 hover:bg-white/10 rounded-xl">
           <LogOut size={20} />
         </button>
@@ -558,7 +571,7 @@ export default function Home() {
                         <p className="font-semibold dark:text-white">{account.method}</p>
                         <p className="dark:text-gray-300">{account.accountName}</p>
                         <p className="dark:text-gray-300">{account.phoneNumber}</p>
-                        {account.qrCode && <img src={account.qrCode} alt="QR" className="mt-2 w-16 h-16 object-contain" />}
+                        {account.qrCode && <img src={resolveMediaUrl(account.qrCode)} alt="QR" className="mt-2 w-16 h-16 object-contain" />}
                       </button>
                     ))}
                   </div>
@@ -659,10 +672,10 @@ export default function Home() {
                       <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mb-0.5">{m.sender?.displayName || m.sender?.username}</p>
                     )}
                     {m.type === 'deleted' ? <p className="italic opacity-70">This message was deleted</p>
-                      : m.type === 'image' && m.fileUrl ? <><img src={m.fileUrl} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
-                      : m.type === 'video' && m.fileUrl ? <><video src={m.fileUrl} controls className="max-w-full rounded-lg" /><a href={m.fileUrl} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
-                      : m.type === 'audio' && m.fileUrl ? <audio src={m.fileUrl} controls />
-                      : m.type === 'file' && m.fileUrl ? <a href={m.fileUrl} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
+                      : m.type === 'image' && m.fileUrl ? <><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
+                      : m.type === 'video' && m.fileUrl ? <><video src={resolveMediaUrl(m.fileUrl)} controls className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
+                      : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
+                      : m.type === 'file' && m.fileUrl ? <a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
                       : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
                       : <p className={m.type === 'sticker' ? 'text-5xl' : ''}>{m.content}</p>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>

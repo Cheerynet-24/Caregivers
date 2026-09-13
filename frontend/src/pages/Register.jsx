@@ -9,6 +9,7 @@ export default function Register() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ username: '', password: '', displayName: '' })
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e) => {
@@ -16,8 +17,11 @@ export default function Register() {
     setError('')
     setLoading(true)
     try {
-      await register(form)
-      navigate('/')
+      const result = await register(form)
+      if (result.pendingApproval) {
+        setSuccess('အကောင့်ဖွင့်ပြီးပါပြီ။ Admin ခွင့်ပြုချက်ရပြီးမှ Login ဝင်နိုင်ပါမယ်။')
+        setForm({ username: '', password: '', displayName: '' })
+      } else navigate('/')
     } catch (err) {
       setError(err.response?.data?.error || 'Register failed')
     } finally {
@@ -39,6 +43,7 @@ export default function Register() {
         </div>
 
         {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-sm">{error}</div>}
+        {success && <div className="bg-green-100 text-green-700 p-3 rounded-lg mb-4 text-sm">{success}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

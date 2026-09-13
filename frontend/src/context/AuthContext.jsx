@@ -40,6 +40,7 @@ export function AuthProvider({ children }) {
 
   const register = async (data) => {
     const res = await authAPI.register(data)
+    if (!res.data.token) return res.data
     localStorage.setItem('token', res.data.token)
     setToken(res.data.token)
     setUser(res.data.user)
