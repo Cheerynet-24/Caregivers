@@ -112,6 +112,26 @@ router.post('/:id/comments', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to add comment' }); }
 });
 
+router.put('/comments/:id', auth, async (req, res) => {
+  try {
+    const existing = await prisma.comment.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.authorId !== req.user.id) return res.status(403).json({ error: 'You can edit your own comments only' });
+    const content = String(req.body.content || '').trim();
+    if (!content) return res.status(400).json({ error: 'Comment is required' });
+    const comment = await prisma.comment.update({ where: { id: existing.id }, data: { content }, include: commentInclude });
+    res.json({ comment: shapeComment(comment, req.user.id) });
+  } catch (err) { res.status(500).json({ error: 'Failed to edit comment' }); }
+});
+
+router.delete('/comments/:id', auth, async (req, res) => {
+  try {
+    const existing = await prisma.comment.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.authorId !== req.user.id) return res.status(403).json({ error: 'You can delete your own comments only' });
+    await prisma.comment.delete({ where: { id: existing.id } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete comment' }); }
+});
+
 router.post('/comments/:id/like', auth, async (req, res) => {
   try {
     const where = { commentId_userId: { commentId: req.params.id, userId: req.user.id } };

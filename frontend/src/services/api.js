@@ -58,6 +58,8 @@ export const postsAPI = {
   like: (id) => api.post(`/api/posts/${id}/like`),
   save: (id) => api.post(`/api/posts/${id}/save`),
   comment: (id, data) => api.post(`/api/posts/${id}/comments`, data),
+  editComment: (id, data) => api.put(`/api/posts/comments/${id}`, data),
+  removeComment: (id) => api.delete(`/api/posts/comments/${id}`),
   likeComment: (id) => api.post(`/api/posts/comments/${id}/like`)
 }
 
