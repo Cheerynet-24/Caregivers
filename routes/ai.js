@@ -14,6 +14,7 @@ async function callGemini(messages) {
       const modelList = await modelListResponse.json();
       const available = (modelList.models || [])
         .filter(item => (item.supportedGenerationMethods || []).includes('generateContent'))
+        .filter(item => !/(tts|audio|image|embedding|robotics)/i.test(item.name || ''))
         .map(item => String(item.name || '').replace(/^models\//, ''));
       const preferred = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
       models = [...preferred.filter(model => available.includes(model)), ...available.filter(model => !preferred.includes(model))];
@@ -31,7 +32,7 @@ async function callGemini(messages) {
     if (response.ok) return data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
     lastError = { status: response.status, message: data?.error?.message || '' };
     console.error('Gemini provider error:', model, response.status, lastError.message);
-    if ([400, 401, 403, 429].includes(response.status)) break;
+    if ([401, 403, 429].includes(response.status)) break;
   }
   if (lastError?.status === 401) throw new Error('Gemini API key မမှန်ပါ သို့မဟုတ် API key ပြတ်တောက်နေပါတယ်။ GEMINI_API_KEY ကို ပြန်စစ်ပါ');
   if (lastError?.status === 403) throw new Error('Gemini API ကို ဒီ key/project အတွက် ခွင့်မပြုသေးပါ။ Google AI Studio/Google Cloud မှာ Generative Language API ကို Enable လုပ်ပြီး key restriction ကို စစ်ပါ');
