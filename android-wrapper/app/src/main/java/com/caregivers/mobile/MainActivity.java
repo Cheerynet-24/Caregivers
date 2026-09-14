@@ -3,6 +3,9 @@ package com.caregivers.mobile;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.ContentUris;
+import android.provider.MediaStore;
+import android.database.Cursor;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -27,6 +30,7 @@ public class MainActivity extends Activity {
     private static final int FILE_PICKER = 1001;
     private static final int RUNTIME_PERMISSIONS = 1002;
     private static final int NOTIFICATION_PERMISSION = 1003;
+    private static final int MEDIA_PERMISSION = 1004;
     private WebView webView;
     private ValueCallback<Uri[]> uploadCallback;
     private PermissionRequest pendingWebPermission;
@@ -138,6 +142,7 @@ public class MainActivity extends Activity {
         });
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
+        webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
@@ -237,6 +242,40 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void exit() { runOnUiThread(() -> finish()); }
     }
 
+    private class LocalMusicBridge {
+        @JavascriptInterface public String listSongs() {
+            if (!hasMediaPermission()) return "[]";
+            org.json.JSONArray songs = new org.json.JSONArray();
+            String[] projection = { MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION };
+            try (Cursor cursor = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, MediaStore.Audio.Media.IS_MUSIC + "!=0", null, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC")) {
+                if (cursor == null) return "[]";
+                int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
+                int titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
+                int artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST);
+                int durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
+                while (cursor.moveToNext()) {
+                    org.json.JSONObject song = new org.json.JSONObject();
+                    long id = cursor.getLong(idCol);
+                    song.put("id", "native-" + id);
+                    song.put("title", cursor.getString(titleCol));
+                    song.put("artist", cursor.getString(artistCol));
+                    song.put("duration", cursor.getLong(durationCol));
+                    song.put("url", ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString());
+                    songs.put(song);
+                }
+            } catch (Exception ignored) {}
+            return songs.toString();
+        }
+        @JavascriptInterface public void requestPermission() {
+            if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.READ_MEDIA_AUDIO}, MEDIA_PERMISSION);
+            else if (android.os.Build.VERSION.SDK_INT >= 23) requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MEDIA_PERMISSION);
+        }
+        private boolean hasMediaPermission() {
+            if (android.os.Build.VERSION.SDK_INT >= 33) return checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            return android.os.Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
+    }
+
     private void requestNotificationPermission() {
         if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
@@ -284,6 +323,10 @@ public class MainActivity extends Activity {
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == MEDIA_PERMISSION) {
+            if (webView != null) webView.evaluateJavascript("window.CaregiversLocalMusicReady && window.CaregiversLocalMusicReady()", null);
+            return;
+        }
         if (requestCode != RUNTIME_PERMISSIONS) return;
         resolvePendingPermissions();
     }

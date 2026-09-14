@@ -176,6 +176,22 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    const loadNativeMusic = () => {
+      try {
+        if (!window.CaregiversLocalMusic) return
+        const songs = JSON.parse(window.CaregiversLocalMusic.listSongs?.() || '[]')
+        if (songs.length) {
+          const normalized = songs.map(song => ({ ...song, previewUrl: song.url, artist: song.artist || 'Unknown artist' }))
+          setLocalSongs(normalized); setMusicQueue(normalized); musicQueueRef.current = normalized
+        } else window.CaregiversLocalMusic.requestPermission?.()
+      } catch {}
+    }
+    window.CaregiversLocalMusicReady = loadNativeMusic
+    loadNativeMusic()
+    return () => { delete window.CaregiversLocalMusicReady }
+  }, [])
+
+  useEffect(() => {
     if (!socket) return
     const onNewMessage = (msg) => {
       const isIncoming = msg.senderId !== user.id
@@ -1035,6 +1051,11 @@ export default function Home() {
     setPlayerTrack({ title: `${nextTrack.title} · ${nextTrack.artist}`, url: nextTrack.previewUrl, source: nextTrack })
   }
   const changePlaybackMode = mode => { setPlaybackMode(mode); localStorage.setItem('caregivers-playback-mode', mode) }
+  const removeMusicHistory = id => {
+    const next = musicHistory.filter(track => track.id !== id)
+    setMusicHistory(next)
+    localStorage.setItem('caregivers-music-history', JSON.stringify(next))
+  }
   const downloadMedia = async (url, name = 'caregivers-media') => {
     if (!url || mediaDownloading) return
     setMediaDownloading(true)
@@ -1145,7 +1166,7 @@ export default function Home() {
             {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Admin notification မရှိသေးပါ</div>}
             {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
-          {tab === 'music' && <div className="p-3 space-y-5"><section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-emerald-500" /> Phone Music Player</div><p className="mb-2 text-xs text-gray-500">ဖုန်းထဲက MP3 / M4A / WAV သီချင်းတွေကို အားလုံးရွေးပြီး App ထဲမှာပဲ ဖွင့်ပါ။ Server ကို upload မလုပ်ပါ။</p><input ref={localMusicRef} type="file" accept="audio/*" multiple onChange={selectLocalSongs} className="hidden" /><button onClick={() => localMusicRef.current?.click()} className="w-full rounded-xl border border-dashed border-emerald-400 px-3 py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-300">Choose all music from phone</button>{localSongs.length === 0 && <p className="mt-3 text-center text-xs text-gray-500">ဖုန်းထဲက သီချင်းတွေကို ရွေးလိုက်ရင် ဒီနေရာမှာ အားလုံးပေါ်ပါမယ်</p>}{localSongs.length > 0 && <div className="mt-3 space-y-1">{localSongs.map(song => <button key={song.id} onClick={() => playMusicTrack(song, localSongs)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:bg-emerald-50 dark:border-gray-600 dark:hover:bg-gray-700"><Play size={17} className="text-emerald-500" /><span className="min-w-0 flex-1 truncate text-sm dark:text-gray-200">{song.title}</span><span className="text-xs text-gray-500">Play</span></button>)}</div>}</section>{musicHistory.length > 0 && <section><p className="mb-2 text-sm font-semibold dark:text-white">Previous queue</p><div className="space-y-1">{musicHistory.slice(0, 10).map(track => <button key={track.id} onClick={() => playMusicTrack(track, musicHistory)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"><span className="min-w-0 flex-1 truncate text-xs dark:text-gray-200">{track.title} · {track.artist}</span><Play size={14} className="text-green-500" /></button>)}</div></section>}</div>}
+          {tab === 'music' && <div className="p-3 space-y-5"><section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-emerald-500" /> Phone Music Player</div><p className="mb-2 text-xs text-gray-500">ဖုန်းထဲက Music library ကို App ဖွင့်တာနဲ့ အလိုအလျောက်ဖတ်ပြီး ဒီနေရာမှာပြပါမယ်။ ဖိုင်ကို App အပြင်မထွက်ဘဲ ဒီထဲမှာပဲဖွင့်ပါမယ်။</p>{localSongs.length === 0 && <p className="mt-4 text-center text-xs text-gray-500">Music permission ပေးပြီးရင် ဖုန်းထဲက သီချင်းတွေ ဒီနေရာမှာ အားလုံးပေါ်ပါမယ်</p>}{localSongs.length > 0 && <div className="mt-3 space-y-1">{localSongs.map(song => <button key={song.id} onClick={() => playMusicTrack(song, localSongs)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:bg-emerald-50 dark:border-gray-600 dark:hover:bg-gray-700"><Play size={17} className="text-emerald-500" /><span className="min-w-0 flex-1 truncate text-sm dark:text-gray-200">{song.title}</span><span className="text-xs text-gray-500">{song.artist}</span></button>)}</div>}</section>{musicHistory.length > 0 && <section><p className="mb-2 text-sm font-semibold dark:text-white">Previous queue</p><div className="space-y-1">{musicHistory.slice(0, 10).map(track => <div key={track.id} className="flex items-center gap-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"><button onClick={() => playMusicTrack(track, musicHistory)} className="flex min-w-0 flex-1 items-center gap-2 p-2 text-left"><span className="min-w-0 flex-1 truncate text-xs dark:text-gray-200">{track.title} · {track.artist}</span><Play size={14} className="text-green-500" /></button><button onClick={() => removeMusicHistory(track.id)} className="p-2 text-red-400" title="Delete history"><Trash2 size={14} /></button></div>)}</div></section>}</div>}
           {tab === 'downloader' && <div className="p-3 space-y-5"><div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">သတိပေးချက် — သင်ပိုင်ဆိုင်သော သို့မဟုတ် download လုပ်ခွင့်ရှိသော media ပဲ အသုံးပြုပါ။ Social media တွေမှာ ပြန်တင်ရင် Copyright မိနိုင်ပါတယ်။</div><section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><DownloadCloud size={18} className="text-indigo-500" /> Video / Audio Downloader</div><p className="mb-2 text-xs text-gray-500">Direct audio/video file link ထည့်ပြီး Start နှိပ်ပါ။ YouTube/TikTok page link မဟုတ်ဘဲ media file link ဖြစ်ရပါမယ်။</p><div className="flex gap-2"><input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/file.mp4" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={() => downloadMedia(mediaUrl)} disabled={mediaDownloading} className="rounded-xl bg-indigo-500 px-3 text-white disabled:opacity-50">{mediaDownloading ? '...' : 'Start'}</button></div></section></div>}
           {tab === 'call-history' && <div className="p-3 space-y-2">{callHistory.length === 0 && <p className="text-sm text-gray-500">Call history မရှိသေးပါ</p>}{callHistory.map(item => { const other = item.callerId === user.id ? item.receiver : item.caller; return <div key={item.id} className="rounded-xl border dark:border-gray-600 p-3 flex items-center gap-3"><Phone size={18} className="text-sky-500" /><div className="flex-1"><p className="text-sm font-medium dark:text-white">{other?.displayName || other?.username}</p><p className="text-xs text-gray-500">{item.callType} call · {item.status} · {new Date(item.createdAt).toLocaleString()}</p></div></div> })}</div>}
           {tab === 'chats' && conversations.map(c => (
