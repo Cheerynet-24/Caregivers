@@ -22,14 +22,21 @@ async function callGemini(messages) {
   const contents = messages.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] }));
   let lastError = null;
   for (const model of models) {
-    const generationConfig = { maxOutputTokens: 700 };
-    if (model.includes('2.5')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig }) });
-    const data = await response.json();
-    if (response.ok) return data?.candidates?.[0]?.content?.parts?.filter(part => !part.thought).map(part => part.text || '').join('').trim();
-    lastError = { status: response.status, message: data?.error?.message || '' };
-    console.error('Gemini provider error:', model, response.status, lastError.message);
-    if ([401, 403, 429].includes(response.status)) break;
+    const configs = model.includes('2.5') ? [{ maxOutputTokens: 700 }, { maxOutputTokens: 700, thinkingConfig: { thinkingBudget: 128 } }] : [{ maxOutputTokens: 700 }];
+    for (const generationConfig of configs) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig }) });
+      const data = await response.json();
+      if (response.ok) {
+        const content = data?.candidates?.[0]?.content?.parts?.filter(part => !part.thought && part.text).map(part => part.text).join('').trim();
+        if (content) return content;
+        lastError = { status: 502, message: 'Gemini returned no visible text' };
+        continue;
+      }
+      lastError = { status: response.status, message: data?.error?.message || '' };
+      console.error('Gemini provider error:', model, response.status, lastError.message);
+      if ([401, 403, 429].includes(response.status)) break;
+    }
+    if ([401, 403, 429].includes(lastError?.status)) break;
   }
   if (lastError?.status === 401) throw new Error('Gemini API key မမှန်ပါ သို့မဟုတ် API key ပြတ်တောက်နေပါတယ်');
   if (lastError?.status === 403) throw new Error('Gemini API permission မရသေးပါ။ Generative Language API နဲ့ key restriction ကို စစ်ပါ');
