@@ -36,10 +36,15 @@ public class MainActivity extends Activity {
     private long lastBackPressedAt;
     private String pendingReplyText;
     private String pendingReplyUserId;
+    private String pendingCallFromUserId;
+    private String pendingCallUsername;
+    private String pendingCallType;
+    private String pendingCallOffer;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         readReplyIntent(getIntent());
+        readIncomingCallIntent(getIntent());
         webView = new WebView(this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         if (audioManager != null) {
@@ -70,6 +75,7 @@ public class MainActivity extends Activity {
                     view.evaluateJavascript(js, null);
                 });
                 deliverPendingReply();
+                deliverIncomingCall();
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
@@ -164,11 +170,39 @@ public class MainActivity extends Activity {
         pendingReplyUserId = null;
     }
 
+    private void readIncomingCallIntent(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra("incoming_call", false)) return;
+        pendingCallFromUserId = intent.getStringExtra("from_user_id");
+        pendingCallUsername = intent.getStringExtra("caller_name");
+        pendingCallType = intent.getStringExtra("call_type");
+        pendingCallOffer = intent.getStringExtra("offer_b64");
+    }
+
+    private void deliverIncomingCall() {
+        if (webView == null || pendingCallFromUserId == null || pendingCallOffer == null || pendingCallOffer.isEmpty()) return;
+        String from = encodeJs(pendingCallFromUserId);
+        String name = encodeJs(pendingCallUsername == null ? "Someone" : pendingCallUsername);
+        String type = encodeJs(pendingCallType == null ? "audio" : pendingCallType);
+        String script = "(()=>{const d=s=>atob('" + from + "');const u=d('" + from + "');const n=atob('" + name + "');const t=atob('" + type + "');let tries=0;const send=()=>{if(window.CaregiversIncomingCall)window.CaregiversIncomingCall(u,n,t," + quoteForJs(pendingCallOffer) + ");else if(++tries<30)setTimeout(send,500)};send()})()";
+        webView.evaluateJavascript(script, null);
+        pendingCallFromUserId = null; pendingCallUsername = null; pendingCallType = null; pendingCallOffer = null;
+    }
+
+    private String encodeJs(String value) {
+        return android.util.Base64.encodeToString(value.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
+    }
+
+    private String quoteForJs(String value) {
+        return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'";
+    }
+
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         readReplyIntent(intent);
+        readIncomingCallIntent(intent);
         deliverPendingReply();
+        deliverIncomingCall();
     }
 
     private class AudioRouteBridge {

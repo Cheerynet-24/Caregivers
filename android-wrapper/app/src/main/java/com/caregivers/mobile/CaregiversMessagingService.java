@@ -25,7 +25,7 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         String callerName = message.getData().getOrDefault("callerName", "Someone");
         String title = value(message, "title", type.equals("call") ? callerName : "Caregivers");
         String body = value(message, "body", type.equals("call") ? "Incoming call" : "New message");
-        showNotification(type, title, body, message.getData().getOrDefault("fromUserId", ""));
+        showNotification(type, title, body, message.getData().getOrDefault("fromUserId", ""), message.getData());
     }
 
     private String value(RemoteMessage message, String key, String fallback) {
@@ -35,22 +35,31 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         return fallback;
     }
 
-    private void showNotification(String type, String title, String body, String fromUserId) {
+    private void showNotification(String type, String title, String body, String fromUserId, java.util.Map<String, String> data) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         String channelId = type.equals("call") ? CALL_CHANNEL_ID : CHANNEL_ID;
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel channel = new NotificationChannel(channelId, type.equals("call") ? "Incoming Caregivers calls" : "Caregivers messages", NotificationManager.IMPORTANCE_HIGH);
             channel.setDescription(type.equals("call") ? "Incoming audio and video calls" : "New messages");
             channel.enableVibration(true);
+            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             manager.createNotificationChannel(channel);
         }
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        if (type.equals("call")) {
+            open.putExtra("incoming_call", true);
+            open.putExtra("from_user_id", fromUserId);
+            open.putExtra("caller_name", data.getOrDefault("callerName", title));
+            open.putExtra("call_type", data.getOrDefault("callType", "audio"));
+            open.putExtra("offer_b64", data.getOrDefault("offer", ""));
+        }
         PendingIntent content = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         int notificationId = (int) System.currentTimeMillis();
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(type.equals("call") ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)
                 .setColor(android.graphics.Color.rgb(14, 165, 233)).setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(!type.equals("call")).setContentIntent(content);
         if (type.equals("call")) builder.setOngoing(true).setTimeoutAfter(60000).setFullScreenIntent(content, true);
         if (!type.equals("call")) {

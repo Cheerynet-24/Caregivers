@@ -277,6 +277,22 @@ export default function Home() {
   }, [socket])
 
   useEffect(() => {
+    window.CaregiversIncomingCall = (fromUserId, fromUsername, callType, offerJson) => {
+      if (!fromUserId || !offerJson) return false
+      try {
+        const offer = JSON.parse(atob(offerJson))
+        setIncomingCall({ fromUserId, fromUsername: fromUsername || 'Someone', offer, callType: callType || 'audio' })
+        if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+        return true
+      } catch (error) {
+        console.error('background call payload failed', error)
+        return false
+      }
+    }
+    return () => { delete window.CaregiversIncomingCall }
+  }, [chatSettings])
+
+  useEffect(() => {
     if (!socket?.connected) return
     const raw = localStorage.getItem('caregivers-pending-reply')
     if (!raw) return

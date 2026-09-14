@@ -229,7 +229,12 @@ function setupSocket(io, prisma) {
         title: `Incoming ${data.callType || 'audio'} call`,
         body: `${socket.user.displayName || socket.user.username} is calling you`,
         type: 'call',
-        data: { fromUserId: userId, callerName: socket.user.displayName || socket.user.username, callType: data.callType || 'audio' }
+        data: {
+          fromUserId: userId,
+          callerName: socket.user.displayName || socket.user.username,
+          callType: data.callType || 'audio',
+          offer: Buffer.from(JSON.stringify(data.offer || {}), 'utf8').toString('base64')
+        }
       })).catch(err => console.error('call push error', err));
       io.to(`user:${data.toUserId}`).emit('call:offer', {
         fromUserId: userId,
