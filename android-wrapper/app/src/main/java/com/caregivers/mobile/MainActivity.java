@@ -196,19 +196,25 @@ public class MainActivity extends Activity {
 
     private void playNativeMusic(String url, String title, String artist) {
         runOnUiThread(() -> {
+            android.content.res.AssetFileDescriptor descriptor = null;
             try {
                 if (nativeMusicPlayer != null) nativeMusicPlayer.release();
                 nativeMusicPlayer = new MediaPlayer();
                 nativeMusicPlayer.setAudioAttributes(new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build());
-                nativeMusicPlayer.setDataSource(this, Uri.parse(url));
+                descriptor = getContentResolver().openAssetFileDescriptor(Uri.parse(url), "r");
+                if (descriptor == null) throw new IllegalStateException("Cannot open audio file");
+                nativeMusicPlayer.setDataSource(descriptor.getFileDescriptor(), descriptor.getStartOffset(), descriptor.getLength());
                 updateMusicNotification(title, artist, false);
-                nativeMusicPlayer.setOnPreparedListener(player -> { player.start(); updateMusicNotification(title, artist, true); });
+                final android.content.res.AssetFileDescriptor finalDescriptor = descriptor;
+                nativeMusicPlayer.setOnPreparedListener(player -> { try { finalDescriptor.close(); } catch (Exception ignored) {} player.start(); updateMusicNotification(title, artist, true); });
                 nativeMusicPlayer.setOnCompletionListener(player -> sendMusicCommand("next"));
-                nativeMusicPlayer.setOnErrorListener((player, what, extra) -> { stopMusicNotification(); return true; });
+                nativeMusicPlayer.setOnErrorListener((player, what, extra) -> { stopMusicNotification(); showMusicError("Audio ဖွင့်မရပါ (" + what + ")"); return true; });
                 nativeMusicPlayer.prepareAsync();
-            } catch (Exception ignored) { stopMusicNotification(); }
+            } catch (Exception error) { try { if (descriptor != null) descriptor.close(); } catch (Exception ignored) {} stopMusicNotification(); showMusicError("ဒီဖိုင်ကို ဖွင့်မရပါ"); }
         });
     }
+
+    private void showMusicError(String message) { if (webView != null) webView.evaluateJavascript("window.CaregiversMusicError && window.CaregiversMusicError(" + quoteForJs(message) + ")", null); }
 
     private void pauseNativeMusic() { if (nativeMusicPlayer != null && nativeMusicPlayer.isPlaying()) { nativeMusicPlayer.pause(); updateMusicNotification(musicTitle, musicArtist, false); } }
     private void resumeNativeMusic() { if (nativeMusicPlayer != null && !nativeMusicPlayer.isPlaying()) { nativeMusicPlayer.start(); updateMusicNotification(musicTitle, musicArtist, true); } }

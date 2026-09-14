@@ -1086,6 +1086,7 @@ export default function Home() {
     window.open(track.storeUrl, '_blank', 'noopener,noreferrer')
   }
   useEffect(() => {
+    window.CaregiversMusicError = message => alert(message || 'Audio ဖွင့်မရပါ')
     window.CaregiversMusicCommand = command => {
       const audio = playerAudioRef.current
       if (command === 'stop') { audio?.pause(); window.CaregiversMusic?.stop?.(); setPlayerTrack(null); return }
@@ -1096,7 +1097,7 @@ export default function Home() {
       if (command === 'next') playNextMusicTrack()
       if (command === 'previous') playPreviousMusicTrack()
     }
-    return () => { delete window.CaregiversMusicCommand }
+    return () => { delete window.CaregiversMusicCommand; delete window.CaregiversMusicError }
   })
 
   const existingMemberIds = new Set((activeChat?.data?.members || []).map(member => member.userId || member.id || member.user?.id))
