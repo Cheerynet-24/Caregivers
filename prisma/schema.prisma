@@ -47,6 +47,7 @@ model User {
   commentLikes        CommentLike[]
   reportsMade         Report[]        @relation("ReportReporter")
   notifications       Notification[] @relation("UserNotifications")
+  notificationReads   NotificationRead[]
   callsMade           CallLog[]      @relation("CallsMade")
   callsReceived       CallLog[]      @relation("CallsReceived")
 }
@@ -197,11 +198,24 @@ model Notification {
   id        String   @id @default(uuid())
   userId    String?
   user      User?    @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  reads     NotificationRead[]
   title     String
   message   String
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+model NotificationRead {
+  id             String       @id @default(uuid())
+  notificationId String
+  userId         String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt         DateTime     @default(now())
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
 }
 
 model Report {

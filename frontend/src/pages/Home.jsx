@@ -94,6 +94,8 @@ export default function Home() {
   const [cameraFacing, setCameraFacing] = useState('user')
   const [showDeveloper, setShowDeveloper] = useState(false)
   const [notifications, setNotifications] = useState([])
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [latestNotification, setLatestNotification] = useState(null)
   const [latestMessageNotification, setLatestMessageNotification] = useState(null)
   const [popupReply, setPopupReply] = useState('')
@@ -198,6 +200,9 @@ export default function Home() {
   }, [])
 
   useEffect(() => { if (tab === 'music') window.CaregiversLocalMusic?.refresh?.() }, [tab])
+  useEffect(() => {
+    setUnreadChatCount(conversations.reduce((sum, item) => sum + (item.unreadCount || 0), 0) + groups.reduce((sum, item) => sum + (item.unreadCount || 0), 0))
+  }, [conversations, groups])
 
   useEffect(() => {
     if (!socket) return
@@ -226,6 +231,7 @@ export default function Home() {
         }
       }
       loadConversations()
+      loadGroups()
     }
     const onUpdateMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg } : item))
     const onDeleteMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg, type: 'deleted' } : item))
@@ -246,6 +252,7 @@ export default function Home() {
     if (!socket) return
     const onNotification = notification => {
       setNotifications(prev => [notification, ...prev].slice(0, 20))
+      setUnreadNotificationCount(prev => prev + 1)
       setLatestNotification(notification)
       if (!chatSettings.muted && chatSettings.notifications) playCustomSound('message')
     }
@@ -490,7 +497,9 @@ export default function Home() {
   const loadConversations = async () => {
     try {
       const res = await chatAPI.getConversations()
-      setConversations(res.data.conversations || [])
+      const items = res.data.conversations || []
+      setConversations(items)
+      setUnreadChatCount(items.reduce((sum, item) => sum + (item.unreadCount || 0), 0) + groups.reduce((sum, item) => sum + (item.unreadCount || 0), 0))
     } catch {}
   }
 
@@ -501,7 +510,9 @@ export default function Home() {
   const loadGroups = async () => {
     try {
       const res = await groupAPI.myGroups()
-      setGroups(res.data.groups || [])
+      const items = res.data.groups || []
+      setGroups(items)
+      setUnreadChatCount(prev => conversations.reduce((sum, item) => sum + (item.unreadCount || 0), 0) + items.reduce((sum, item) => sum + (item.unreadCount || 0), 0))
     } catch {}
   }
 
@@ -527,7 +538,14 @@ export default function Home() {
     try {
       const res = await userAPI.notifications()
       setNotifications(res.data.notifications || [])
+      setUnreadNotificationCount(res.data.unreadCount || 0)
     } catch {}
+  }
+  const openAdminNotifications = async () => {
+    setTab('admin-noti'); setActiveChat(null); setMessages([])
+    await loadNotifications()
+    await userAPI.markNotificationsRead().catch(() => {})
+    setUnreadNotificationCount(0)
   }
 
   const loadPosts = async (items) => {
@@ -639,7 +657,9 @@ export default function Home() {
       const conv = knownConversationId ? { id: knownConversationId } : (await chatAPI.getOrCreateConversation(otherUser.id)).data.conversation
       setActiveChat({ type: 'private', id: conv.id, data: otherUser })
       setMessages([])
+      await chatAPI.markRead(conv.id).catch(() => {})
       chatAPI.getMessages(conv.id).then(msgs => setMessages(msgs.data.messages || [])).catch(() => {})
+      await loadConversations()
     } catch {}
   }
 
@@ -671,6 +691,8 @@ export default function Home() {
       setActiveChat({ type: 'group', id: group.id, data: group })
       const msgs = await chatAPI.getGroupMessages(group.id)
       setMessages(msgs.data.messages || [])
+      await groupAPI.markRead(group.id).catch(() => {})
+      await loadGroups()
       setTab('groups')
     } catch {}
   }
@@ -1151,11 +1173,11 @@ export default function Home() {
       {/* Sidebar */}
       <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 shrink-0 bg-sky-600 dark:bg-gray-900 flex-col items-center py-3 gap-2 overflow-y-auto overscroll-contain`}>
         <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
-        <button onClick={() => setTab('chats')} className={`p-3 rounded-xl ${tab === 'chats' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
-          <MessageCircle size={22} />
+        <button onClick={() => setTab('chats')} className={`relative p-3 rounded-xl ${tab === 'chats' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
+          <MessageCircle size={22} />{unreadChatCount > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{unreadChatCount > 99 ? '99+' : unreadChatCount}</span>}
         </button>
-        <button onClick={() => setTab('groups')} className={`p-3 rounded-xl ${tab === 'groups' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
-          <Users size={22} />
+        <button onClick={() => setTab('groups')} className={`relative p-3 rounded-xl ${tab === 'groups' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
+          <Users size={22} />{groups.reduce((sum, group) => sum + (group.unreadCount || 0), 0) > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{groups.reduce((sum, group) => sum + (group.unreadCount || 0), 0) > 99 ? '99+' : groups.reduce((sum, group) => sum + (group.unreadCount || 0), 0)}</span>}
         </button>
         <button onClick={() => { setTab('search'); handleSearch() }} className={`p-3 rounded-xl ${tab === 'search' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`}>
           <Search size={22} />
@@ -1163,9 +1185,9 @@ export default function Home() {
         <button onClick={() => { setTab('friends'); setActiveChat(null); setMessages([]); loadFriends(); loadFriendRequests() }} className={`p-3 rounded-xl ${tab === 'friends' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Friends">
           <UserPlus size={22} />
         </button>
-        <button onClick={() => { setTab('admin-noti'); setActiveChat(null); setMessages([]); loadNotifications() }} className={`relative p-3 rounded-xl ${tab === 'admin-noti' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="From Admin Noti">
+        <button onClick={openAdminNotifications} className={`relative p-3 rounded-xl ${tab === 'admin-noti' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="From Admin Noti">
           <Bell size={22} />
-          {notifications.length > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{notifications.length > 99 ? '99+' : notifications.length}</span>}
+          {unreadNotificationCount > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}
         </button>
         <button onClick={() => { setTab('call-history'); setActiveChat(null); setMessages([]); loadCallHistory() }} className={`p-3 rounded-xl ${tab === 'call-history' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Call history">
           <Phone size={22} />
@@ -1249,6 +1271,7 @@ export default function Home() {
                 <p className="font-medium text-sm truncate dark:text-white">{c.otherUser?.displayName || c.otherUser?.username}</p>
                 <p className="text-xs text-gray-500 truncate">{c.lastMessage?.content || ''}</p>
               </div>
+              {c.unreadCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{c.unreadCount > 99 ? '99+' : c.unreadCount}</span>}
               {c.otherUser?.isOnline && <span className="w-2 h-2 bg-green-500 rounded-full" />}
             </div>
           ))}
@@ -1268,6 +1291,7 @@ export default function Home() {
                     <p className="font-medium text-sm dark:text-white">{g.name}</p>
                     <p className="text-xs text-gray-500">{g.members?.length || 0} {t('members')}</p>
                   </div>
+                  {g.unreadCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{g.unreadCount > 99 ? '99+' : g.unreadCount}</span>}
                 </div>
               ))}
             </>

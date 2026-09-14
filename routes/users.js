@@ -9,10 +9,19 @@ const prisma = new PrismaClient();
 router.get('/notifications', auth, async (req, res) => {
   try {
     const notifications = await prisma.notification.findMany({ where: { OR: [{ userId: null }, { userId: req.user.id }] }, orderBy: { createdAt: 'desc' }, take: 20 });
-    res.json({ notifications });
+    const unreadCount = await prisma.notification.count({ where: { OR: [{ userId: null }, { userId: req.user.id }], reads: { none: { userId: req.user.id } } } });
+    res.json({ notifications, unreadCount });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load notifications' });
   }
+});
+
+router.post('/notifications/read', auth, async (req, res) => {
+  try {
+    const notifications = await prisma.notification.findMany({ where: { OR: [{ userId: null }, { userId: req.user.id }] }, select: { id: true } });
+    if (notifications.length) await prisma.notificationRead.createMany({ data: notifications.map(notification => ({ notificationId: notification.id, userId: req.user.id })), skipDuplicates: true });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to mark notifications read' }); }
 });
 
 // Search all users (for "Search Friend")

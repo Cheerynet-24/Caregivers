@@ -43,6 +43,7 @@ export const userAPI = {
   friends: () => api.get('/api/users/friends'),
   friendRequests: () => api.get('/api/users/friend-requests'),
   notifications: () => api.get('/api/users/notifications'),
+  markNotificationsRead: () => api.post('/api/users/notifications/read'),
   sendRequest: (toUserId) => api.post('/api/users/friend-request', { toUserId }),
   acceptRequest: (id) => api.post(`/api/users/friend-request/${id}/accept`),
   rejectRequest: (id) => api.post(`/api/users/friend-request/${id}/reject`),
@@ -71,6 +72,7 @@ export const chatAPI = {
   getConversations: () => api.get('/api/chat/conversations'),
   getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
   getMessages: (conversationId) => api.get(`/api/chat/messages/${conversationId}`),
+  markRead: (conversationId) => api.post(`/api/chat/read/${conversationId}`),
   callHistory: () => api.get('/api/chat/call-history'),
   getGroupMessages: (groupId) => api.get(`/api/chat/group-messages/${groupId}`),
   deleteConversation: (id) => api.delete(`/api/chat/conversation/${id}`),
@@ -89,7 +91,8 @@ export const groupAPI = {
   removeMember: (id, userId) => api.delete(`/api/groups/${id}/members/${userId}`),
   remove: (id) => api.delete(`/api/groups/${id}`),
   update: (id, data) => api.put(`/api/groups/${id}`, data),
-  regenerateInvite: (id) => api.post(`/api/groups/${id}/regenerate-invite`)
+  regenerateInvite: (id) => api.post(`/api/groups/${id}/regenerate-invite`),
+  markRead: (id) => api.post(`/api/groups/${id}/read`)
 }
 
 export const walletAPI = {

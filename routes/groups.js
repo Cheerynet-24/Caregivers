@@ -49,11 +49,20 @@ router.get('/my', auth, async (req, res) => {
         }
       }
     });
-    const groups = memberships.map(m => ({ ...m.group, myRole: m.role }));
+    const groups = await Promise.all(memberships.map(async m => ({ ...m.group, myRole: m.role, unreadCount: await prisma.message.count({ where: { groupId: m.group.id, senderId: { not: req.user.id }, messageStatus: { not: 'seen' } } }) })));
     res.json({ groups });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }
+});
+
+router.post('/:id/read', auth, async (req, res) => {
+  try {
+    const member = await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId: req.params.id, userId: req.user.id } } });
+    if (!member) return res.status(403).json({ error: 'Not a member' });
+    await prisma.message.updateMany({ where: { groupId: req.params.id, senderId: { not: req.user.id }, messageStatus: { not: 'seen' } }, data: { messageStatus: 'seen', seenAt: new Date() } });
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'Failed to mark group read' }); }
 });
 
 // Get group by id

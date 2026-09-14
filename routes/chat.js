@@ -157,8 +157,12 @@ router.get('/conversations', auth, async (req, res) => {
 
     const enriched = convs.map((c) => {
       const other = c.user1Id === req.user.id ? c.user2 : c.user1;
-      return { ...c, otherUser: compactUser(other), lastMessage: c.messages?.[0] || null, messages: undefined };
+      return { ...c, otherUser: compactUser(other), lastMessage: c.messages?.[0] || null, unreadCount: 0, messages: undefined };
     });
+
+    for (const item of enriched) {
+      item.unreadCount = await prisma.message.count({ where: { conversationId: item.id, senderId: { not: req.user.id }, messageStatus: { not: 'seen' } } });
+    }
 
     res.json({ conversations: enriched });
   } catch (err) {
@@ -171,6 +175,15 @@ router.get('/call-history', auth, async (req, res) => {
     const calls = await prisma.callLog.findMany({ where: { OR: [{ callerId: req.user.id }, { receiverId: req.user.id }] }, include: { caller: { select: { id: true, username: true, displayName: true } }, receiver: { select: { id: true, username: true, displayName: true } } }, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json({ calls });
   } catch (err) { res.status(500).json({ error: 'Failed to load call history' }); }
+});
+
+router.post('/read/:conversationId', auth, async (req, res) => {
+  try {
+    const conversation = await prisma.conversation.findFirst({ where: { id: req.params.conversationId, OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }] } });
+    if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+    await prisma.message.updateMany({ where: { conversationId: conversation.id, senderId: { not: req.user.id }, messageStatus: { not: 'seen' } }, data: { messageStatus: 'seen', seenAt: new Date() } });
+    res.json({ success: true });
+  } catch { res.status(500).json({ error: 'Failed to mark conversation read' }); }
 });
 
 module.exports = router;
