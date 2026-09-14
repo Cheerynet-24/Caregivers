@@ -12,12 +12,21 @@ import {
 } from 'lucide-react'
 
 const VIDEO_EFFECTS = [
-  { id: 'none', label: 'Normal', emoji: '✨', filter: 'none' },
-  { id: 'mono', label: 'B&W', emoji: '🖤', filter: 'grayscale(1)' },
-  { id: 'warm', label: 'Warm', emoji: '🌅', filter: 'sepia(.72) saturate(1.2)' },
-  { id: 'vivid', label: 'Vivid', emoji: '🌈', filter: 'contrast(1.2) saturate(1.5)' },
-  { id: 'cool', label: 'Cool', emoji: '🧊', filter: 'hue-rotate(165deg) saturate(1.12)' },
-  { id: 'dreamy', label: 'Dreamy', emoji: '💫', filter: 'brightness(1.08) saturate(.85) blur(.35px)' }
+  { id: 'none', label: 'Normal', emoji: '✨', filter: 'none', overlay: '' },
+  { id: 'mono', label: 'B&W', emoji: '🖤', filter: 'grayscale(1)', overlay: '' },
+  { id: 'warm', label: 'Warm', emoji: '🌅', filter: 'sepia(.72) saturate(1.2)', overlay: '' },
+  { id: 'vivid', label: 'Vivid', emoji: '🌈', filter: 'contrast(1.2) saturate(1.5)', overlay: '' },
+  { id: 'cool', label: 'Cool', emoji: '🧊', filter: 'hue-rotate(165deg) saturate(1.12)', overlay: '' },
+  { id: 'dreamy', label: 'Dreamy', emoji: '💫', filter: 'brightness(1.08) saturate(.85) blur(.35px)', overlay: '' },
+  { id: 'hearts', label: 'Hearts', emoji: '💖', filter: 'none', overlay: '💖' },
+  { id: 'love', label: 'Love', emoji: '❤️', filter: 'sepia(.15) saturate(1.25)', overlay: '❤️' },
+  { id: 'sparkles', label: 'Sparkles', emoji: '✨', filter: 'none', overlay: '✨' },
+  { id: 'confetti', label: 'Party', emoji: '🎉', filter: 'none', overlay: '🎉' },
+  { id: 'fire', label: 'Fire', emoji: '🔥', filter: 'saturate(1.35) contrast(1.08)', overlay: '🔥' },
+  { id: 'rainbow', label: 'Rainbow', emoji: '🌈', filter: 'saturate(1.25)', overlay: '🌈' },
+  { id: 'butterfly', label: 'Butterfly', emoji: '🦋', filter: 'none', overlay: '🦋' },
+  { id: 'snow', label: 'Snow', emoji: '❄️', filter: 'brightness(1.08)', overlay: '❄️' },
+  { id: 'dance', label: 'Dance', emoji: '💃', filter: 'none', overlay: '💃' }
 ]
 
 const getVideoEffect = id => VIDEO_EFFECTS.find(effect => effect.id === id) || VIDEO_EFFECTS[0]
@@ -43,6 +52,14 @@ function ProfileMessageCard({ profile, onOpen }) {
     </div>
     {profile.bio && <p className="mt-2 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">{profile.bio}</p>}
   </button>
+}
+
+function VideoEffectOverlay({ effect }) {
+  const icon = effect?.overlay
+  if (!icon) return null
+  return <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden" aria-hidden="true">
+    {Array.from({ length: 16 }, (_, index) => <span key={`${effect.id}-${index}`} className="video-effect-particle" style={{ '--particle-icon': `'${icon}'`, left: `${(index * 29 + 7) % 100}%`, animationDuration: `${3.6 + (index % 5) * .35}s`, animationDelay: `${(index % 8) * -.42}s` }} />)}
+  </div>
 }
 
 export default function Home() {
@@ -1313,6 +1330,7 @@ export default function Home() {
               autoPlay muted playsInline
               style={{ filter: videoEffectPipelineRef.current ? 'none' : getVideoEffect(videoEffect).filter }} className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
             />
+            {call.callType === 'video' && <VideoEffectOverlay effect={getVideoEffect(videoEffect)} />}
             <div className="absolute top-4 left-4 rounded-lg bg-black/60 px-3 py-2 text-white text-sm">{callStatus || 'Calling'}</div>
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
           </div>

@@ -23,3 +23,30 @@ body {
   background: #94a3b8;
   border-radius: 3px;
 }
+
+.video-effect-particle {
+  position: absolute;
+  bottom: -12%;
+  font-size: clamp(1.5rem, 4vw, 3.5rem);
+  line-height: 1;
+  opacity: 0;
+  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.18));
+  animation-name: video-effect-float;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.video-effect-particle::before {
+  content: var(--particle-icon);
+}
+
+@keyframes video-effect-float {
+  0% { transform: translate3d(0, 0, 0) rotate(-12deg) scale(.72); opacity: 0; }
+  12% { opacity: .95; }
+  52% { transform: translate3d(18px, -52vh, 0) rotate(12deg) scale(1); opacity: .92; }
+  100% { transform: translate3d(-18px, -112vh, 0) rotate(28deg) scale(.8); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-effect-particle { animation-duration: 7s; }
+}
