@@ -22,6 +22,7 @@ import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
 import android.media.AudioDeviceInfo;
+import android.media.MediaPlayer;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.app.Notification;
@@ -56,6 +57,7 @@ public class MainActivity extends Activity {
     private String musicTitle = "Caregivers Music";
     private String musicArtist = "Phone Music";
     private boolean musicPlaying;
+    private MediaPlayer nativeMusicPlayer;
     private static final String MUSIC_CHANNEL = "caregivers_music";
     private static final String MUSIC_PLAY = "com.caregivers.mobile.MUSIC_PLAY";
     private static final String MUSIC_PREVIOUS = "com.caregivers.mobile.MUSIC_PREVIOUS";
@@ -191,6 +193,24 @@ public class MainActivity extends Activity {
     private void sendMusicCommand(String command) {
         if (webView != null) webView.evaluateJavascript("window.CaregiversMusicCommand && window.CaregiversMusicCommand('" + command + "')", null);
     }
+
+    private void playNativeMusic(String url, String title, String artist) {
+        runOnUiThread(() -> {
+            try {
+                if (nativeMusicPlayer != null) nativeMusicPlayer.release();
+                nativeMusicPlayer = new MediaPlayer();
+                nativeMusicPlayer.setDataSource(this, Uri.parse(url));
+                nativeMusicPlayer.setOnPreparedListener(player -> { player.start(); updateMusicNotification(title, artist, true); });
+                nativeMusicPlayer.setOnCompletionListener(player -> sendMusicCommand("next"));
+                nativeMusicPlayer.setOnErrorListener((player, what, extra) -> { stopMusicNotification(); return true; });
+                nativeMusicPlayer.prepareAsync();
+            } catch (Exception ignored) { stopMusicNotification(); }
+        });
+    }
+
+    private void pauseNativeMusic() { if (nativeMusicPlayer != null && nativeMusicPlayer.isPlaying()) { nativeMusicPlayer.pause(); updateMusicNotification(musicTitle, musicArtist, false); } }
+    private void resumeNativeMusic() { if (nativeMusicPlayer != null && !nativeMusicPlayer.isPlaying()) { nativeMusicPlayer.start(); updateMusicNotification(musicTitle, musicArtist, true); } }
+    private void stopNativeMusic() { if (nativeMusicPlayer != null) { nativeMusicPlayer.stop(); nativeMusicPlayer.release(); nativeMusicPlayer = null; } stopMusicNotification(); }
 
     private void handleMusicIntent(Intent intent) {
         if (intent == null || intent.getAction() == null) return;
@@ -353,6 +373,10 @@ public class MainActivity extends Activity {
     }
 
     private class MusicNotificationBridge {
+        @JavascriptInterface public void playLocal(String url, String title, String artist) { playNativeMusic(url, title, artist); }
+        @JavascriptInterface public void pause() { runOnUiThread(() -> pauseNativeMusic()); }
+        @JavascriptInterface public void resume() { runOnUiThread(() -> resumeNativeMusic()); }
+        @JavascriptInterface public void stop() { runOnUiThread(() -> stopNativeMusic()); }
         @JavascriptInterface public void update(String title, String artist, boolean playing) { runOnUiThread(() -> updateMusicNotification(title, artist, playing)); }
         @JavascriptInterface public void clear() { runOnUiThread(() -> stopMusicNotification()); }
     }
