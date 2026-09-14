@@ -166,6 +166,30 @@ router.delete('/:id/members/:userId', auth, async (req, res) => {
   }
 });
 
+// Update group appearance (admin only)
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const me = await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId: req.params.id, userId: req.user.id } } });
+    if (!me || me.role !== 'admin') return res.status(403).json({ error: 'Only admin' });
+    const data = {};
+    if (req.body.name !== undefined) data.name = String(req.body.name).trim().slice(0, 80);
+    if (req.body.description !== undefined) data.description = String(req.body.description || '').slice(0, 500) || null;
+    if (req.body.icon !== undefined) data.icon = String(req.body.icon || '').slice(0, 100000) || null;
+    const group = await prisma.group.update({ where: { id: req.params.id }, data });
+    res.json({ group });
+  } catch (err) { res.status(500).json({ error: 'Failed to update group' }); }
+});
+
+// Delete group (admin only)
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const me = await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId: req.params.id, userId: req.user.id } } });
+    if (!me || me.role !== 'admin') return res.status(403).json({ error: 'Only admin' });
+    await prisma.group.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Group deleted' });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete group' }); }
+});
+
 // Leave group
 router.post('/:id/leave', auth, async (req, res) => {
   try {

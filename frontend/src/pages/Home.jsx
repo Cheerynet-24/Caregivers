@@ -8,7 +8,7 @@ import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music
+  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw
 } from 'lucide-react'
 
 export default function Home() {
@@ -40,6 +40,7 @@ export default function Home() {
   const [incomingCall, setIncomingCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
   const [cameraOff, setCameraOff] = useState(false)
+  const [cameraFacing, setCameraFacing] = useState('user')
   const [showDeveloper, setShowDeveloper] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [latestNotification, setLatestNotification] = useState(null)
@@ -58,6 +59,9 @@ export default function Home() {
   const [callHistory, setCallHistory] = useState([])
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
+  const [profilePosts, setProfilePosts] = useState([])
+  const [selectedGroup, setSelectedGroup] = useState(null)
+  const [videoEffect, setVideoEffect] = useState('none')
   const [showAddMembers, setShowAddMembers] = useState(false)
   const [selectedMemberIds, setSelectedMemberIds] = useState([])
   const [addingMembers, setAddingMembers] = useState(false)
@@ -113,6 +117,7 @@ export default function Home() {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
         const matchGroup = activeChat.type === 'group' && msg.groupId === activeChat.id
         if (matchPrivate || matchGroup) {
+          if (isIncoming && msg.id) socket.emit('message:seen', { messageId: msg.id })
           setMessages(prev => {
             const pendingIndex = prev.findIndex(item => item.pending && item.senderId === msg.senderId && item.content === msg.content && item.type === msg.type)
             if (pendingIndex >= 0) return prev.map((item, index) => index === pendingIndex ? msg : item)
@@ -406,7 +411,25 @@ export default function Home() {
   }
   const showUserProfile = userItem => {
     setSelectedProfile(userItem)
-    userAPI.profile(userItem.id).then(res => setSelectedProfile(res.data.user)).catch(() => {})
+    Promise.all([userAPI.profile(userItem.id), postsAPI.list()]).then(([profileRes, postsRes]) => {
+      setSelectedProfile(profileRes.data.user)
+      setProfilePosts((postsRes.data.posts || []).filter(post => post.authorId === userItem.id || post.author?.id === userItem.id))
+    }).catch(() => {})
+  }
+
+  const showGroupInfo = group => { setSelectedGroup(group); groupAPI.get(group.id).then(res => setSelectedGroup({ ...(res.data.group || res.data), myRole: res.data.myRole })).catch(() => {}) }
+  const deleteGroup = async () => {
+    if (!selectedGroup || selectedGroup.myRole !== 'admin' || !window.confirm('Delete this group?')) return
+    try { await groupAPI.remove(selectedGroup.id); setSelectedGroup(null); setActiveChat(null); setMessages([]); await loadGroups() } catch (err) { alert(err.response?.data?.error || 'Group delete failed') }
+  }
+  const removeGroupMember = async userId => {
+    if (!selectedGroup || selectedGroup.myRole !== 'admin') return
+    try { await groupAPI.removeMember(selectedGroup.id, userId); const res = await groupAPI.get(selectedGroup.id); setSelectedGroup({ ...(res.data.group || res.data), myRole: res.data.myRole }); setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, ...(res.data.group || res.data) } : g)) } catch (err) { alert(err.response?.data?.error || 'Remove failed') }
+  }
+  const setGroupIcon = e => {
+    const file = e.target.files?.[0]
+    if (!file || !selectedGroup || selectedGroup.myRole !== 'admin') return
+    const reader = new FileReader(); reader.onload = async () => { try { const res = await groupAPI.update(selectedGroup.id, { icon: reader.result }); setSelectedGroup(g => ({ ...g, ...(res.data.group || {}) })); setGroups(prev => prev.map(g => g.id === selectedGroup.id ? { ...g, ...(res.data.group || {}) } : g)) } catch (err) { alert(err.response?.data?.error || 'Icon update failed') } }; reader.readAsDataURL(file)
   }
 
   const openPrivateChat = async (otherUser, knownConversationId = null) => {
@@ -657,6 +680,7 @@ export default function Home() {
     setIncomingCall(null)
     setMutedCall(false)
     setCameraOff(false)
+    setCameraFacing('user')
   }
 
   const toggleMute = () => {
@@ -673,6 +697,20 @@ export default function Home() {
       track.enabled = !track.enabled
       setCameraOff(!track.enabled)
     }
+  }
+  const switchCamera = async () => {
+    if (!call || call.callType !== 'video' || !localStreamRef.current || !navigator.mediaDevices?.getUserMedia) return
+    const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } })
+      const nextTrack = stream.getVideoTracks()[0]
+      const sender = peerRef.current?.getSenders().find(item => item.track?.kind === 'video')
+      if (sender && nextTrack) await sender.replaceTrack(nextTrack)
+      localStreamRef.current.getVideoTracks().forEach(track => track.stop())
+      localStreamRef.current.addTrack(nextTrack)
+      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
+      setCameraFacing(nextFacing)
+    } catch { alert('ဒီဖုန်းမှာ Camera ပြောင်းလို့မရပါ') }
   }
   const changeAudioRoute = route => {
     setAudioRoute(route)
@@ -830,9 +868,9 @@ export default function Home() {
               {groups.map(g => (
                 <div key={g.id} onClick={() => openGroupChat(g)}
                   className={`p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${activeChat?.id === g.id ? 'bg-sky-50 dark:bg-sky-900/30' : ''}`}>
-                  <div className="w-10 h-10 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 font-bold">
-                    {g.name[0].toUpperCase()}
-                  </div>
+                  <button onClick={e => { e.stopPropagation(); showGroupInfo(g) }} className="w-10 h-10 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 font-bold overflow-hidden">
+                    {g.icon ? <img src={resolveMediaUrl(g.icon)} alt="" className="w-full h-full object-cover" /> : g.name[0].toUpperCase()}
+                  </button>
                   <div className="flex-1">
                     <p className="font-medium text-sm dark:text-white">{g.name}</p>
                     <p className="text-xs text-gray-500">{g.members?.length || 0} {t('members')}</p>
@@ -928,9 +966,9 @@ export default function Home() {
               <button onClick={() => { setActiveChat(null); setMessages([]) }} className="md:hidden p-2 text-gray-500" aria-label="Back">
                 <ArrowLeft size={20} />
               </button>
-              {activeChat.data?.avatar ? <img src={resolveMediaUrl(activeChat.data.avatar)} alt="" className="w-9 h-9 rounded-full object-cover" /> : <div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">
-                {(activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username || '?')[0].toUpperCase()}
-              </div>}
+              <button onClick={() => activeChat.type === 'private' ? showUserProfile(activeChat.data) : showGroupInfo(activeChat.data)} className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold overflow-hidden">
+                {activeChat.data?.avatar ? <img src={resolveMediaUrl(activeChat.data.avatar)} alt="" className="w-full h-full object-cover" /> : activeChat.data?.icon ? <img src={resolveMediaUrl(activeChat.data.icon)} alt="" className="w-full h-full object-cover" /> : (activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username || '?')[0].toUpperCase()}
+              </button>
               <div className="flex-1">
                 <p className="font-semibold text-sm dark:text-white">
                   {activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username}
@@ -1000,9 +1038,9 @@ export default function Home() {
                       : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
                       : m.type === 'file' && m.fileUrl ? <a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
                       : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
-                      : <p className={m.type === 'sticker' ? 'text-5xl' : ''}>{m.content}</p>}
+                      : <>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? <div className="mb-1 border-l-2 border-current/40 pl-2 text-xs opacity-60 whitespace-pre-wrap">{String(m.content).split('\n')[0]}</div> : null}<p className={m.type === 'sticker' ? 'text-5xl' : ''}>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? String(m.content).split('\n').slice(1).join('\n') : m.content}</p></>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
-                      {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.senderId === user.id && <span className="ml-1">{m.pending ? 'Sending…' : m.messageStatus === 'seen' ? 'Seen' : m.messageStatus === 'delivered' ? 'Sent' : 'Sending…'}</span>}
                     </p>
                   </div>
                   <button onClick={() => setMessageMenu(messageMenu === m.id ? null : m.id)} className="absolute -right-8 top-1 p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-sky-500" title="Message actions"><MoreVertical size={17} /></button>
@@ -1089,12 +1127,12 @@ export default function Home() {
       {call && (
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
           <div className="flex-1 relative flex items-center justify-center">
-            <video ref={remoteVideoRef} autoPlay playsInline className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
+            <video ref={remoteVideoRef} autoPlay playsInline style={{ filter: videoEffect }} className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
             <audio ref={remoteAudioRef} autoPlay className={call.callType === 'audio' ? 'block' : 'hidden'} />
             <video
               ref={localVideoRef}
               autoPlay muted playsInline
-              className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
+              style={{ filter: videoEffect }} className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
             />
             <div className="absolute top-4 left-4 rounded-lg bg-black/60 px-3 py-2 text-white text-sm">{callStatus || 'Calling'}</div>
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
@@ -1106,9 +1144,11 @@ export default function Home() {
             <button onClick={toggleMute} className="p-4 rounded-full bg-gray-700 text-white" title="Mute">
               {mutedCall ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
+            {call.callType === 'video' && <select value={videoEffect} onChange={e => setVideoEffect(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-700 text-white text-sm" aria-label="Video effect"><option value="none">Normal</option><option value="grayscale(1)">B&amp;W</option><option value="sepia(0.8)">Warm</option><option value="contrast(1.25) saturate(1.35)">Vivid</option><option value="blur(2px) brightness(1.08)">Soft</option></select>}
             {call.callType === 'video' && <button onClick={toggleCamera} className="p-4 rounded-full bg-gray-700 text-white" title="Camera">
               {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
             </button>}
+            {call.callType === 'video' && <button onClick={switchCamera} className="p-4 rounded-full bg-gray-700 text-white" title="Switch camera"><RefreshCw size={22} /></button>}
             <button onClick={() => endCall(true)} className="p-4 rounded-full bg-red-600 text-white" title="End call"><PhoneOff size={22} /></button>
           </div>
         </div>
@@ -1157,14 +1197,30 @@ export default function Home() {
           </div>
         </div>
       )}
+      {selectedGroup && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={() => setSelectedGroup(null)}>
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-4">
+              <label className="w-20 h-20 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700 text-3xl font-bold overflow-hidden cursor-pointer">{selectedGroup.icon ? <img src={resolveMediaUrl(selectedGroup.icon)} alt="" className="w-full h-full object-cover" /> : selectedGroup.name?.[0]?.toUpperCase()}<input type="file" accept="image/*" className="hidden" onChange={setGroupIcon} /></label>
+              <div><h3 className="text-xl font-bold dark:text-white">{selectedGroup.name}</h3><p className="text-sm text-gray-500">{selectedGroup.members?.length || 0} members</p></div>
+            </div>
+            {selectedGroup.description && <p className="mt-4 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedGroup.description}</p>}
+            <h4 className="mt-5 mb-2 font-semibold dark:text-white">Members</h4>
+            <div className="space-y-2">{(selectedGroup.members || []).map(member => <div key={member.userId} className="flex items-center gap-2"><div className="w-8 h-8 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(member.user?.displayName || member.user?.username || '?')[0].toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm dark:text-white truncate">{member.user?.displayName || member.user?.username}</p><p className="text-xs text-gray-500">{member.role}</p></div>{selectedGroup.myRole === 'admin' && member.userId !== user.id && <button onClick={() => removeGroupMember(member.userId)} className="px-2 py-1 text-xs rounded bg-red-100 text-red-600">Remove</button>}</div>)}</div>
+            <div className="mt-6 flex gap-2"><button onClick={() => { setSelectedGroup(null); if (activeChat?.id !== selectedGroup.id) openGroupChat(selectedGroup) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Open chat</button>{selectedGroup.myRole === 'admin' && <button onClick={deleteGroup} className="px-3 py-2 rounded-lg bg-red-500 text-white">Delete</button>}<button onClick={() => setSelectedGroup(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
+          </div>
+        </div>
+      )}
       {selectedProfile && (
         <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={() => setSelectedProfile(null)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-6 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-800 p-6 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
             {selectedProfile.avatar ? <img src={resolveMediaUrl(selectedProfile.avatar)} alt="" className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-sky-200" /> : <div className="w-28 h-28 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-4xl mx-auto">{(selectedProfile.displayName || selectedProfile.username || '?')[0].toUpperCase()}</div>}
             <h3 className="mt-4 text-xl font-bold dark:text-white">{selectedProfile.displayName || selectedProfile.username}</h3>
             <p className="text-sm text-gray-500">@{selectedProfile.username}</p>
             {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
-            <div className="mt-5 flex gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => setSelectedProfile(null)} className="px-4 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
+            <div className="mt-5 flex gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
+            <h4 className="mt-6 text-left font-semibold dark:text-white">Posts</h4>
+            <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="mt-2 max-h-56 w-full object-cover rounded-lg" />}</article>)}</div>
           </div>
         </div>
       )}

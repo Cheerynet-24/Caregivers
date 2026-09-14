@@ -63,6 +63,8 @@ model Message {
   mediaUrl       String?
   fileUrl        String?
   type           String          @default("text")
+  messageStatus  String          @default("sent")
+  seenAt         DateTime?
   editedAt       DateTime?
   deletedAt      DateTime?
   createdAt      DateTime        @default(now())
@@ -91,6 +93,7 @@ model Group {
   id          String        @id @default(uuid())
   name        String
   description String?
+  icon        String?
   inviteCode  String?       @unique
   adminId     String?
   createdById String?

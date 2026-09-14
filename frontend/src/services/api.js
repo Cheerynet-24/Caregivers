@@ -76,6 +76,8 @@ export const groupAPI = {
   join: (inviteCode) => api.post(`/api/groups/join/${inviteCode}`),
   leave: (id) => api.post(`/api/groups/${id}/leave`),
   removeMember: (id, userId) => api.delete(`/api/groups/${id}/members/${userId}`),
+  remove: (id) => api.delete(`/api/groups/${id}`),
+  update: (id, data) => api.put(`/api/groups/${id}`, data),
   regenerateInvite: (id) => api.post(`/api/groups/${id}/regenerate-invite`)
 }
 

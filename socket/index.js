@@ -71,7 +71,8 @@ function setupSocket(io, prisma) {
             senderId: userId,
             content: content || null,
             type,
-            fileUrl: fileUrl || null
+            fileUrl: fileUrl || null,
+            messageStatus: 'sent'
           },
           include: {
             sender: { select: { id: true, username: true, displayName: true, avatar: true } }
@@ -87,6 +88,8 @@ function setupSocket(io, prisma) {
         const otherId = otherUserId;
 
         io.to(`user:${otherId}`).emit('message:new', msg);
+        await prisma.message.update({ where: { id: msg.id }, data: { messageStatus: 'delivered' } });
+        io.to(`user:${userId}`).emit('message:update', { id: msg.id, messageStatus: 'delivered' });
         sendPush(otherUser.fcmToken, {
           title: socket.user.displayName || socket.user.username || 'New message',
           body: content || (type === 'audio' ? 'Voice message' : 'Attachment'),
@@ -97,6 +100,16 @@ function setupSocket(io, prisma) {
       } catch (err) {
         console.error('private msg error', err);
       }
+    });
+
+    socket.on('message:seen', async ({ messageId }) => {
+      if (!messageId) return;
+      try {
+        const message = await prisma.message.findUnique({ where: { id: messageId }, select: { id: true, senderId: true, conversationId: true, groupId: true } });
+        if (!message || message.senderId === userId) return;
+        const updated = await prisma.message.update({ where: { id: messageId }, data: { messageStatus: 'seen', seenAt: new Date() }, select: { id: true, messageStatus: true, seenAt: true } });
+        io.to(`user:${message.senderId}`).emit('message:update', updated);
+      } catch (err) { console.error('message seen error', err); }
     });
 
     socket.on('message:edit', async ({ messageId, content }) => {
@@ -156,7 +169,8 @@ function setupSocket(io, prisma) {
             senderId: userId,
             content: content || null,
             type,
-            fileUrl: fileUrl || null
+            fileUrl: fileUrl || null,
+            messageStatus: 'sent'
           },
           include: {
             sender: { select: { id: true, username: true, displayName: true, avatar: true } }
@@ -164,6 +178,8 @@ function setupSocket(io, prisma) {
         });
 
         io.to(`group:${groupId}`).emit('message:new', msg);
+        await prisma.message.update({ where: { id: msg.id }, data: { messageStatus: 'delivered' } });
+        socket.emit('message:update', { id: msg.id, messageStatus: 'delivered' });
       } catch (err) {
         console.error('group msg error', err);
       }
