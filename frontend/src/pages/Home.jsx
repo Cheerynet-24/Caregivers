@@ -125,13 +125,16 @@ export default function Home() {
     }
     const onUpdateMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg } : item))
     const onDeleteMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg, type: 'deleted' } : item))
+    const onGroupAdded = ({ groupName }) => { loadGroups(); setLatestNotification({ title: 'Added to group', message: `You were added to ${groupName}` }) }
     socket.on('message:new', onNewMessage)
     socket.on('message:update', onUpdateMessage)
     socket.on('message:delete', onDeleteMessage)
+    socket.on('group:added', onGroupAdded)
     return () => {
       socket.off('message:new', onNewMessage)
       socket.off('message:update', onUpdateMessage)
       socket.off('message:delete', onDeleteMessage)
+      socket.off('group:added', onGroupAdded)
     }
   }, [socket, activeChat, chatSettings])
 

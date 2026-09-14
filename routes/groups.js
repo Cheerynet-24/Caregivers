@@ -3,6 +3,7 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { auth } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
+const { sendPush } = require('../utils/firebase');
 
 const prisma = new PrismaClient();
 
@@ -105,7 +106,17 @@ router.post('/:id/members', auth, async (req, res) => {
         // already member, skip
       }
     }
-    res.json({ message: 'Members added', added: results.length });
+    const group = await prisma.group.findUnique({ where: { id: req.params.id }, select: { id: true, name: true } });
+    const addedIds = results.map(member => member.userId);
+    if (addedIds.length) {
+      const addedUsers = await prisma.user.findMany({ where: { id: { in: addedIds } }, select: { id: true, fcmToken: true } });
+      const io = req.app.get('io');
+      addedUsers.forEach(addedUser => {
+        io?.to(`user:${addedUser.id}`).emit('group:added', { groupId: group.id, groupName: group.name });
+        sendPush(addedUser.fcmToken, { title: 'Added to group', body: `You were added to ${group.name}`, type: 'group', data: { groupId: group.id } }).catch(() => {});
+      });
+    }
+    res.json({ message: 'Members added', added: results.length, group });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
   }

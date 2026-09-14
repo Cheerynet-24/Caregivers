@@ -26,7 +26,8 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
       data: Object.fromEntries(Object.entries({ type, title, body, ...data }).map(([key, value]) => [key, String(value ?? '')])),
       android: {
         priority: 'high',
-        ttl: 3600 * 1000
+        ttl: 3600 * 1000,
+        ...(['call', 'group'].includes(type) ? { notification: { channelId: type === 'call' ? 'caregivers_incoming_calls_v3' : 'caregivers_calls_messages_v3', title, body } } : {})
       }
     });
     return true;
