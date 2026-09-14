@@ -267,8 +267,10 @@ public class MainActivity extends Activity {
             return songs.toString();
         }
         @JavascriptInterface public void requestPermission() {
-            if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.READ_MEDIA_AUDIO}, MEDIA_PERMISSION);
-            else if (android.os.Build.VERSION.SDK_INT >= 23) requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MEDIA_PERMISSION);
+            runOnUiThread(() -> {
+                if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{Manifest.permission.READ_MEDIA_AUDIO}, MEDIA_PERMISSION);
+                else if (android.os.Build.VERSION.SDK_INT >= 23) requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, MEDIA_PERMISSION);
+            });
         }
         private boolean hasMediaPermission() {
             if (android.os.Build.VERSION.SDK_INT >= 33) return checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
