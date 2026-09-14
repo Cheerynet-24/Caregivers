@@ -5,21 +5,37 @@ const router = express.Router();
 const SYSTEM_PROMPT = 'You are Caregivers AI, a friendly and safe assistant. Reply in the user\'s language when possible, including Burmese. Do not claim to be a human, do not request passwords or private secrets, and recommend contacting a qualified professional for medical, legal, or financial decisions.';
 
 async function callGemini(messages) {
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const apiKey = process.env.GEMINI_API_KEY;
+  const requestedModel = process.env.GEMINI_MODEL;
+  let models = requestedModel ? [requestedModel] : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  try {
+    const modelListResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+    if (modelListResponse.ok && !requestedModel) {
+      const modelList = await modelListResponse.json();
+      const available = (modelList.models || [])
+        .filter(item => (item.supportedGenerationMethods || []).includes('generateContent'))
+        .map(item => String(item.name || '').replace(/^models\//, ''));
+      const preferred = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+      models = [...preferred.filter(model => available.includes(model)), ...available.filter(model => !preferred.includes(model))];
+    }
+  } catch (error) { console.warn('Gemini model discovery failed:', error.message); }
   const contents = messages.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] }));
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig: { maxOutputTokens: 700 } })
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    console.error('Gemini provider error:', response.status, data?.error?.message || data);
-    if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error('Gemini API key သို့မဟုတ် model မမှန်ပါ');
-    if (response.status === 429) throw new Error('Gemini free quota/rate limit ပြည့်နေပါတယ်');
-    throw new Error(`Gemini service error (${response.status})`);
+  let lastError = null;
+  for (const model of models) {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig: { maxOutputTokens: 700 } })
+    });
+    const data = await response.json();
+    if (response.ok) return data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+    lastError = { status: response.status, message: data?.error?.message || '' };
+    console.error('Gemini provider error:', model, response.status, lastError.message);
+    if ([400, 401, 403, 429].includes(response.status)) break;
   }
-  return data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  if (lastError?.status === 400 || lastError?.status === 401 || lastError?.status === 403) throw new Error('Gemini API key သို့မဟုတ် model မမှန်ပါ');
+  if (lastError?.status === 429) throw new Error('Gemini free quota/rate limit ပြည့်နေပါတယ်');
+  throw new Error(`Gemini model မတွေ့ပါ။ GEMINI_MODEL ကို မသတ်မှတ်ဘဲ ပြန်စမ်းပါ (နောက်ဆုံး error ${lastError?.status || 'unknown'})`);
 }
 
 async function callOpenAI(messages) {
