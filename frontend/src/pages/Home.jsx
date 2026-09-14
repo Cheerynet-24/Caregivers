@@ -120,9 +120,11 @@ export default function Home() {
   const [musicHistory, setMusicHistory] = useState(() => JSON.parse(localStorage.getItem('caregivers-music-history') || '[]'))
   const [musicQueue, setMusicQueue] = useState([])
   const [musicQueueIndex, setMusicQueueIndex] = useState(-1)
+  const [localSongs, setLocalSongs] = useState([])
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaDownloading, setMediaDownloading] = useState(false)
   const [playerTrack, setPlayerTrack] = useState(null)
+  const localMusicRef = useRef(null)
   const playerAudioRef = useRef(null)
   const musicQueueRef = useRef([])
   const musicQueueIndexRef = useRef(-1)
@@ -1009,6 +1011,14 @@ export default function Home() {
     setMusicQueueIndex(index); musicQueueIndexRef.current = index
     setPlayerTrack({ title: `${track.title} · ${track.artist}`, url: track.previewUrl, source: track })
   }
+  const selectLocalSongs = event => {
+    const files = Array.from(event.target.files || []).filter(file => file.type.startsWith('audio/'))
+    const songs = files.map(file => ({ id: `${file.name}-${file.lastModified}`, title: file.name.replace(/\.[^.]+$/, ''), artist: 'Phone music', previewUrl: URL.createObjectURL(file), file }))
+    setLocalSongs(songs)
+    setMusicQueue(songs); musicQueueRef.current = songs
+    setMusicQueueIndex(-1); musicQueueIndexRef.current = -1
+    event.target.value = ''
+  }
   const playNextMusicTrack = () => {
     const nextIndex = musicQueueIndexRef.current + 1
     const nextTrack = musicQueueRef.current[nextIndex]
@@ -1125,6 +1135,7 @@ export default function Home() {
           {tab === 'media' && <div className="p-3 space-y-5">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">သတိပေးချက် — သင်ပိုင်ဆိုင်သော သို့မဟုတ် download လုပ်ခွင့်ရှိသော media ပဲ အသုံးပြုပါ။ Social media တွေမှာ ပြန်တင်ရင် Copyright မိနိုင်ပါတယ်။ App က direct media links နဲ့ တရားဝင် music preview များအတွက်သာ download လုပ်ပေးပါတယ်။</div>
             <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-sky-500" /> Music Search</div><p className="mb-2 text-xs text-gray-500">Search ထဲက Play က preview ဖြစ်နိုင်ပါတယ်။ Full song အတွက် official source ကိုဖွင့်ပါ။</p><div className="flex gap-2"><input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchMusic()} placeholder="Song or artist name" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={searchMusic} className="rounded-xl bg-sky-500 px-3 text-white"><Search size={17} /></button></div><div className="mt-3 space-y-2">{musicResults.map(track => <div key={track.id} className="flex items-center gap-2 rounded-xl border p-2 dark:border-gray-600"><img src={track.artwork} alt="" className="h-11 w-11 rounded-lg" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold dark:text-white">{track.title}</p><p className="truncate text-xs text-gray-500">{track.artist}</p></div>{track.previewUrl && <button onClick={() => playMusicTrack(track)} className="rounded-lg p-2 text-green-500" title="Play preview"><Play size={18} /></button>}<button onClick={() => openOfficialTrack(track)} className="rounded-lg p-2 text-sky-500" title="Open official full song"><Music2 size={18} /></button></div>)}{musicResults.length === 0 && <p className="text-xs text-gray-500">Song ရှာရန် အပေါ်ကနေ ရိုက်ထည့်ပါ</p>}</div></section>
+            <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-emerald-500" /> Phone Music</div><p className="mb-2 text-xs text-gray-500">ဖုန်းထဲက MP3 / M4A / WAV ကိုရွေးပါ။ ဖိုင်က device ထဲမှာပဲရှိပြီး server ကို upload မလုပ်ပါ။</p><input ref={localMusicRef} type="file" accept="audio/*" multiple onChange={selectLocalSongs} className="hidden" /><button onClick={() => localMusicRef.current?.click()} className="w-full rounded-xl border border-dashed border-emerald-400 px-3 py-3 text-sm font-semibold text-emerald-600 dark:text-emerald-300">Choose music from phone</button>{localSongs.length > 0 && <div className="mt-3 space-y-1">{localSongs.map(song => <button key={song.id} onClick={() => playMusicTrack(song, localSongs)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"><Play size={15} className="text-emerald-500" /><span className="min-w-0 flex-1 truncate text-sm dark:text-gray-200">{song.title}</span><span className="text-xs text-gray-500">Phone</span></button>)}</div>}</section>
             {musicHistory.length > 0 && <section><p className="mb-2 text-sm font-semibold dark:text-white">Search history / Queue</p><div className="max-h-44 space-y-1 overflow-y-auto">{musicHistory.slice(0, 20).map(track => <button key={track.id} onClick={() => playMusicTrack(track, musicHistory)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"><img src={track.artwork} alt="" className="h-8 w-8 rounded object-cover" /><span className="min-w-0 flex-1 truncate text-xs dark:text-gray-200">{track.title} · {track.artist}</span><Play size={14} className="text-green-500" /></button>)}</div></section>}
             <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><DownloadCloud size={18} className="text-indigo-500" /> Video / Audio Downloader</div><p className="mb-2 text-xs text-gray-500">Direct audio/video file link ထည့်ပါ။ YouTube/TikTok page link မဟုတ်ဘဲ media file link ဖြစ်ရပါမယ်။</p><div className="flex gap-2"><input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/file.mp4" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={() => downloadMedia(mediaUrl)} disabled={mediaDownloading} className="rounded-xl bg-indigo-500 px-3 text-white disabled:opacity-50">{mediaDownloading ? '...' : 'Start'}</button></div></section>
           </div>}
