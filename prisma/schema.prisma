@@ -46,6 +46,7 @@ model User {
   comments            Comment[]       @relation("CommentAuthor")
   commentLikes        CommentLike[]
   reportsMade         Report[]        @relation("ReportReporter")
+  notifications       Notification[] @relation("UserNotifications")
   callsMade           CallLog[]      @relation("CallsMade")
   callsReceived       CallLog[]      @relation("CallsReceived")
 }
@@ -194,9 +195,13 @@ model PaymentAccount {
 
 model Notification {
   id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
   title     String
   message   String
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model Report {

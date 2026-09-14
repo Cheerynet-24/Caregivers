@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 
 router.get('/notifications', auth, async (req, res) => {
   try {
-    const notifications = await prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 20 });
+    const notifications = await prisma.notification.findMany({ where: { OR: [{ userId: null }, { userId: req.user.id }] }, orderBy: { createdAt: 'desc' }, take: 20 });
     res.json({ notifications });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load notifications' });

@@ -168,7 +168,14 @@ router.patch('/reports/:id', deviceAuth, async (req, res) => {
   try {
     const status = String(req.body.status || '').trim().toUpperCase();
     if (!['PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED'].includes(status)) return res.status(400).json({ error: 'Invalid report status' });
-    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status, adminNote: String(req.body.adminNote || '').trim() || null, reviewedAt: status === 'PENDING' ? null : new Date() } });
+    const adminNote = String(req.body.adminNote || '').trim();
+    const existing = await prisma.report.findUnique({ where: { id: req.params.id }, select: { id: true, reporterId: true, reason: true, adminNote: true } });
+    if (!existing) return res.status(404).json({ error: 'Report not found' });
+    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status, adminNote: adminNote || null, reviewedAt: status === 'PENDING' ? null : new Date() } });
+    if (adminNote) {
+      const notification = await prisma.notification.create({ data: { userId: existing.reporterId, title: 'Report အကြောင်းပြန်စာ', message: `သင်တိုင်ကြားထားသော Report (${existing.reason}) ကို Admin မှ အကြောင်းပြန်ထားပါတယ်။\n\n${adminNote}` } });
+      req.app.get('io')?.to(`user:${existing.reporterId}`).emit('notification:new', notification);
+    }
     res.json({ report });
   } catch (err) {
     res.status(404).json({ error: 'Report not found' });
