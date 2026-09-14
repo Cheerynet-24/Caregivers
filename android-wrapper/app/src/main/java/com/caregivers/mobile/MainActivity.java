@@ -199,7 +199,9 @@ public class MainActivity extends Activity {
             try {
                 if (nativeMusicPlayer != null) nativeMusicPlayer.release();
                 nativeMusicPlayer = new MediaPlayer();
+                nativeMusicPlayer.setAudioAttributes(new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build());
                 nativeMusicPlayer.setDataSource(this, Uri.parse(url));
+                updateMusicNotification(title, artist, false);
                 nativeMusicPlayer.setOnPreparedListener(player -> { player.start(); updateMusicNotification(title, artist, true); });
                 nativeMusicPlayer.setOnCompletionListener(player -> sendMusicCommand("next"));
                 nativeMusicPlayer.setOnErrorListener((player, what, extra) -> { stopMusicNotification(); return true; });
@@ -438,6 +440,7 @@ public class MainActivity extends Activity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == MEDIA_PERMISSION) {
             if (webView != null) webView.evaluateJavascript("window.CaregiversLocalMusicReady && window.CaregiversLocalMusicReady()", null);
+            requestNotificationPermission();
             return;
         }
         if (requestCode != RUNTIME_PERMISSIONS) return;
