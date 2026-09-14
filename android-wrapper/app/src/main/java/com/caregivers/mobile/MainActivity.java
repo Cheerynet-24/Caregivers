@@ -18,6 +18,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
+import android.media.AudioDeviceInfo;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -175,6 +176,12 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 if (audioManager == null) return;
                 audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    int wanted = "speaker".equals(route) ? AudioDeviceInfo.TYPE_BUILTIN_SPEAKER : "bluetooth".equals(route) ? AudioDeviceInfo.TYPE_BLUETOOTH_SCO : AudioDeviceInfo.TYPE_BUILTIN_EARPIECE;
+                    for (AudioDeviceInfo device : audioManager.getAvailableCommunicationDevices()) {
+                        if (device.getType() == wanted) { audioManager.setCommunicationDevice(device); return; }
+                    }
+                }
                 if ("speaker".equals(route)) {
                     audioManager.setBluetoothScoOn(false);
                     audioManager.setSpeakerphoneOn(true);
