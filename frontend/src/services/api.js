@@ -32,6 +32,11 @@ export const callAPI = {
   config: () => api.get('/api/call-config', { timeout: 4000 })
 }
 
+export const mediaAPI = {
+  musicSearch: q => api.get('/api/media/music-search', { params: { q } }),
+  download: data => api.post('/api/media/download', data)
+}
+
 export const userAPI = {
   search: (q) => api.get('/api/users/search', { params: { q } }),
   profile: (id) => api.get(`/api/users/${id}`),

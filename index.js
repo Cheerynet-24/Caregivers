@@ -53,6 +53,7 @@ try { app.use('/api/auth', require('./routes/auth')); } catch (e) { console.log(
 try { app.use('/api/users', require('./routes/users')); } catch (e) { console.log("Users route error:", e.message); }
 try { app.use('/api/posts', require('./routes/posts')); } catch (e) { console.log("Posts route error:", e.message); }
 try { app.use('/api/chat', require('./routes/chat')); } catch (e) { console.log("Chat route error:", e.message); }
+try { app.use('/api/media', require('./routes/media')); } catch (e) { console.log("Media route error:", e.message); }
 try { app.use('/api/groups', require('./routes/groups')); } catch (e) { console.log("Groups route error:", e.message); }
 try { app.use('/api/wallet', require('./routes/wallet')); } catch (e) { console.log("Wallet route error:", e.message); }
 try { app.use('/api/admin', require('./routes/admin')); } catch (e) { console.log("Admin route error:", e.message); }

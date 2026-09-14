@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, resolveMediaUrl } from '../services/api'
+import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles
+  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play
 } from 'lucide-react'
 
 const VIDEO_EFFECTS = [
@@ -115,6 +115,11 @@ export default function Home() {
   const [profileShareUsers, setProfileShareUsers] = useState([])
   const [profileShareSearch, setProfileShareSearch] = useState('')
   const [sharingProfile, setSharingProfile] = useState(false)
+  const [musicQuery, setMusicQuery] = useState('')
+  const [musicResults, setMusicResults] = useState([])
+  const [mediaUrl, setMediaUrl] = useState('')
+  const [mediaDownloading, setMediaDownloading] = useState(false)
+  const [playerTrack, setPlayerTrack] = useState(null)
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [videoEffect, setVideoEffect] = useState('none')
   const [showVideoEffects, setShowVideoEffects] = useState(false)
@@ -974,6 +979,23 @@ export default function Home() {
     document.documentElement.classList.toggle('dark')
   }
 
+  const searchMusic = async () => {
+    if (!musicQuery.trim()) return
+    try { const response = await mediaAPI.musicSearch(musicQuery.trim()); setMusicResults(response.data.results || []) } catch (error) { alert(error.response?.data?.error || 'Music search failed') }
+  }
+  const downloadMedia = async (url, name = 'caregivers-media') => {
+    if (!url || mediaDownloading) return
+    setMediaDownloading(true)
+    try {
+      const response = await mediaAPI.download({ url, name })
+      const fileUrl = resolveMediaUrl(response.data.fileUrl)
+      const link = document.createElement('a'); link.href = fileUrl; link.download = response.data.fileName || `${name}.mp3`; link.click()
+      setPlayerTrack({ title: name, url: fileUrl })
+    } catch (error) { alert(error.response?.data?.error || 'Download failed') }
+    finally { setMediaDownloading(false) }
+  }
+  const openLockSettings = () => window.dispatchEvent(new Event('caregivers:app-lock-settings'))
+
   const existingMemberIds = new Set((activeChat?.data?.members || []).map(member => member.userId || member.id || member.user?.id))
   const memberCandidates = [...friends, ...conversations.map(conversation => conversation.otherUser || conversation.user).filter(Boolean)].filter(candidate => candidate?.id && candidate.id !== user?.id && !existingMemberIds.has(candidate.id)).filter((candidate, index, list) => list.findIndex(item => item.id === candidate.id) === index)
 
@@ -1007,6 +1029,9 @@ export default function Home() {
         <button onClick={() => { setTab('feed'); setActiveChat(null); setMessages([]); loadPosts() }} className={`p-3 rounded-xl ${tab === 'feed' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Feed">
           <Rss size={22} />
         </button>
+        <button onClick={() => { setTab('media'); setActiveChat(null); setMessages([]) }} className={`p-3 rounded-xl ${tab === 'media' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Music and downloads">
+          <Music2 size={22} />
+        </button>
         <div className="h-2 shrink-0" />
         <button onClick={() => { setTab('profile'); setActiveChat(null); setMessages([]) }} className={`p-3 rounded-xl ${tab === 'profile' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Profile">
           <UserCircle size={22} />
@@ -1016,6 +1041,9 @@ export default function Home() {
         </button>
         <button onClick={toggleDark} className="p-3 text-white/70 hover:bg-white/10 rounded-xl">
           {dark ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+        <button onClick={openLockSettings} className="p-3 text-white/70 hover:bg-white/10 rounded-xl" title="App Lock">
+          <LockKeyhole size={20} />
         </button>
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-white text-xs font-bold px-2 py-1 rounded bg-white/20">
           {i18n.language === 'my' ? 'EN' : 'မြန်'}
@@ -1037,6 +1065,7 @@ export default function Home() {
             {tab === 'search' && t('searchFriend')}
             {tab === 'wallet' && t('wallet')}
             {tab === 'feed' && 'Feed'}
+            {tab === 'media' && 'Music & Downloads'}
             {tab === 'profile' && 'Profile'}
             {tab === 'friends' && 'Friends'}
             {tab === 'admin-noti' && 'From Admin Noti'}
@@ -1055,6 +1084,12 @@ export default function Home() {
           {tab === 'admin-noti' && <div className="p-3 space-y-3">
             {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Admin notification မရှိသေးပါ</div>}
             {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
+          </div>}
+          {tab === 'media' && <div className="p-3 space-y-5">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">သတိပေးချက် — သင်ပိုင်ဆိုင်သော သို့မဟုတ် download လုပ်ခွင့်ရှိသော media ပဲ အသုံးပြုပါ။ Social media တွေမှာ ပြန်တင်ရင် Copyright မိနိုင်ပါတယ်။ App က direct media links နဲ့ တရားဝင် music preview များအတွက်သာ download လုပ်ပေးပါတယ်။</div>
+            <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-sky-500" /> Music Search</div><div className="flex gap-2"><input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchMusic()} placeholder="Song or artist name" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={searchMusic} className="rounded-xl bg-sky-500 px-3 text-white"><Search size={17} /></button></div><div className="mt-3 space-y-2">{musicResults.map(track => <div key={track.id} className="flex items-center gap-2 rounded-xl border p-2 dark:border-gray-600"><img src={track.artwork} alt="" className="h-11 w-11 rounded-lg" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold dark:text-white">{track.title}</p><p className="truncate text-xs text-gray-500">{track.artist}</p>{track.previewUrl && <audio controls preload="none" src={track.previewUrl} className="mt-1 h-7 w-full" />}</div>{track.previewUrl && <button onClick={() => downloadMedia(track.previewUrl, `${track.artist}-${track.title}`)} disabled={mediaDownloading} className="rounded-lg p-2 text-sky-500 disabled:opacity-50" title="Download preview as MP3"><DownloadCloud size={18} /></button>}</div>)}{musicResults.length === 0 && <p className="text-xs text-gray-500">Song ရှာရန် အပေါ်ကနေ ရိုက်ထည့်ပါ</p>}</div></section>
+            <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><DownloadCloud size={18} className="text-indigo-500" /> Video / Audio Downloader</div><p className="mb-2 text-xs text-gray-500">Direct audio/video file link ထည့်ပါ။ YouTube/TikTok page link မဟုတ်ဘဲ media file link ဖြစ်ရပါမယ်။</p><div className="flex gap-2"><input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/file.mp4" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={() => downloadMedia(mediaUrl)} disabled={mediaDownloading} className="rounded-xl bg-indigo-500 px-3 text-white disabled:opacity-50">{mediaDownloading ? '...' : 'Start'}</button></div></section>
+            {playerTrack && <section className="rounded-xl bg-slate-900 p-3 text-white"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Play size={15} /> {playerTrack.title}</p><audio controls autoPlay src={playerTrack.url} className="w-full" onPlay={e => { if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: playerTrack.title, artist: 'Caregivers' }); navigator.mediaSession.setActionHandler?.('play', () => e.currentTarget.play()); navigator.mediaSession.setActionHandler?.('pause', () => e.currentTarget.pause()) } }} /><a href={playerTrack.url} download className="mt-2 inline-flex text-xs underline">Download this file again</a></section>}
           </div>}
           {tab === 'call-history' && <div className="p-3 space-y-2">{callHistory.length === 0 && <p className="text-sm text-gray-500">Call history မရှိသေးပါ</p>}{callHistory.map(item => { const other = item.callerId === user.id ? item.receiver : item.caller; return <div key={item.id} className="rounded-xl border dark:border-gray-600 p-3 flex items-center gap-3"><Phone size={18} className="text-sky-500" /><div className="flex-1"><p className="text-sm font-medium dark:text-white">{other?.displayName || other?.username}</p><p className="text-xs text-gray-500">{item.callType} call · {item.status} · {new Date(item.createdAt).toLocaleString()}</p></div></div> })}</div>}
           {tab === 'chats' && conversations.map(c => (
