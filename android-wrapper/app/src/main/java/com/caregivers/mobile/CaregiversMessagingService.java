@@ -52,7 +52,7 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
                 .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(type.equals("call") ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)
                 .setColor(android.graphics.Color.rgb(14, 165, 233)).setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(!type.equals("call")).setContentIntent(content);
-        if (type.equals("call")) builder.setOngoing(true).setTimeoutAfter(60000);
+        if (type.equals("call")) builder.setOngoing(true).setTimeoutAfter(60000).setFullScreenIntent(content, true);
         if (!type.equals("call")) {
             RemoteInput input = new RemoteInput.Builder(REPLY_KEY).setLabel("Reply").build();
             Intent reply = new Intent(this, NotificationReplyReceiver.class).putExtra("from_user_id", fromUserId).putExtra("notification_id", notificationId);

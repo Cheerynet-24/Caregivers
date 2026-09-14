@@ -27,7 +27,7 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
       android: {
         priority: 'high',
         ttl: 3600 * 1000,
-        ...(['call', 'group'].includes(type) ? { notification: { channelId: type === 'call' ? 'caregivers_incoming_calls_v3' : 'caregivers_calls_messages_v3', title, body } } : {})
+        ...(type === 'group' ? { notification: { channelId: 'caregivers_calls_messages_v3', title, body } } : {})
       }
     });
     return true;
