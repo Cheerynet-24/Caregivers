@@ -350,7 +350,8 @@ public class MainActivity extends Activity {
             if (!hasMediaPermission()) return "[]";
             org.json.JSONArray songs = new org.json.JSONArray();
             String[] projection = { MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION };
-            try (Cursor cursor = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC")) {
+            Uri audioUri = android.os.Build.VERSION.SDK_INT >= 29 ? MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL) : MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+            try (Cursor cursor = getContentResolver().query(audioUri, projection, null, null, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC")) {
                 if (cursor == null) return "[]";
                 int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
                 int titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
@@ -363,7 +364,7 @@ public class MainActivity extends Activity {
                     song.put("title", cursor.getString(titleCol));
                     song.put("artist", cursor.getString(artistCol));
                     song.put("duration", cursor.getLong(durationCol));
-                    song.put("url", ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id).toString());
+                    song.put("url", ContentUris.withAppendedId(audioUri, id).toString());
                     songs.put(song);
                 }
             } catch (Exception ignored) {}
