@@ -11,9 +11,10 @@ router.post('/chat', auth, async (req, res) => {
       .slice(-20)
       .map(message => ({ role: message.role, content: message.content.slice(0, 4000) }));
     if (!messages.length || messages[messages.length - 1].role !== 'user') return res.status(400).json({ error: 'A user message is required' });
-    if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_API_BASE) return res.status(503).json({ error: 'AI service is not configured yet' });
+    const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+    if (!process.env.OPENAI_API_KEY) return res.status(503).json({ error: 'AI service is not configured yet' });
 
-    const response = await fetch(`${process.env.OPENAI_API_BASE.replace(/\/$/, '')}/chat/completions`, {
+    const response = await fetch(`${apiBase.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
