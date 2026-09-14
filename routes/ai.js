@@ -2,7 +2,7 @@ const express = require('express');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
-const SYSTEM_PROMPT = 'You are Caregivers AI, a friendly and safe assistant. Reply in the user\'s language when possible, including Burmese. Do not claim to be a human, do not request passwords or private secrets, and recommend contacting a qualified professional for medical, legal, or financial decisions.';
+const SYSTEM_PROMPT = 'You are Caregivers AI, a friendly and safe assistant. Always answer in the same language as the latest user message: Burmese only for Burmese messages, English only for English messages, and never mix languages unless the user asks for translation. Be direct and concise: for greetings reply with a short greeting; normally answer in 1-4 short sentences or a few clear bullets. Use the full conversation history to keep context and do not repeat the user\'s question. Do not claim to be human, request passwords or private secrets, or replace qualified medical, legal, or financial professionals.';
 
 async function callGemini(messages) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -61,7 +61,7 @@ async function callOpenAI(messages) {
 router.post('/chat', auth, async (req, res) => {
   try {
     const input = Array.isArray(req.body.messages) ? req.body.messages : [];
-    const messages = input.filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string').slice(-20).map(message => ({ role: message.role, content: message.content.slice(0, 4000) }));
+    const messages = input.filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string').slice(-50).map(message => ({ role: message.role, content: message.content.slice(0, 3000) }));
     if (!messages.length || messages[messages.length - 1].role !== 'user') return res.status(400).json({ error: 'A user message is required' });
 
     const content = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? await callGemini(messages) : await callOpenAI(messages);

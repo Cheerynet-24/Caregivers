@@ -113,6 +113,7 @@ export default function Home() {
   const [aiMessages, setAiMessages] = useState([])
   const [aiInput, setAiInput] = useState('')
   const [aiSending, setAiSending] = useState(false)
+  const aiHistoryLoadedRef = useRef(false)
   const [replyTarget, setReplyTarget] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
@@ -203,6 +204,17 @@ export default function Home() {
   }, [])
 
   useEffect(() => { if (tab === 'music') window.CaregiversLocalMusic?.refresh?.() }, [tab])
+  useEffect(() => {
+    if (!user?.id) return
+    aiHistoryLoadedRef.current = false
+    try { setAiMessages(JSON.parse(localStorage.getItem(`caregivers-ai-chat-${user.id}`) || '[]')) } catch { setAiMessages([]) }
+    const ready = window.setTimeout(() => { aiHistoryLoadedRef.current = true }, 0)
+    return () => window.clearTimeout(ready)
+  }, [user?.id])
+  useEffect(() => {
+    if (!user?.id || !aiHistoryLoadedRef.current) return
+    try { localStorage.setItem(`caregivers-ai-chat-${user.id}`, JSON.stringify(aiMessages.slice(-50))) } catch {}
+  }, [aiMessages, user?.id])
   useEffect(() => {
     setUnreadChatCount(conversations.reduce((sum, item) => sum + (item.unreadCount || 0), 0) + groups.reduce((sum, item) => sum + (item.unreadCount || 0), 0))
   }, [conversations, groups])
@@ -1281,7 +1293,7 @@ export default function Home() {
             {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
           {tab === 'ai-chat' && <div className="flex h-full min-h-0 flex-col p-3">
-            <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI</div><p className="mt-1 text-xs text-white/80">မေးခွန်းများ၊ အကြံဉာဏ်များနဲ့ ဘာသာပြန်တာတွေကို မေးနိုင်ပါတယ်။</p></div>
+            <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI <button type="button" onClick={() => setAiMessages([])} className="ml-auto rounded-lg bg-white/15 px-2 py-1 text-xs hover:bg-white/25">Clear</button></div><p className="mt-1 text-xs text-white/80">မေးခွန်းများ၊ အကြံဉာဏ်များနဲ့ ဘာသာပြန်တာတွေကို မေးနိုင်ပါတယ်။ စကားပြောမှတ်တမ်းကို ဒီဖုန်းမှာ သိမ်းထားပါတယ်။</p></div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-xl bg-gray-50 p-3 dark:bg-gray-700">{aiMessages.length === 0 && <p className="py-10 text-center text-sm text-gray-500">AI ကို မေးချင်တာရေးပါ…</p>}{aiMessages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-sky-500 text-white' : 'bg-white text-gray-800 shadow-sm dark:bg-gray-800 dark:text-gray-100'}`}>{message.content}</div></div>)}{aiSending && <div className="text-xs text-gray-500">AI စဉ်းစားနေသည်…</div>}</div>
             <form onSubmit={sendAiMessage} className="mt-3 flex gap-2"><input value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="AI ကို မေးပါ…" className="min-w-0 flex-1 rounded-full border px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button disabled={aiSending || !aiInput.trim()} className="rounded-full bg-indigo-500 px-4 py-2 text-white disabled:opacity-50"><Send size={16} /></button></form>
           </div>}
