@@ -8,8 +8,42 @@ import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw
+  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles
 } from 'lucide-react'
+
+const VIDEO_EFFECTS = [
+  { id: 'none', label: 'Normal', emoji: '✨', filter: 'none' },
+  { id: 'mono', label: 'B&W', emoji: '🖤', filter: 'grayscale(1)' },
+  { id: 'warm', label: 'Warm', emoji: '🌅', filter: 'sepia(.72) saturate(1.2)' },
+  { id: 'vivid', label: 'Vivid', emoji: '🌈', filter: 'contrast(1.2) saturate(1.5)' },
+  { id: 'cool', label: 'Cool', emoji: '🧊', filter: 'hue-rotate(165deg) saturate(1.12)' },
+  { id: 'dreamy', label: 'Dreamy', emoji: '💫', filter: 'brightness(1.08) saturate(.85) blur(.35px)' }
+]
+
+const getVideoEffect = id => VIDEO_EFFECTS.find(effect => effect.id === id) || VIDEO_EFFECTS[0]
+const getProfileMessageData = message => {
+  if (message?.type !== 'profile' || !message.content) return null
+  try {
+    const profile = JSON.parse(message.content)
+    return profile?.id && profile?.username ? profile : null
+  } catch { return null }
+}
+
+function ProfileMessageCard({ profile, onOpen }) {
+  if (!profile) return <p className="italic opacity-70">Shared profile is unavailable</p>
+  return <button type="button" onClick={onOpen} className="w-full min-w-[220px] text-left rounded-xl border border-sky-200/80 bg-sky-50/80 p-3 transition hover:bg-sky-100 active:scale-[.98] dark:border-sky-700 dark:bg-sky-950/40 dark:hover:bg-sky-900/60">
+    <div className="flex items-center gap-3">
+      {profile.avatar ? <img src={resolveMediaUrl(profile.avatar)} alt="" className="h-12 w-12 rounded-full object-cover ring-2 ring-white/80 dark:ring-gray-800" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-sky-200 text-lg font-bold text-sky-700 dark:bg-sky-800 dark:text-sky-100">{(profile.displayName || profile.username || '?')[0].toUpperCase()}</div>}
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-sky-600 dark:text-sky-300">Caregivers profile</p>
+        <p className="truncate font-semibold text-gray-900 dark:text-white">{profile.displayName || profile.username}</p>
+        <p className="truncate text-xs text-gray-500 dark:text-gray-300">@{profile.username}</p>
+      </div>
+      <span className="ml-auto text-xs font-semibold text-sky-600 dark:text-sky-300">View</span>
+    </div>
+    {profile.bio && <p className="mt-2 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">{profile.bio}</p>}
+  </button>
+}
 
 export default function Home() {
   const { t, i18n } = useTranslation()
@@ -62,6 +96,7 @@ export default function Home() {
   const [profilePosts, setProfilePosts] = useState([])
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [videoEffect, setVideoEffect] = useState('none')
+  const [showVideoEffects, setShowVideoEffects] = useState(false)
   const [showAddMembers, setShowAddMembers] = useState(false)
   const [selectedMemberIds, setSelectedMemberIds] = useState([])
   const [addingMembers, setAddingMembers] = useState(false)
@@ -81,6 +116,11 @@ export default function Home() {
   const remoteAudioRef = useRef(null)
   const localVideoRef = useRef(null)
   const remoteStreamRef = useRef(null)
+  const rawStreamRef = useRef(null)
+  const videoEffectPipelineRef = useRef(null)
+  const effectSourceVideoRef = useRef(null)
+  const effectAnimationRef = useRef(null)
+  const videoEffectRef = useRef('none')
   const pendingIceRef = useRef([])
   const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
@@ -255,8 +295,11 @@ export default function Home() {
   useEffect(() => {
     window.CaregiversHandleBack = () => {
       if (!activeChat) {
-        window.CaregiversApp?.exit?.()
-        return true
+        if (window.CaregiversApp?.exit) {
+          window.CaregiversApp.exit()
+          return true
+        }
+        return false
       }
       setActiveChat(null)
       setMessages([])
@@ -417,6 +460,24 @@ export default function Home() {
     }).catch(() => {})
   }
 
+  const shareProfileInChat = profile => {
+    if (!profile?.id || !activeChat || !socket) return
+    const sharedProfile = {
+      id: profile.id,
+      username: profile.username,
+      displayName: profile.displayName || profile.username,
+      avatar: profile.avatar || '',
+      bio: profile.bio || ''
+    }
+    const content = JSON.stringify(sharedProfile)
+    const payload = activeChat.type === 'private' ? { conversationId: activeChat.id } : { groupId: activeChat.id }
+    const type = 'profile'
+    const pendingMessage = { id: `pending-profile-${Date.now()}`, senderId: user.id, content, type, createdAt: new Date().toISOString(), pending: true }
+    setMessages(prev => [...prev, pendingMessage])
+    socket.emit(activeChat.type === 'private' ? 'message:private' : 'message:group', { ...payload, content, type })
+    setSelectedProfile(null)
+  }
+
   const showGroupInfo = group => { setSelectedGroup(group); groupAPI.get(group.id).then(res => setSelectedGroup({ ...(res.data.group || res.data), myRole: res.data.myRole })).catch(() => {}) }
   const deleteGroup = async () => {
     if (!selectedGroup || selectedGroup.myRole !== 'admin' || !window.confirm('Delete this group?')) return
@@ -560,6 +621,67 @@ export default function Home() {
     )
   }
 
+  const stopVideoEffectPipeline = () => {
+    if (effectAnimationRef.current) cancelAnimationFrame(effectAnimationRef.current)
+    effectAnimationRef.current = null
+    effectSourceVideoRef.current?.pause?.()
+    if (effectSourceVideoRef.current) effectSourceVideoRef.current.srcObject = null
+    effectSourceVideoRef.current = null
+    videoEffectPipelineRef.current?.getVideoTracks?.().forEach(track => track.stop())
+    videoEffectPipelineRef.current = null
+  }
+
+  const createVideoEffectStream = async stream => {
+    if (!stream?.getVideoTracks?.().length || !window.MediaStream || !document.createElement('canvas').captureStream) return stream
+    stopVideoEffectPipeline()
+    const sourceVideo = document.createElement('video')
+    sourceVideo.muted = true
+    sourceVideo.playsInline = true
+    sourceVideo.srcObject = stream
+    effectSourceVideoRef.current = sourceVideo
+    await sourceVideo.play().catch(() => {})
+    if (!sourceVideo.videoWidth) await new Promise(resolve => { sourceVideo.onloadedmetadata = resolve })
+    const canvas = document.createElement('canvas')
+    canvas.width = sourceVideo.videoWidth || 640
+    canvas.height = sourceVideo.videoHeight || 360
+    const context = canvas.getContext('2d')
+    if (!context) return stream
+    const effectStream = canvas.captureStream(30)
+    stream.getAudioTracks?.().forEach(track => effectStream.addTrack(track))
+    videoEffectPipelineRef.current = effectStream
+    const drawFrame = () => {
+      if (!effectSourceVideoRef.current || effectSourceVideoRef.current !== sourceVideo) return
+      context.filter = getVideoEffect(videoEffectRef.current).filter
+      context.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height)
+      effectAnimationRef.current = requestAnimationFrame(drawFrame)
+    }
+    drawFrame()
+    return effectStream
+  }
+
+  const applyVideoEffect = async effectId => {
+    const nextEffect = getVideoEffect(effectId)
+    videoEffectRef.current = nextEffect.id
+    setVideoEffect(nextEffect.id)
+    setShowVideoEffects(false)
+    if (!call || call.callType !== 'video' || !rawStreamRef.current) return
+    try {
+      const nextStream = nextEffect.id === 'none' ? (stopVideoEffectPipeline(), rawStreamRef.current) : await createVideoEffectStream(rawStreamRef.current)
+      const nextTrack = nextStream.getVideoTracks?.()[0]
+      const sender = peerRef.current?.getSenders().find(item => item.track?.kind === 'video')
+      if (sender && nextTrack) await sender.replaceTrack(nextTrack)
+      localStreamRef.current = nextStream
+      if (localVideoRef.current) localVideoRef.current.srcObject = nextStream
+    } catch (error) {
+      console.error('video effect failed', error)
+      videoEffectRef.current = 'none'
+      setVideoEffect('none')
+      stopVideoEffectPipeline()
+      localStreamRef.current = rawStreamRef.current
+      if (localVideoRef.current) localVideoRef.current.srcObject = rawStreamRef.current
+    }
+  }
+
   const handleMessageAction = async (action, message) => {
     setMessageMenu(null)
     if (action === 'copy') {
@@ -628,6 +750,9 @@ export default function Home() {
       pendingIceRef.current = []
       const constraints = callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      rawStreamRef.current = stream
+      videoEffectRef.current = 'none'
+      setVideoEffect('none')
       localStreamRef.current = stream
       setCallStatus('Calling')
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
@@ -651,6 +776,9 @@ export default function Home() {
     try {
       const constraints = incomingCall.callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      rawStreamRef.current = stream
+      videoEffectRef.current = 'none'
+      setVideoEffect('none')
       localStreamRef.current = stream
       setCallStatus('Connecting')
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
@@ -671,16 +799,21 @@ export default function Home() {
   const endCall = (notify = true) => {
     stopNotificationSound()
     if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId })
+    stopVideoEffectPipeline()
     peerRef.current?.close()
-    localStreamRef.current?.getTracks().forEach(track => track.stop())
+    rawStreamRef.current?.getTracks().forEach(track => track.stop())
     peerRef.current = null
     localStreamRef.current = null
+    rawStreamRef.current = null
     setCall(null)
     setCallStatus('')
     setIncomingCall(null)
     setMutedCall(false)
     setCameraOff(false)
     setCameraFacing('user')
+    setShowVideoEffects(false)
+    videoEffectRef.current = 'none'
+    setVideoEffect('none')
   }
 
   const toggleMute = () => {
@@ -704,11 +837,11 @@ export default function Home() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } })
       const nextTrack = stream.getVideoTracks()[0]
-      const sender = peerRef.current?.getSenders().find(item => item.track?.kind === 'video')
-      if (sender && nextTrack) await sender.replaceTrack(nextTrack)
-      localStreamRef.current.getVideoTracks().forEach(track => track.stop())
-      localStreamRef.current.addTrack(nextTrack)
-      if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current
+      if (!nextTrack) return
+      const rawStream = rawStreamRef.current || localStreamRef.current
+      rawStream?.getVideoTracks().forEach(track => track.stop())
+      rawStream?.addTrack(nextTrack)
+      await applyVideoEffect(videoEffectRef.current)
       setCameraFacing(nextFacing)
     } catch { alert('ဒီဖုန်းမှာ Camera ပြောင်းလို့မရပါ') }
   }
@@ -1033,6 +1166,7 @@ export default function Home() {
                       <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mb-0.5">{m.sender?.displayName || m.sender?.username}</p>
                     )}
                     {m.type === 'deleted' ? <p className="italic opacity-70">This message was deleted</p>
+                      : m.type === 'profile' ? <ProfileMessageCard profile={getProfileMessageData(m)} onOpen={() => { const profile = getProfileMessageData(m); if (profile) showUserProfile(profile) }} />
                       : m.type === 'image' && m.fileUrl ? <><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
                       : m.type === 'video' && m.fileUrl ? <><video src={resolveMediaUrl(m.fileUrl)} controls className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
                       : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
@@ -1127,12 +1261,12 @@ export default function Home() {
       {call && (
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
           <div className="flex-1 relative flex items-center justify-center">
-            <video ref={remoteVideoRef} autoPlay playsInline style={{ filter: videoEffect }} className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
+            <video ref={remoteVideoRef} autoPlay playsInline className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
             <audio ref={remoteAudioRef} autoPlay className={call.callType === 'audio' ? 'block' : 'hidden'} />
             <video
               ref={localVideoRef}
               autoPlay muted playsInline
-              style={{ filter: videoEffect }} className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
+              style={{ filter: videoEffectPipelineRef.current ? 'none' : getVideoEffect(videoEffect).filter }} className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
             />
             <div className="absolute top-4 left-4 rounded-lg bg-black/60 px-3 py-2 text-white text-sm">{callStatus || 'Calling'}</div>
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
@@ -1144,7 +1278,7 @@ export default function Home() {
             <button onClick={toggleMute} className="p-4 rounded-full bg-gray-700 text-white" title="Mute">
               {mutedCall ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
-            {call.callType === 'video' && <select value={videoEffect} onChange={e => setVideoEffect(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-700 text-white text-sm" aria-label="Video effect"><option value="none">Normal</option><option value="grayscale(1)">B&amp;W</option><option value="sepia(0.8)">Warm</option><option value="contrast(1.25) saturate(1.35)">Vivid</option><option value="blur(2px) brightness(1.08)">Soft</option></select>}
+            {call.callType === 'video' && <div className="relative"><button onClick={() => setShowVideoEffects(value => !value)} className="flex items-center gap-2 rounded-xl bg-gray-700 px-3 py-2 text-sm text-white" title="Video effects"><Sparkles size={16} /> {getVideoEffect(videoEffect).label}</button>{showVideoEffects && <div className="absolute bottom-14 left-1/2 z-50 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/10 bg-gray-900/95 p-2 shadow-2xl backdrop-blur"><div className="grid grid-cols-3 gap-2">{VIDEO_EFFECTS.map(effect => <button key={effect.id} onClick={() => applyVideoEffect(effect.id)} className={`flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] text-white transition hover:bg-white/15 ${videoEffect === effect.id ? 'bg-sky-500' : ''}`}><span className="text-xl leading-none">{effect.emoji}</span><span>{effect.label}</span></button>)}</div></div>}</div>}
             {call.callType === 'video' && <button onClick={toggleCamera} className="p-4 rounded-full bg-gray-700 text-white" title="Camera">
               {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
             </button>}
@@ -1218,7 +1352,7 @@ export default function Home() {
             <h3 className="mt-4 text-xl font-bold dark:text-white">{selectedProfile.displayName || selectedProfile.username}</h3>
             <p className="text-sm text-gray-500">@{selectedProfile.username}</p>
             {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
-            <div className="mt-5 flex gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
+            <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button>{activeChat && <button onClick={() => shareProfileInChat(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Send to chat</button>}<button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
             <h4 className="mt-6 text-left font-semibold dark:text-white">Posts</h4>
             <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="mt-2 max-h-56 w-full object-cover rounded-lg" />}</article>)}</div>
           </div>
