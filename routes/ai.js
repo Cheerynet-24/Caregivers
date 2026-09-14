@@ -5,9 +5,9 @@ const router = express.Router();
 const SYSTEM_PROMPT = 'You are Caregivers AI, a friendly and safe assistant. Reply in the user\'s language when possible, including Burmese. Do not claim to be a human, do not request passwords or private secrets, and recommend contacting a qualified professional for medical, legal, or financial decisions.';
 
 async function callGemini(messages) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   const requestedModel = process.env.GEMINI_MODEL;
-  let models = requestedModel ? [requestedModel] : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  let models = requestedModel ? [requestedModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   try {
     const modelListResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
     if (modelListResponse.ok && !requestedModel) {
@@ -33,7 +33,9 @@ async function callGemini(messages) {
     console.error('Gemini provider error:', model, response.status, lastError.message);
     if ([400, 401, 403, 429].includes(response.status)) break;
   }
-  if (lastError?.status === 400 || lastError?.status === 401 || lastError?.status === 403) throw new Error('Gemini API key သို့မဟုတ် model မမှန်ပါ');
+  if (lastError?.status === 401) throw new Error('Gemini API key မမှန်ပါ သို့မဟုတ် API key ပြတ်တောက်နေပါတယ်။ GEMINI_API_KEY ကို ပြန်စစ်ပါ');
+  if (lastError?.status === 403) throw new Error('Gemini API ကို ဒီ key/project အတွက် ခွင့်မပြုသေးပါ။ Google AI Studio/Google Cloud မှာ Generative Language API ကို Enable လုပ်ပြီး key restriction ကို စစ်ပါ');
+  if (lastError?.status === 400) throw new Error(`Gemini request မမှန်ပါ: ${lastError.message || 'GEMINI_MODEL ကို ဖျက်ပြီး auto model ရွေးခိုင်းပါ'}`);
   if (lastError?.status === 429) throw new Error('Gemini free quota/rate limit ပြည့်နေပါတယ်');
   throw new Error(`Gemini model မတွေ့ပါ။ GEMINI_MODEL ကို မသတ်မှတ်ဘဲ ပြန်စမ်းပါ (နောက်ဆုံး error ${lastError?.status || 'unknown'})`);
 }
@@ -61,7 +63,7 @@ router.post('/chat', auth, async (req, res) => {
     const messages = input.filter(message => ['user', 'assistant'].includes(message?.role) && typeof message.content === 'string').slice(-20).map(message => ({ role: message.role, content: message.content.slice(0, 4000) }));
     if (!messages.length || messages[messages.length - 1].role !== 'user') return res.status(400).json({ error: 'A user message is required' });
 
-    const content = process.env.GEMINI_API_KEY ? await callGemini(messages) : await callOpenAI(messages);
+    const content = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? await callGemini(messages) : await callOpenAI(messages);
     if (!content) return res.status(502).json({ error: 'AI returned an empty response' });
     res.json({ message: { role: 'assistant', content } });
   } catch (error) {
