@@ -94,6 +94,10 @@ export default function Home() {
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePosts, setProfilePosts] = useState([])
+  const [profileShareTarget, setProfileShareTarget] = useState(null)
+  const [profileShareUsers, setProfileShareUsers] = useState([])
+  const [profileShareSearch, setProfileShareSearch] = useState('')
+  const [sharingProfile, setSharingProfile] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [videoEffect, setVideoEffect] = useState('none')
   const [showVideoEffects, setShowVideoEffects] = useState(false)
@@ -294,11 +298,28 @@ export default function Home() {
 
   useEffect(() => {
     window.CaregiversHandleBack = () => {
+      if (profileShareTarget) {
+        setProfileShareTarget(null)
+        return true
+      }
+      if (selectedProfile) {
+        setSelectedProfile(null)
+        return true
+      }
+      if (selectedGroup) {
+        setSelectedGroup(null)
+        return true
+      }
+      if (showCreateGroup) {
+        setShowCreateGroup(false)
+        return true
+      }
+      if (showDeveloper) {
+        setShowDeveloper(false)
+        return true
+      }
       if (!activeChat) {
-        if (window.CaregiversApp?.exit) {
-          window.CaregiversApp.exit()
-          return true
-        }
+        window.CaregiversApp?.exit?.()
         return false
       }
       setActiveChat(null)
@@ -307,7 +328,7 @@ export default function Home() {
       return true
     }
     return () => { delete window.CaregiversHandleBack }
-  }, [activeChat])
+  }, [activeChat, profileShareTarget, selectedProfile, selectedGroup, showCreateGroup, showDeveloper])
 
   const saveChatSettings = next => {
     setChatSettings(next)
@@ -460,22 +481,46 @@ export default function Home() {
     }).catch(() => {})
   }
 
-  const shareProfileInChat = profile => {
-    if (!profile?.id || !activeChat || !socket) return
+  const openProfileSharePicker = async profile => {
+    if (!profile?.id) return
+    setProfileShareTarget(profile)
+    setProfileShareSearch('')
+    try {
+      const res = await userAPI.search('')
+      setProfileShareUsers((res.data.users || []).filter(item => item.id !== profile.id))
+    } catch { setProfileShareUsers([]) }
+  }
+
+  const searchProfileShareUsers = async () => {
+    try {
+      const res = await userAPI.search(profileShareSearch)
+      setProfileShareUsers((res.data.users || []).filter(item => item.id !== profileShareTarget?.id))
+    } catch { setProfileShareUsers([]) }
+  }
+
+  const shareProfileToUser = async recipient => {
+    if (!profileShareTarget?.id || !recipient?.id || !socket || sharingProfile) return
+    setSharingProfile(true)
     const sharedProfile = {
-      id: profile.id,
-      username: profile.username,
-      displayName: profile.displayName || profile.username,
-      avatar: profile.avatar || '',
-      bio: profile.bio || ''
+      id: profileShareTarget.id,
+      username: profileShareTarget.username,
+      displayName: profileShareTarget.displayName || profileShareTarget.username,
+      avatar: profileShareTarget.avatar || '',
+      bio: profileShareTarget.bio || ''
     }
     const content = JSON.stringify(sharedProfile)
-    const payload = activeChat.type === 'private' ? { conversationId: activeChat.id } : { groupId: activeChat.id }
-    const type = 'profile'
-    const pendingMessage = { id: `pending-profile-${Date.now()}`, senderId: user.id, content, type, createdAt: new Date().toISOString(), pending: true }
-    setMessages(prev => [...prev, pendingMessage])
-    socket.emit(activeChat.type === 'private' ? 'message:private' : 'message:group', { ...payload, content, type })
-    setSelectedProfile(null)
+    try {
+      const conversation = await chatAPI.getOrCreateConversation(recipient.id)
+      const payload = { conversationId: conversation.data.conversation.id, content, type: 'profile' }
+      if (activeChat?.type === 'private' && activeChat.id === payload.conversationId) {
+        setMessages(prev => [...prev, { id: `pending-profile-${Date.now()}`, senderId: user.id, ...payload, createdAt: new Date().toISOString(), pending: true }])
+      }
+      socket.emit('message:private', payload)
+      await loadConversations()
+      setProfileShareTarget(null)
+      setSelectedProfile(null)
+    } catch (error) { alert(error.response?.data?.error || 'Profile share failed') }
+    finally { setSharingProfile(false) }
   }
 
   const showGroupInfo = group => { setSelectedGroup(group); groupAPI.get(group.id).then(res => setSelectedGroup({ ...(res.data.group || res.data), myRole: res.data.myRole })).catch(() => {}) }
@@ -1352,9 +1397,18 @@ export default function Home() {
             <h3 className="mt-4 text-xl font-bold dark:text-white">{selectedProfile.displayName || selectedProfile.username}</h3>
             <p className="text-sm text-gray-500">@{selectedProfile.username}</p>
             {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
-            <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button>{activeChat && <button onClick={() => shareProfileInChat(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Send to chat</button>}<button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
+            <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => openProfileSharePicker(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Share in chat</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
             <h4 className="mt-6 text-left font-semibold dark:text-white">Posts</h4>
             <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="mt-2 max-h-56 w-full object-cover rounded-lg" />}</article>)}</div>
+          </div>
+        </div>
+      )}
+      {profileShareTarget && (
+        <div className="fixed inset-0 z-[80] bg-black/60 flex items-center justify-center p-4" onClick={() => setProfileShareTarget(null)}>
+          <div className="w-full max-w-md max-h-[78vh] overflow-hidden rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3"><div><h3 className="text-lg font-bold dark:text-white">Share profile in chat</h3><p className="text-xs text-gray-500">Choose who should receive this profile</p></div><button onClick={() => setProfileShareTarget(null)} className="p-1 text-gray-500"><X size={20} /></button></div>
+            <div className="mt-4 flex gap-2"><input autoFocus value={profileShareSearch} onChange={e => setProfileShareSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchProfileShareUsers()} placeholder="Search recipient" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400 dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={searchProfileShareUsers} className="rounded-xl bg-indigo-500 px-3 text-white"><Search size={17} /></button></div>
+            <div className="mt-4 max-h-[52vh] space-y-1 overflow-y-auto">{profileShareUsers.length === 0 ? <p className="py-8 text-center text-sm text-gray-500">No recipient found</p> : profileShareUsers.map(recipient => <button key={recipient.id} type="button" disabled={sharingProfile} onClick={() => shareProfileToUser(recipient)} className="flex w-full items-center gap-3 rounded-xl p-3 text-left transition hover:bg-indigo-50 disabled:opacity-60 dark:hover:bg-gray-700">{recipient.avatar ? <img src={resolveMediaUrl(recipient.avatar)} alt="" className="h-10 w-10 rounded-full object-cover" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-200 font-bold text-sky-700">{(recipient.displayName || recipient.username || '?')[0].toUpperCase()}</div>}<span className="min-w-0 flex-1"><span className="block truncate font-semibold dark:text-white">{recipient.displayName || recipient.username}</span><span className="block truncate text-xs text-gray-500">@{recipient.username}</span></span><span className="text-xs font-semibold text-indigo-500">Send</span></button>)}</div>
           </div>
         </div>
       )}

@@ -34,6 +34,7 @@ router.get('/search', auth, async (req, res) => {
         id: true,
         username: true,
         displayName: true,
+        avatar: true,
         isOnline: true,
         lastSeen: true,
         bio: true
