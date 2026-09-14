@@ -22,6 +22,13 @@ import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
 import android.media.AudioDeviceInfo;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.graphics.drawable.Icon;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -44,6 +51,16 @@ public class MainActivity extends Activity {
     private String pendingCallUsername;
     private String pendingCallType;
     private String pendingCallOffer;
+    private MediaSession musicSession;
+    private NotificationManager musicNotificationManager;
+    private String musicTitle = "Caregivers Music";
+    private String musicArtist = "Phone Music";
+    private boolean musicPlaying;
+    private static final String MUSIC_CHANNEL = "caregivers_music";
+    private static final String MUSIC_PLAY = "com.caregivers.mobile.MUSIC_PLAY";
+    private static final String MUSIC_PREVIOUS = "com.caregivers.mobile.MUSIC_PREVIOUS";
+    private static final String MUSIC_NEXT = "com.caregivers.mobile.MUSIC_NEXT";
+    private static final String MUSIC_STOP = "com.caregivers.mobile.MUSIC_STOP";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -51,6 +68,7 @@ public class MainActivity extends Activity {
         readIncomingCallIntent(getIntent());
         webView = new WebView(this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        setupMusicSession();
         if (audioManager != null) {
             audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
             audioManager.setSpeakerphoneOn(false);
@@ -144,10 +162,64 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
+        webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
         }
+    }
+
+    private void setupMusicSession() {
+        musicNotificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (android.os.Build.VERSION.SDK_INT >= 26) musicNotificationManager.createNotificationChannel(new NotificationChannel(MUSIC_CHANNEL, "Music Player", NotificationManager.IMPORTANCE_LOW));
+        musicSession = new MediaSession(this, "CaregiversMusic");
+        musicSession.setCallback(new MediaSession.Callback() {
+            @Override public void onPlay() { sendMusicCommand("play"); }
+            @Override public void onPause() { sendMusicCommand("pause"); }
+            @Override public void onSkipToNext() { sendMusicCommand("next"); }
+            @Override public void onSkipToPrevious() { sendMusicCommand("previous"); }
+            @Override public void onStop() { sendMusicCommand("stop"); }
+        });
+        musicSession.setActive(true);
+    }
+
+    private PendingIntent musicAction(String action, int requestCode) {
+        Intent intent = new Intent(this, MainActivity.class).setAction(action);
+        return PendingIntent.getActivity(this, requestCode, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private void sendMusicCommand(String command) {
+        if (webView != null) webView.evaluateJavascript("window.CaregiversMusicCommand && window.CaregiversMusicCommand('" + command + "')", null);
+    }
+
+    private void handleMusicIntent(Intent intent) {
+        if (intent == null || intent.getAction() == null) return;
+        if (MUSIC_PLAY.equals(intent.getAction())) sendMusicCommand(musicPlaying ? "pause" : "play");
+        else if (MUSIC_PREVIOUS.equals(intent.getAction())) sendMusicCommand("previous");
+        else if (MUSIC_NEXT.equals(intent.getAction())) sendMusicCommand("next");
+        else if (MUSIC_STOP.equals(intent.getAction())) sendMusicCommand("stop");
+    }
+
+    private void updateMusicNotification(String title, String artist, boolean playing) {
+        musicTitle = title == null || title.isEmpty() ? "Caregivers Music" : title;
+        musicArtist = artist == null || artist.isEmpty() ? "Phone Music" : artist;
+        musicPlaying = playing;
+        if (musicSession == null || musicNotificationManager == null) return;
+        musicSession.setMetadata(new android.media.MediaMetadata.Builder().putString(android.media.MediaMetadata.METADATA_KEY_TITLE, musicTitle).putString(android.media.MediaMetadata.METADATA_KEY_ARTIST, musicArtist).build());
+        musicSession.setPlaybackState(new PlaybackState.Builder().setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS | PlaybackState.ACTION_STOP).setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f).build());
+        Notification.Builder builder = android.os.Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, MUSIC_CHANNEL) : new Notification.Builder(this);
+        builder.setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(musicTitle).setContentText(musicArtist).setOngoing(playing).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(musicAction(MUSIC_PLAY, 10));
+        builder.addAction(new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_previous), "Previous", musicAction(MUSIC_PREVIOUS, 11)).build());
+        builder.addAction(new Notification.Action.Builder(Icon.createWithResource(this, playing ? android.R.drawable.ic_media_pause : android.R.drawable.ic_media_play), playing ? "Pause" : "Play", musicAction(MUSIC_PLAY, 10)).build());
+        builder.addAction(new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_next), "Next", musicAction(MUSIC_NEXT, 12)).build());
+        builder.addAction(new Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel), "Stop", musicAction(MUSIC_STOP, 13)).build());
+        if (android.os.Build.VERSION.SDK_INT >= 21) builder.setStyle(new Notification.MediaStyle().setMediaSession(musicSession.getSessionToken()).setShowActionsInCompactView(0, 1, 2));
+        musicNotificationManager.notify(741, builder.build());
+    }
+
+    private void stopMusicNotification() {
+        musicPlaying = false;
+        if (musicNotificationManager != null) musicNotificationManager.cancel(741);
     }
 
     private void performBackAction() {
@@ -205,6 +277,7 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        handleMusicIntent(intent);
         readReplyIntent(intent);
         readIncomingCallIntent(intent);
         deliverPendingReply();
@@ -277,6 +350,11 @@ public class MainActivity extends Activity {
             if (android.os.Build.VERSION.SDK_INT >= 33) return checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
             return android.os.Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
         }
+    }
+
+    private class MusicNotificationBridge {
+        @JavascriptInterface public void update(String title, String artist, boolean playing) { runOnUiThread(() -> updateMusicNotification(title, artist, playing)); }
+        @JavascriptInterface public void clear() { runOnUiThread(() -> stopMusicNotification()); }
     }
 
     private void requestNotificationPermission() {

@@ -1050,6 +1050,13 @@ export default function Home() {
     setMusicQueueIndex(nextIndex); musicQueueIndexRef.current = nextIndex
     setPlayerTrack({ title: `${nextTrack.title} · ${nextTrack.artist}`, url: nextTrack.previewUrl, source: nextTrack })
   }
+  const playPreviousMusicTrack = () => {
+    const previousIndex = Math.max(0, musicQueueIndexRef.current - 1)
+    const previousTrack = musicQueueRef.current[previousIndex]
+    if (!previousTrack) return
+    setMusicQueueIndex(previousIndex); musicQueueIndexRef.current = previousIndex
+    setPlayerTrack({ title: `${previousTrack.title} · ${previousTrack.artist}`, url: previousTrack.previewUrl, source: previousTrack })
+  }
   const changePlaybackMode = mode => { setPlaybackMode(mode); localStorage.setItem('caregivers-playback-mode', mode) }
   const removeMusicHistory = id => {
     const next = musicHistory.filter(track => track.id !== id)
@@ -1072,6 +1079,18 @@ export default function Home() {
     if (!track?.storeUrl) return
     window.open(track.storeUrl, '_blank', 'noopener,noreferrer')
   }
+  useEffect(() => {
+    window.CaregiversMusicCommand = command => {
+      const audio = playerAudioRef.current
+      if (command === 'stop') { audio?.pause(); setPlayerTrack(null); window.CaregiversMusic?.clear?.(); return }
+      if (!audio) return
+      if (command === 'play') audio.play().catch(() => {})
+      if (command === 'pause') audio.pause()
+      if (command === 'next') playNextMusicTrack()
+      if (command === 'previous') playPreviousMusicTrack()
+    }
+    return () => { delete window.CaregiversMusicCommand }
+  })
 
   const existingMemberIds = new Set((activeChat?.data?.members || []).map(member => member.userId || member.id || member.user?.id))
   const memberCandidates = [...friends, ...conversations.map(conversation => conversation.otherUser || conversation.user).filter(Boolean)].filter(candidate => candidate?.id && candidate.id !== user?.id && !existingMemberIds.has(candidate.id)).filter((candidate, index, list) => list.findIndex(item => item.id === candidate.id) === index)
@@ -1558,7 +1577,7 @@ export default function Home() {
           </div>
         </div>
       )}
-      {playerTrack && <div className="fixed bottom-3 left-1/2 z-[75] flex w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{playerTrack.title}</p><audio key={playerTrack.url} ref={playerAudioRef} controls autoPlay src={playerTrack.url} className="mt-1 h-8 w-full" onEnded={playNextMusicTrack} onPlay={e => { if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: playerTrack.title, artist: 'Caregivers' }); navigator.mediaSession.setActionHandler?.('play', () => e.currentTarget.play()); navigator.mediaSession.setActionHandler?.('pause', () => e.currentTarget.pause()); navigator.mediaSession.setActionHandler?.('nexttrack', playNextMusicTrack) } }} /></div><select value={playbackMode} onChange={e => changePlaybackMode(e.target.value)} className="w-24 rounded-lg bg-slate-800 px-1 py-2 text-[11px] text-white" aria-label="Playback mode"><option value="sequence">အစဉ်လိုက်</option><option value="repeat">တစ်ပုဒ်ထပ်</option><option value="shuffle">ဗျောက်သောက်</option></select><a href={playerTrack.url} download className="shrink-0 rounded-lg p-2 text-sky-300" title="Download again"><DownloadCloud size={18} /></a><button onClick={() => setPlayerTrack(null)} className="shrink-0 p-2 text-gray-300" title="Close player"><X size={18} /></button></div>}
+      {playerTrack && <div className="fixed bottom-3 left-1/2 z-[75] flex w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 items-center gap-2 rounded-2xl bg-slate-900/95 p-2 text-white shadow-2xl backdrop-blur"><div className="min-w-0 flex-1"><p className="truncate px-1 text-xs font-semibold">{playerTrack.title}</p><audio key={playerTrack.url} ref={playerAudioRef} controls autoPlay src={playerTrack.url} className="mt-1 h-8 w-full" onEnded={playNextMusicTrack} onPlay={e => { window.CaregiversMusic?.update?.(playerTrack.title, playerTrack.source?.artist || 'Phone Music', true); if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: playerTrack.title, artist: 'Caregivers' }); navigator.mediaSession.setActionHandler?.('play', () => e.currentTarget.play()); navigator.mediaSession.setActionHandler?.('pause', () => e.currentTarget.pause()); navigator.mediaSession.setActionHandler?.('nexttrack', playNextMusicTrack); navigator.mediaSession.setActionHandler?.('previoustrack', playPreviousMusicTrack) } }} onPause={() => window.CaregiversMusic?.update?.(playerTrack.title, playerTrack.source?.artist || 'Phone Music', false)} /></div><select value={playbackMode} onChange={e => changePlaybackMode(e.target.value)} className="w-20 rounded-lg bg-slate-800 px-1 py-2 text-[10px] text-white" aria-label="Playback mode"><option value="sequence">အစဉ်လိုက်</option><option value="repeat">တစ်ပုဒ်ထပ်</option><option value="shuffle">ဗျောက်သောက်</option></select><button onClick={() => { playerAudioRef.current?.pause(); setPlayerTrack(null); window.CaregiversMusic?.clear?.() }} className="shrink-0 p-2 text-gray-300" title="Stop"><X size={18} /></button></div>}
     </div>
   )
 }
