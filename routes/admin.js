@@ -145,6 +145,36 @@ router.post('/broadcast', deviceAuth, async (req, res) => {
   }
 });
 
+router.get('/reports', deviceAuth, async (req, res) => {
+  try {
+    const reports = await prisma.report.findMany({ include: { reporter: { select: { id: true, username: true, displayName: true } } }, orderBy: { createdAt: 'desc' } });
+    const enriched = await Promise.all(reports.map(async report => {
+      const [targetUser, targetMessage, targetPost, targetComment] = await Promise.all([
+        report.targetUserId ? prisma.user.findUnique({ where: { id: report.targetUserId }, select: { id: true, username: true, displayName: true, isBanned: true } }) : null,
+        report.targetMessageId ? prisma.message.findUnique({ where: { id: report.targetMessageId }, include: { sender: { select: { id: true, username: true, displayName: true } } } }) : null,
+        report.targetPostId ? prisma.post.findUnique({ where: { id: report.targetPostId }, include: { author: { select: { id: true, username: true, displayName: true } } } }) : null,
+        report.targetCommentId ? prisma.comment.findUnique({ where: { id: report.targetCommentId }, include: { author: { select: { id: true, username: true, displayName: true } } } }) : null
+      ]);
+      return { ...report, targetUser, targetMessage, targetPost, targetComment };
+    }));
+    res.json({ reports: enriched });
+  } catch (err) {
+    console.error('Failed to load reports:', err);
+    res.status(500).json({ error: 'Failed to load reports' });
+  }
+});
+
+router.patch('/reports/:id', deviceAuth, async (req, res) => {
+  try {
+    const status = String(req.body.status || '').trim().toUpperCase();
+    if (!['PENDING', 'REVIEWING', 'RESOLVED', 'DISMISSED'].includes(status)) return res.status(400).json({ error: 'Invalid report status' });
+    const report = await prisma.report.update({ where: { id: req.params.id }, data: { status, adminNote: String(req.body.adminNote || '').trim() || null, reviewedAt: status === 'PENDING' ? null : new Date() } });
+    res.json({ report });
+  } catch (err) {
+    res.status(404).json({ error: 'Report not found' });
+  }
+});
+
 // All users list
 router.get('/users', deviceAuth, async (req, res) => {
   try {

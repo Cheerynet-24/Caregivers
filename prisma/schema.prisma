@@ -45,6 +45,7 @@ model User {
   savedPosts          PostSave[]
   comments            Comment[]       @relation("CommentAuthor")
   commentLikes        CommentLike[]
+  reportsMade         Report[]        @relation("ReportReporter")
   callsMade           CallLog[]      @relation("CallsMade")
   callsReceived       CallLog[]      @relation("CallsReceived")
 }
@@ -196,6 +197,28 @@ model Notification {
   title     String
   message   String
   createdAt DateTime @default(now())
+}
+
+model Report {
+  id                String   @id @default(uuid())
+  reporterId        String
+  reporter          User     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  type              String
+  reason            String
+  details           String?
+  targetUserId      String?
+  targetMessageId   String?
+  targetPostId      String?
+  targetCommentId   String?
+  reportedContent   String?
+  status            String   @default("PENDING")
+  adminNote         String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([status, createdAt])
+  @@index([type, createdAt])
+  @@index([reporterId, createdAt])
 }
 
 model BlockedUser {

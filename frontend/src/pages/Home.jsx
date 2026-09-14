@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, resolveMediaUrl } from '../services/api'
+import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, reportsAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
-  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin, MoreVertical,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play
+  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin,
+  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag
 } from 'lucide-react'
 
 const VIDEO_EFFECTS = [
@@ -104,6 +104,10 @@ export default function Home() {
   const [showStickers, setShowStickers] = useState(false)
   const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
+  const [reportTarget, setReportTarget] = useState(null)
+  const [reportReason, setReportReason] = useState('Harassment or abuse')
+  const [reportDetails, setReportDetails] = useState('')
+  const [reportSubmitting, setReportSubmitting] = useState(false)
   const [replyTarget, setReplyTarget] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
@@ -408,6 +412,29 @@ export default function Home() {
     longPressTimer.current = window.setTimeout(() => setConversationToDelete(conversation), 650)
   }
   const cancelConversationLongPress = () => window.clearTimeout(longPressTimer.current)
+  const messageLongPressTimer = useRef(null)
+  const beginMessageLongPress = message => {
+    window.clearTimeout(messageLongPressTimer.current)
+    messageLongPressTimer.current = window.setTimeout(() => setMessageMenu(message.id), 500)
+  }
+  const cancelMessageLongPress = () => window.clearTimeout(messageLongPressTimer.current)
+  const openReport = (type, target = {}) => {
+    setMessageMenu(null)
+    setReportTarget({ type, ...target })
+    setReportReason(type === 'app_error' ? 'App error' : 'Harassment or abuse')
+    setReportDetails('')
+  }
+  const submitReport = async e => {
+    e.preventDefault()
+    if (!reportTarget || !reportReason.trim() || (reportTarget.type === 'app_error' && !reportDetails.trim()) || reportSubmitting) return
+    setReportSubmitting(true)
+    try {
+      await reportsAPI.create({ type: reportTarget.type, reason: reportReason.trim(), details: reportDetails.trim(), targetUserId: reportTarget.targetUserId, targetMessageId: reportTarget.targetMessageId, targetPostId: reportTarget.targetPostId, targetCommentId: reportTarget.targetCommentId })
+      setReportTarget(null)
+      alert('Report တင်ပြီးပါပြီ။ Admin က စစ်ဆေးပေးပါမယ်။')
+    } catch (err) { alert(err.response?.data?.error || 'Report တင်၍မရပါ') }
+    finally { setReportSubmitting(false) }
+  }
   const confirmDeleteConversation = async () => {
     if (!conversationToDelete) return
     const target = conversationToDelete
@@ -800,6 +827,10 @@ export default function Home() {
       await navigator.clipboard?.writeText(message.content || message.fileUrl || '')
       return
     }
+    if (action === 'report') {
+      openReport('message', { targetMessageId: message.id, content: message.content || message.fileUrl || message.type })
+      return
+    }
     if (action === 'share') {
       if (navigator.share) await navigator.share({ title: 'Caregivers message', text: message.content || '', url: message.fileUrl || undefined })
       else await navigator.clipboard?.writeText(message.content || message.fileUrl || '')
@@ -820,6 +851,14 @@ export default function Home() {
       if (window.confirm('Delete this message?')) socket.emit('message:delete', { messageId: message.id })
     }
   }
+
+  useEffect(() => {
+    const closeMessageMenu = event => {
+      if (messageMenu && !event.target.closest('[data-message-menu]')) setMessageMenu(null)
+    }
+    document.addEventListener('pointerdown', closeMessageMenu)
+    return () => document.removeEventListener('pointerdown', closeMessageMenu)
+  }, [messageMenu])
 
   const createPeer = (targetUserId, callType, configuredIceServers = iceServers) => {
     const peer = new RTCPeerConnection({ iceServers: [
@@ -1377,7 +1416,7 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div key={m.id} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
-                  <div className="relative group max-w-[85%]" onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX }} onTouchEnd={e => { if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }}>
+                  <div data-message-menu className="relative group max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
                   <div className={`max-w-full px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
@@ -1398,9 +1437,8 @@ export default function Home() {
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.senderId === user.id && <span className="ml-1">{m.pending ? 'Sending…' : m.messageStatus === 'seen' ? 'Seen' : m.messageStatus === 'delivered' || m.messageStatus === 'sent' ? 'Sent' : 'Sending…'}</span>}
                     </p>
                   </div>
-                  <button onClick={() => setMessageMenu(messageMenu === m.id ? null : m.id)} className="absolute -right-8 top-1 p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-sky-500" title="Message actions"><MoreVertical size={17} /></button>
                   {messageMenu === m.id && <div className={`absolute z-20 top-8 ${m.senderId === user.id ? 'right-0' : 'left-0'} bg-white dark:bg-gray-800 border rounded-xl shadow-lg p-1 min-w-32 text-xs dark:text-white`}>
-                    {['share', 'forward', 'copy', ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => handleMessageAction(action, m)} className="block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize">{action}</button>)}
+                    {['share', 'forward', 'copy', 'report', ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action}</button>)}
                   </div>}
                   </div>
                 </div>
@@ -1454,6 +1492,19 @@ export default function Home() {
           <div className="flex items-start gap-3 pr-5"><div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || '?')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><p className="font-bold text-sky-600 dark:text-sky-300">{latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || 'New message'}</p><p className="mt-1 text-sm dark:text-gray-200 truncate">{latestMessageNotification.content || (latestMessageNotification.type === 'audio' ? 'Voice message' : 'Attachment')}</p>{!popupReplying ? <div className="mt-3 flex gap-2"><button onClick={replyToMessageNotification} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm">Reply</button><button onClick={() => { stopNotificationSound(); openPrivateChat(latestMessageNotification.sender); setLatestMessageNotification(null) }} className="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-600 dark:text-sky-300 text-sm">Open chat</button></div> : <form onSubmit={sendPopupReply} className="mt-3 flex gap-2"><input autoFocus value={popupReply} onChange={e => setPopupReply(e.target.value)} placeholder="Reply..." className="min-w-0 flex-1 px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" /><button disabled={sendingPopupReply} className="px-3 py-2 rounded-lg bg-sky-500 text-white disabled:opacity-60">{sendingPopupReply ? 'Sending...' : 'Send'}</button></form>}</div></div>
         </div>
       )}
+      {reportTarget && (
+        <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-4" onClick={() => setReportTarget(null)}>
+          <form onSubmit={submitReport} onClick={e => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-2xl">
+            <div className="flex items-center gap-2"><Flag size={20} className="text-red-500" /><h3 className="text-lg font-bold dark:text-white">Report {reportTarget.type.replace('_', ' ')}</h3></div>
+            {reportTarget.content && <p className="mt-3 rounded-lg bg-gray-50 dark:bg-gray-700 p-3 text-sm text-gray-600 dark:text-gray-200 break-words">{reportTarget.content}</p>}
+            <label className="mt-4 block text-sm font-medium dark:text-white">ဘာကြောင့်တိုင်တာလဲ?</label>
+            <input value={reportReason} onChange={e => setReportReason(e.target.value)} placeholder="ဥပမာ - မသင့်လျော်သောစာ၊ Spam" className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required />
+            <label className="mt-3 block text-sm font-medium dark:text-white">အသေးစိတ် (လိုအပ်ပါက)</label>
+            <textarea value={reportDetails} onChange={e => setReportDetails(e.target.value)} rows="4" placeholder={reportTarget.type === 'app_error' ? 'ဖြစ်နေသော Error ကို အသေးစိတ်ရေးပါ' : 'အခြားအချက်အလက်များ ရေးပါ'} className="mt-1 w-full resize-none rounded-lg border px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-white" required={reportTarget.type === 'app_error'} />
+            <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setReportTarget(null)} className="rounded-lg border px-4 py-2 dark:border-gray-600 dark:text-white">မလုပ်တော့</button><button disabled={reportSubmitting} className="rounded-lg bg-red-500 px-4 py-2 text-white disabled:opacity-60">{reportSubmitting ? 'တင်နေသည်...' : 'Report တင်မည်'}</button></div>
+          </form>
+        </div>
+      )}
       {showDeveloper && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setShowDeveloper(false)}>
           <div className="w-full max-w-sm rounded-3xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white p-7 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -1462,7 +1513,7 @@ export default function Home() {
             <p className="mt-3 text-white/90">Caregivers ကို တည်ဆောက်ပေးသူ</p>
             <a href="https://t.me/ckstore22" target="_blank" rel="noreferrer" className="inline-block mt-4 px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 underline">🔗 t.me/ckstore22</a>
             <p className="mt-5 font-medium">အားလုံးပဲ အဆင်ပြေကြပါစေခဗျာ 🙏💙</p>
-            <button onClick={() => setShowDeveloper(false)} className="mt-6 px-5 py-2 rounded-full bg-white text-sky-700 font-semibold">ပိတ်မည်</button>
+            <div className="mt-6 flex justify-center gap-2"><button onClick={() => { setShowDeveloper(false); openReport('app_error') }} className="px-5 py-2 rounded-full bg-red-500/80 text-white font-semibold"><Flag size={15} className="inline mr-1" />App Error တိုင်ရန်</button><button onClick={() => setShowDeveloper(false)} className="px-5 py-2 rounded-full bg-white text-sky-700 font-semibold">ပိတ်မည်</button></div>
           </div>
         </div>
       )}
@@ -1574,7 +1625,7 @@ export default function Home() {
             <h3 className="mt-4 text-xl font-bold dark:text-white">{selectedProfile.displayName || selectedProfile.username}</h3>
             <p className="text-sm text-gray-500">@{selectedProfile.username}</p>
             {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
-            <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => openProfileSharePicker(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Share in chat</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
+            <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => openProfileSharePicker(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Share in chat</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} className="px-3 py-2 rounded-lg border border-red-200 text-red-500">Report</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
             <h4 className="mt-6 text-left font-semibold dark:text-white">Posts</h4>
             <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="mt-2 max-h-56 w-full object-cover rounded-lg" />}</article>)}</div>
           </div>

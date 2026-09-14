@@ -63,6 +63,10 @@ export const postsAPI = {
   likeComment: (id) => api.post(`/api/posts/comments/${id}/like`)
 }
 
+export const reportsAPI = {
+  create: (data) => api.post('/api/reports', data)
+}
+
 export const chatAPI = {
   getConversations: () => api.get('/api/chat/conversations'),
   getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
@@ -122,6 +126,8 @@ export const adminAPI = {
   }),
   deletePaymentAccount: (id, password) => api.delete(`/api/admin/payment-accounts/${id}`, { headers: { 'x-admin-password': password } }),
   broadcast: (data, password) => api.post('/api/admin/broadcast', data, { headers: { 'x-admin-password': password } }),
+  reports: (password) => api.get('/api/admin/reports', { headers: { 'x-admin-password': password } }),
+  updateReport: (id, data, password) => api.patch(`/api/admin/reports/${id}`, data, { headers: { 'x-admin-password': password } }),
   getPaymentInfo: (password) => api.get('/api/admin/payment-info', { headers: { 'x-admin-password': password } }),
   setPaymentInfo: (formData, password) => api.post('/api/admin/payment-info', formData, {
     headers: { 'x-admin-password': password, 'Content-Type': 'multipart/form-data' }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { adminAPI, resolveMediaUrl } from '../services/api'
-import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus, Trash2, Bell } from 'lucide-react'
+import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus, Trash2, Bell, Flag } from 'lucide-react'
 
 export default function Admin() {
   const { t, i18n } = useTranslation()
@@ -18,6 +18,7 @@ export default function Admin() {
   const [broadcastForm, setBroadcastForm] = useState({ title: 'အသိပေးချက်', message: '' })
   const [broadcastSuccess, setBroadcastSuccess] = useState('')
   const [coinForm, setCoinForm] = useState({ userId: '', amount: '', type: 'add' })
+  const [reports, setReports] = useState([])
 
   const handleLogin = async (e) => {
     e.preventDefault()
@@ -58,6 +59,12 @@ export default function Admin() {
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to load payment info')
     }
+  }
+  const loadReports = async () => {
+    try { const res = await adminAPI.reports(password); setReports(res.data.reports || []) } catch (err) { setError(err.response?.data?.error || 'Failed to load reports') }
+  }
+  const updateReport = async (id, status) => {
+    try { await adminAPI.updateReport(id, { status }, password); await loadReports() } catch (err) { setError(err.response?.data?.error || 'Failed to update report') }
   }
 
   if (!authed) {
@@ -112,6 +119,10 @@ export default function Admin() {
           <button onClick={() => setTab('broadcast')}
             className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'broadcast' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Bell size={18} /> အသိပေးစာပို့ရန်
+          </button>
+          <button onClick={() => { setTab('reports'); loadReports() }}
+            className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'reports' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
+            <Flag size={18} /> Reports ({reports.filter(report => report.status === 'PENDING').length})
           </button>
         </nav>
 
@@ -302,6 +313,14 @@ export default function Admin() {
               <textarea value={broadcastForm.message} onChange={e => setBroadcastForm({ ...broadcastForm, message: e.target.value })} placeholder="အသိပေးလိုသောစာသား" required rows={6} className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
               <button type="submit" className="w-full bg-sky-500 text-white py-2.5 rounded-lg">📣 အသိပေးစာ ပို့မည်</button>
             </form>
+          )}
+
+          {tab === 'reports' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between"><h2 className="text-xl font-bold dark:text-white">User Reports</h2><button onClick={loadReports} className="rounded-lg bg-sky-500 px-3 py-2 text-sm text-white">Refresh</button></div>
+              {reports.length === 0 && <p className="text-sm text-gray-500">Report မရှိသေးပါ</p>}
+              {reports.map(report => <article key={report.id} className="rounded-xl bg-white p-4 shadow dark:bg-gray-800"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold dark:text-white">{report.type.replace('_', ' ').toUpperCase()} · {report.reason}</p><p className="text-xs text-gray-500">တိုင်သူ: {report.reporter?.displayName || report.reporter?.username} · {new Date(report.createdAt).toLocaleString()}</p></div><span className={`rounded-full px-2 py-1 text-xs ${report.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : report.status === 'RESOLVED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{report.status}</span></div>{report.reportedContent && <div className="mt-3 rounded-lg border-l-4 border-red-400 bg-red-50 p-3 text-sm text-gray-700 dark:bg-red-950/30 dark:text-gray-200"><p className="mb-1 text-xs font-semibold text-red-600">Reported content</p><p className="whitespace-pre-wrap break-words">{report.reportedContent}</p></div>}<div className="mt-3 grid gap-1 text-sm dark:text-gray-200"><p><b>အကြောင်းပြချက်:</b> {report.reason}</p>{report.details && <p><b>အသေးစိတ်:</b> {report.details}</p>}{report.targetUser && <p><b>User:</b> {report.targetUser.displayName || report.targetUser.username} (@{report.targetUser.username})</p>}{report.targetMessage && <p><b>Message sender:</b> {report.targetMessage.sender?.displayName || report.targetMessage.sender?.username}</p>}{report.targetComment && <p><b>Comment author:</b> {report.targetComment.author?.displayName || report.targetComment.author?.username}</p>}{report.targetPost && <p><b>Post author:</b> {report.targetPost.author?.displayName || report.targetPost.author?.username}</p>}</div><div className="mt-4 flex flex-wrap gap-2">{report.status !== 'RESOLVED' && <button onClick={() => updateReport(report.id, 'RESOLVED')} className="rounded-lg bg-green-500 px-3 py-2 text-xs text-white">Resolve</button>}{report.status !== 'DISMISSED' && <button onClick={() => updateReport(report.id, 'DISMISSED')} className="rounded-lg bg-gray-500 px-3 py-2 text-xs text-white">Dismiss</button>}{report.status === 'PENDING' && <button onClick={() => updateReport(report.id, 'REVIEWING')} className="rounded-lg bg-amber-500 px-3 py-2 text-xs text-white">Mark reviewing</button>}</div></article>)}
+            </div>
           )}
 
           {tab === 'coins' && (
