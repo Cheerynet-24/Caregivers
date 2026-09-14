@@ -345,11 +345,12 @@ public class MainActivity extends Activity {
     }
 
     private class LocalMusicBridge {
+        @JavascriptInterface public void refresh() { runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript("window.CaregiversLocalMusicReady && window.CaregiversLocalMusicReady()", null); }); }
         @JavascriptInterface public String listSongs() {
             if (!hasMediaPermission()) return "[]";
             org.json.JSONArray songs = new org.json.JSONArray();
             String[] projection = { MediaStore.Audio.Media._ID, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.DURATION };
-            try (Cursor cursor = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, MediaStore.Audio.Media.IS_MUSIC + "!=0", null, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC")) {
+            try (Cursor cursor = getContentResolver().query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, null, null, MediaStore.Audio.Media.TITLE + " COLLATE NOCASE ASC")) {
                 if (cursor == null) return "[]";
                 int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
                 int titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);

@@ -188,8 +188,12 @@ export default function Home() {
     }
     window.CaregiversLocalMusicReady = loadNativeMusic
     loadNativeMusic()
-    return () => { delete window.CaregiversLocalMusicReady }
+    const retry = setTimeout(loadNativeMusic, 1200)
+    const retryAgain = setTimeout(loadNativeMusic, 3000)
+    return () => { clearTimeout(retry); clearTimeout(retryAgain); delete window.CaregiversLocalMusicReady }
   }, [])
+
+  useEffect(() => { if (tab === 'music') window.CaregiversLocalMusic?.refresh?.() }, [tab])
 
   useEffect(() => {
     if (!socket) return
