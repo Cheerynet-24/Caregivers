@@ -117,9 +117,15 @@ export default function Home() {
   const [sharingProfile, setSharingProfile] = useState(false)
   const [musicQuery, setMusicQuery] = useState('')
   const [musicResults, setMusicResults] = useState([])
+  const [musicHistory, setMusicHistory] = useState(() => JSON.parse(localStorage.getItem('caregivers-music-history') || '[]'))
+  const [musicQueue, setMusicQueue] = useState([])
+  const [musicQueueIndex, setMusicQueueIndex] = useState(-1)
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaDownloading, setMediaDownloading] = useState(false)
   const [playerTrack, setPlayerTrack] = useState(null)
+  const playerAudioRef = useRef(null)
+  const musicQueueRef = useRef([])
+  const musicQueueIndexRef = useRef(-1)
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [videoEffect, setVideoEffect] = useState('none')
   const [showVideoEffects, setShowVideoEffects] = useState(false)
@@ -981,7 +987,34 @@ export default function Home() {
 
   const searchMusic = async () => {
     if (!musicQuery.trim()) return
-    try { const response = await mediaAPI.musicSearch(musicQuery.trim()); setMusicResults(response.data.results || []) } catch (error) { alert(error.response?.data?.error || 'Music search failed') }
+    try {
+      const response = await mediaAPI.musicSearch(musicQuery.trim())
+      const burmese = /[\u1000-\u109f]/
+      const results = (response.data.results || []).sort((a, b) => Number(burmese.test(`${b.title} ${b.artist}`)) - Number(burmese.test(`${a.title} ${a.artist}`)))
+      setMusicResults(results)
+      setMusicQueue(results)
+      musicQueueRef.current = results
+      setMusicQueueIndex(-1)
+      musicQueueIndexRef.current = -1
+      const merged = [...results, ...musicHistory].filter((track, index, list) => list.findIndex(item => item.id === track.id) === index).slice(0, 60)
+      setMusicHistory(merged)
+      localStorage.setItem('caregivers-music-history', JSON.stringify(merged))
+    } catch (error) { alert(error.response?.data?.error || 'Music search failed') }
+  }
+  const playMusicTrack = (track, queue = musicQueue.length ? musicQueue : [track]) => {
+    if (!track?.previewUrl) return
+    const nextQueue = queue.filter(item => item?.previewUrl)
+    const index = Math.max(0, nextQueue.findIndex(item => item.id === track.id))
+    setMusicQueue(nextQueue); musicQueueRef.current = nextQueue
+    setMusicQueueIndex(index); musicQueueIndexRef.current = index
+    setPlayerTrack({ title: `${track.title} · ${track.artist}`, url: track.previewUrl, source: track })
+  }
+  const playNextMusicTrack = () => {
+    const nextIndex = musicQueueIndexRef.current + 1
+    const nextTrack = musicQueueRef.current[nextIndex]
+    if (!nextTrack) return
+    setMusicQueueIndex(nextIndex); musicQueueIndexRef.current = nextIndex
+    setPlayerTrack({ title: `${nextTrack.title} · ${nextTrack.artist}`, url: nextTrack.previewUrl, source: nextTrack })
   }
   const downloadMedia = async (url, name = 'caregivers-media') => {
     if (!url || mediaDownloading) return
@@ -990,7 +1023,7 @@ export default function Home() {
       const response = await mediaAPI.download({ url, name })
       const fileUrl = resolveMediaUrl(response.data.fileUrl)
       const link = document.createElement('a'); link.href = fileUrl; link.download = response.data.fileName || `${name}.mp3`; link.click()
-      setPlayerTrack({ title: name, url: fileUrl })
+      setPlayerTrack({ title: name, url: fileUrl, source: null })
     } catch (error) { alert(error.response?.data?.error || 'Download failed') }
     finally { setMediaDownloading(false) }
   }
@@ -1087,9 +1120,9 @@ export default function Home() {
           </div>}
           {tab === 'media' && <div className="p-3 space-y-5">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">သတိပေးချက် — သင်ပိုင်ဆိုင်သော သို့မဟုတ် download လုပ်ခွင့်ရှိသော media ပဲ အသုံးပြုပါ။ Social media တွေမှာ ပြန်တင်ရင် Copyright မိနိုင်ပါတယ်။ App က direct media links နဲ့ တရားဝင် music preview များအတွက်သာ download လုပ်ပေးပါတယ်။</div>
-            <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-sky-500" /> Music Search</div><div className="flex gap-2"><input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchMusic()} placeholder="Song or artist name" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={searchMusic} className="rounded-xl bg-sky-500 px-3 text-white"><Search size={17} /></button></div><div className="mt-3 space-y-2">{musicResults.map(track => <div key={track.id} className="flex items-center gap-2 rounded-xl border p-2 dark:border-gray-600"><img src={track.artwork} alt="" className="h-11 w-11 rounded-lg" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold dark:text-white">{track.title}</p><p className="truncate text-xs text-gray-500">{track.artist}</p>{track.previewUrl && <audio controls preload="none" src={track.previewUrl} className="mt-1 h-7 w-full" />}</div>{track.previewUrl && <button onClick={() => downloadMedia(track.previewUrl, `${track.artist}-${track.title}`)} disabled={mediaDownloading} className="rounded-lg p-2 text-sky-500 disabled:opacity-50" title="Download preview as MP3"><DownloadCloud size={18} /></button>}</div>)}{musicResults.length === 0 && <p className="text-xs text-gray-500">Song ရှာရန် အပေါ်ကနေ ရိုက်ထည့်ပါ</p>}</div></section>
+            <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-sky-500" /> Music Search</div><div className="flex gap-2"><input value={musicQuery} onChange={e => setMusicQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchMusic()} placeholder="Song or artist name" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={searchMusic} className="rounded-xl bg-sky-500 px-3 text-white"><Search size={17} /></button></div><div className="mt-3 space-y-2">{musicResults.map(track => <div key={track.id} className="flex items-center gap-2 rounded-xl border p-2 dark:border-gray-600"><img src={track.artwork} alt="" className="h-11 w-11 rounded-lg" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold dark:text-white">{track.title}</p><p className="truncate text-xs text-gray-500">{track.artist}</p></div>{track.previewUrl && <><button onClick={() => playMusicTrack(track)} className="rounded-lg p-2 text-green-500" title="Play in background"><Play size={18} /></button><button onClick={() => downloadMedia(track.previewUrl, `${track.artist}-${track.title}`)} disabled={mediaDownloading} className="rounded-lg p-2 text-sky-500 disabled:opacity-50" title="Download preview as MP3"><DownloadCloud size={18} /></button></>}</div>)}{musicResults.length === 0 && <p className="text-xs text-gray-500">Song ရှာရန် အပေါ်ကနေ ရိုက်ထည့်ပါ</p>}</div></section>
+            {musicHistory.length > 0 && <section><p className="mb-2 text-sm font-semibold dark:text-white">Search history / Queue</p><div className="max-h-44 space-y-1 overflow-y-auto">{musicHistory.slice(0, 20).map(track => <button key={track.id} onClick={() => playMusicTrack(track, musicHistory)} className="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700"><img src={track.artwork} alt="" className="h-8 w-8 rounded object-cover" /><span className="min-w-0 flex-1 truncate text-xs dark:text-gray-200">{track.title} · {track.artist}</span><Play size={14} className="text-green-500" /></button>)}</div></section>}
             <section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><DownloadCloud size={18} className="text-indigo-500" /> Video / Audio Downloader</div><p className="mb-2 text-xs text-gray-500">Direct audio/video file link ထည့်ပါ။ YouTube/TikTok page link မဟုတ်ဘဲ media file link ဖြစ်ရပါမယ်။</p><div className="flex gap-2"><input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/file.mp4" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={() => downloadMedia(mediaUrl)} disabled={mediaDownloading} className="rounded-xl bg-indigo-500 px-3 text-white disabled:opacity-50">{mediaDownloading ? '...' : 'Start'}</button></div></section>
-            {playerTrack && <section className="rounded-xl bg-slate-900 p-3 text-white"><p className="mb-2 flex items-center gap-2 text-sm font-semibold"><Play size={15} /> {playerTrack.title}</p><audio controls autoPlay src={playerTrack.url} className="w-full" onPlay={e => { if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: playerTrack.title, artist: 'Caregivers' }); navigator.mediaSession.setActionHandler?.('play', () => e.currentTarget.play()); navigator.mediaSession.setActionHandler?.('pause', () => e.currentTarget.pause()) } }} /><a href={playerTrack.url} download className="mt-2 inline-flex text-xs underline">Download this file again</a></section>}
           </div>}
           {tab === 'call-history' && <div className="p-3 space-y-2">{callHistory.length === 0 && <p className="text-sm text-gray-500">Call history မရှိသေးပါ</p>}{callHistory.map(item => { const other = item.callerId === user.id ? item.receiver : item.caller; return <div key={item.id} className="rounded-xl border dark:border-gray-600 p-3 flex items-center gap-3"><Phone size={18} className="text-sky-500" /><div className="flex-1"><p className="text-sm font-medium dark:text-white">{other?.displayName || other?.username}</p><p className="text-xs text-gray-500">{item.callType} call · {item.status} · {new Date(item.createdAt).toLocaleString()}</p></div></div> })}</div>}
           {tab === 'chats' && conversations.map(c => (
@@ -1481,6 +1514,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      {playerTrack && <div className="fixed bottom-3 left-1/2 z-[75] flex w-[calc(100%-1.5rem)] max-w-lg -translate-x-1/2 items-center gap-3 rounded-2xl bg-slate-900/95 p-3 text-white shadow-2xl backdrop-blur"><div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{playerTrack.title}</p><audio key={playerTrack.url} ref={playerAudioRef} controls autoPlay src={playerTrack.url} className="mt-1 h-8 w-full" onEnded={playNextMusicTrack} onPlay={e => { if ('mediaSession' in navigator) { navigator.mediaSession.metadata = new MediaMetadata({ title: playerTrack.title, artist: 'Caregivers' }); navigator.mediaSession.setActionHandler?.('play', () => e.currentTarget.play()); navigator.mediaSession.setActionHandler?.('pause', () => e.currentTarget.pause()); navigator.mediaSession.setActionHandler?.('nexttrack', playNextMusicTrack) } }} /></div><a href={playerTrack.url} download className="shrink-0 rounded-lg p-2 text-sky-300" title="Download again"><DownloadCloud size={18} /></a><button onClick={() => setPlayerTrack(null)} className="shrink-0 p-2 text-gray-300" title="Close player"><X size={18} /></button></div>}
     </div>
   )
 }
