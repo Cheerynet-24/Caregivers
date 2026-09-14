@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, reportsAPI, resolveMediaUrl } from '../services/api'
+import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, reportsAPI, aiAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag
+  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag, Bot
 } from 'lucide-react'
 
 const VIDEO_EFFECTS = [
@@ -110,6 +110,9 @@ export default function Home() {
   const [reportReason, setReportReason] = useState('Harassment or abuse')
   const [reportDetails, setReportDetails] = useState('')
   const [reportSubmitting, setReportSubmitting] = useState(false)
+  const [aiMessages, setAiMessages] = useState([])
+  const [aiInput, setAiInput] = useState('')
+  const [aiSending, setAiSending] = useState(false)
   const [replyTarget, setReplyTarget] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
@@ -441,6 +444,21 @@ export default function Home() {
       alert('Report တင်ပြီးပါပြီ။ Admin က စစ်ဆေးပေးပါမယ်။')
     } catch (err) { alert(err.response?.data?.error || 'Report တင်၍မရပါ') }
     finally { setReportSubmitting(false) }
+  }
+  const sendAiMessage = async e => {
+    e?.preventDefault()
+    const content = aiInput.trim()
+    if (!content || aiSending) return
+    const nextMessages = [...aiMessages, { role: 'user', content }]
+    setAiMessages(nextMessages)
+    setAiInput('')
+    setAiSending(true)
+    try {
+      const response = await aiAPI.chat(nextMessages)
+      setAiMessages(items => [...items, response.data.message])
+    } catch (error) {
+      setAiMessages(items => [...items, { role: 'assistant', content: error.response?.data?.error || 'AI service မရနိုင်သေးပါ' }])
+    } finally { setAiSending(false) }
   }
   const confirmDeleteConversation = async () => {
     if (!conversationToDelete) return
@@ -1189,6 +1207,9 @@ export default function Home() {
           <Bell size={22} />
           {unreadNotificationCount > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}
         </button>
+        <button onClick={() => { setTab('ai-chat'); setActiveChat(null); setMessages([]) }} className={`p-3 rounded-xl ${tab === 'ai-chat' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="AI Chat">
+          <Bot size={22} />
+        </button>
         <button onClick={() => { setTab('call-history'); setActiveChat(null); setMessages([]); loadCallHistory() }} className={`p-3 rounded-xl ${tab === 'call-history' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Call history">
           <Phone size={22} />
         </button>
@@ -1242,6 +1263,7 @@ export default function Home() {
             {tab === 'profile' && 'Profile'}
             {tab === 'friends' && 'Friends'}
             {tab === 'admin-noti' && 'From Admin Noti'}
+            {tab === 'ai-chat' && 'AI Chat'}
             {tab === 'call-history' && 'Call History'}
           </h2>
           <p className="text-xs text-gray-500">{user?.displayName || user?.username}</p>
@@ -1257,6 +1279,11 @@ export default function Home() {
           {tab === 'admin-noti' && <div className="p-3 space-y-3">
             {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Admin notification မရှိသေးပါ</div>}
             {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
+          </div>}
+          {tab === 'ai-chat' && <div className="flex h-full min-h-0 flex-col p-3">
+            <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI</div><p className="mt-1 text-xs text-white/80">မေးခွန်းများ၊ အကြံဉာဏ်များနဲ့ ဘာသာပြန်တာတွေကို မေးနိုင်ပါတယ်။</p></div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-xl bg-gray-50 p-3 dark:bg-gray-700">{aiMessages.length === 0 && <p className="py-10 text-center text-sm text-gray-500">AI ကို မေးချင်တာရေးပါ…</p>}{aiMessages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-sky-500 text-white' : 'bg-white text-gray-800 shadow-sm dark:bg-gray-800 dark:text-gray-100'}`}>{message.content}</div></div>)}{aiSending && <div className="text-xs text-gray-500">AI စဉ်းစားနေသည်…</div>}</div>
+            <form onSubmit={sendAiMessage} className="mt-3 flex gap-2"><input value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="AI ကို မေးပါ…" className="min-w-0 flex-1 rounded-full border px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button disabled={aiSending || !aiInput.trim()} className="rounded-full bg-indigo-500 px-4 py-2 text-white disabled:opacity-50"><Send size={16} /></button></form>
           </div>}
           {tab === 'music' && <div className="p-3 space-y-5"><section><div className="mb-2 flex items-center justify-between gap-2"><div className="flex items-center gap-2 font-semibold dark:text-white"><Music2 size={18} className="text-emerald-500" /> Phone Music Player</div><button onClick={() => window.CaregiversLocalMusic?.refresh?.()} className="rounded-lg border px-2 py-1 text-xs text-emerald-600 dark:border-gray-600">Refresh</button></div><p className="mb-2 text-xs text-gray-500">ဖုန်းထဲက Music library ကို App ထဲမှာ ပြပြီး ဒီထဲမှာပဲ ဖွင့်ပါမယ်။</p>{localSongs.length === 0 && <p className="mt-4 text-center text-xs text-red-500">သီချင်းမတွေ့ပါ။ Refresh နှိပ်ပြီး Music and audio permission ကို စစ်ပါ။</p>}{localSongs.length > 0 && <div className="mt-3 space-y-1">{localSongs.map(song => <button key={song.id} onClick={() => playMusicTrack(song, localSongs)} className="flex w-full items-center gap-3 rounded-xl border p-3 text-left hover:bg-emerald-50 dark:border-gray-600 dark:hover:bg-gray-700"><Play size={17} className="text-emerald-500" /><span className="min-w-0 flex-1 truncate text-sm dark:text-gray-200">{song.title}</span><span className="text-xs text-gray-500">{song.artist}</span></button>)}</div>}</section>{musicHistory.length > 0 && <section><p className="mb-2 text-sm font-semibold dark:text-white">Previous queue</p><div className="space-y-1">{musicHistory.slice(0, 10).map(track => <div key={track.id} className="flex items-center gap-1 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"><button onClick={() => playMusicTrack(track, musicHistory)} className="flex min-w-0 flex-1 items-center gap-2 p-2 text-left"><span className="min-w-0 flex-1 truncate text-xs dark:text-gray-200">{track.title} · {track.artist}</span><Play size={14} className="text-green-500" /></button><button onClick={() => removeMusicHistory(track.id)} className="p-2 text-red-400" title="Delete history"><Trash2 size={14} /></button></div>)}</div></section>}</div>}
           {tab === 'downloader' && <div className="p-3 space-y-5"><div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">သတိပေးချက် — သင်ပိုင်ဆိုင်သော သို့မဟုတ် download လုပ်ခွင့်ရှိသော media ပဲ အသုံးပြုပါ။ Social media တွေမှာ ပြန်တင်ရင် Copyright မိနိုင်ပါတယ်။</div><section><div className="mb-2 flex items-center gap-2 font-semibold dark:text-white"><DownloadCloud size={18} className="text-indigo-500" /> Video / Audio Downloader</div><p className="mb-2 text-xs text-gray-500">Direct audio/video file link ထည့်ပြီး Start နှိပ်ပါ။ YouTube/TikTok page link မဟုတ်ဘဲ media file link ဖြစ်ရပါမယ်။</p><div className="flex gap-2"><input value={mediaUrl} onChange={e => setMediaUrl(e.target.value)} placeholder="https://example.com/file.mp4" className="min-w-0 flex-1 rounded-xl border px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button onClick={() => downloadMedia(mediaUrl)} disabled={mediaDownloading} className="rounded-xl bg-indigo-500 px-3 text-white disabled:opacity-50">{mediaDownloading ? '...' : 'Start'}</button></div></section></div>}

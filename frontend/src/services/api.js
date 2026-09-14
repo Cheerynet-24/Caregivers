@@ -68,6 +68,10 @@ export const reportsAPI = {
   create: (data) => api.post('/api/reports', data)
 }
 
+export const aiAPI = {
+  chat: (messages) => api.post('/api/ai/chat', { messages })
+}
+
 export const chatAPI = {
   getConversations: () => api.get('/api/chat/conversations'),
   getOrCreateConversation: (otherUserId) => api.post('/api/chat/conversation', { otherUserId }),
