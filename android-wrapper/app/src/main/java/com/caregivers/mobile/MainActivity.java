@@ -130,6 +130,7 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
+        webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
@@ -189,6 +190,10 @@ public class MainActivity extends Activity {
                 }
             });
         }
+    }
+
+    private class AppExitBridge {
+        @JavascriptInterface public void exit() { runOnUiThread(() -> finish()); }
     }
 
     private void requestNotificationPermission() {

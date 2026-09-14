@@ -249,7 +249,10 @@ export default function Home() {
 
   useEffect(() => {
     window.CaregiversHandleBack = () => {
-      if (!activeChat) return false
+      if (!activeChat) {
+        window.CaregiversApp?.exit?.()
+        return true
+      }
       setActiveChat(null)
       setMessages([])
       setTab('chats')
