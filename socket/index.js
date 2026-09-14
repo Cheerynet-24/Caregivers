@@ -88,15 +88,19 @@ function setupSocket(io, prisma) {
         const otherId = otherUserId;
 
         io.to(`user:${otherId}`).emit('message:new', msg);
-        await prisma.message.update({ where: { id: msg.id }, data: { messageStatus: 'delivered' } });
-        io.to(`user:${userId}`).emit('message:update', { id: msg.id, messageStatus: 'delivered' });
+        const delivered = await prisma.message.update({
+          where: { id: msg.id },
+          data: { messageStatus: 'delivered' },
+          include: { sender: { select: { id: true, username: true, displayName: true, avatar: true } } }
+        });
+        io.to(`user:${userId}`).emit('message:update', delivered);
         sendPush(otherUser.fcmToken, {
           title: socket.user.displayName || socket.user.username || 'New message',
           body: content || (type === 'audio' ? 'Voice message' : 'Attachment'),
           type: 'message',
           data: { fromUserId: userId, conversationId }
         });
-        socket.emit('message:new', msg);
+        socket.emit('message:new', delivered);
       } catch (err) {
         console.error('private msg error', err);
       }

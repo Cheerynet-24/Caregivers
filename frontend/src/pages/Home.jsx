@@ -1236,7 +1236,7 @@ export default function Home() {
                       : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
                       : <>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? <div className="mb-1 border-l-2 border-current/40 pl-2 text-xs opacity-60 whitespace-pre-wrap">{String(m.content).split('\n')[0]}</div> : null}<p className={m.type === 'sticker' ? 'text-5xl' : ''}>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? String(m.content).split('\n').slice(1).join('\n') : m.content}</p></>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
-                      {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.senderId === user.id && <span className="ml-1">{m.pending ? 'Sending…' : m.messageStatus === 'seen' ? 'Seen' : m.messageStatus === 'delivered' ? 'Sent' : 'Sending…'}</span>}
+                      {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.senderId === user.id && <span className="ml-1">{m.pending ? 'Sending…' : m.messageStatus === 'seen' ? 'Seen' : m.messageStatus === 'delivered' || m.messageStatus === 'sent' ? 'Sent' : 'Sending…'}</span>}
                     </p>
                   </div>
                   <button onClick={() => setMessageMenu(messageMenu === m.id ? null : m.id)} className="absolute -right-8 top-1 p-1 text-gray-400 opacity-0 group-hover:opacity-100 hover:text-sky-500" title="Message actions"><MoreVertical size={17} /></button>
