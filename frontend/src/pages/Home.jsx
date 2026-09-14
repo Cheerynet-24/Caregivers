@@ -113,7 +113,8 @@ export default function Home() {
   const [aiMessages, setAiMessages] = useState([])
   const [aiInput, setAiInput] = useState('')
   const [aiSending, setAiSending] = useState(false)
-  const aiHistoryLoadedRef = useRef(false)
+  const [aiConversations, setAiConversations] = useState([])
+  const [activeAiConversationId, setActiveAiConversationId] = useState(null)
   const [replyTarget, setReplyTarget] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
@@ -204,17 +205,6 @@ export default function Home() {
   }, [])
 
   useEffect(() => { if (tab === 'music') window.CaregiversLocalMusic?.refresh?.() }, [tab])
-  useEffect(() => {
-    if (!user?.id) return
-    aiHistoryLoadedRef.current = false
-    try { setAiMessages(JSON.parse(localStorage.getItem(`caregivers-ai-chat-${user.id}`) || '[]')) } catch { setAiMessages([]) }
-    const ready = window.setTimeout(() => { aiHistoryLoadedRef.current = true }, 0)
-    return () => window.clearTimeout(ready)
-  }, [user?.id])
-  useEffect(() => {
-    if (!user?.id || !aiHistoryLoadedRef.current) return
-    try { localStorage.setItem(`caregivers-ai-chat-${user.id}`, JSON.stringify(aiMessages.slice(-50))) } catch {}
-  }, [aiMessages, user?.id])
   useEffect(() => {
     setUnreadChatCount(conversations.reduce((sum, item) => sum + (item.unreadCount || 0), 0) + groups.reduce((sum, item) => sum + (item.unreadCount || 0), 0))
   }, [conversations, groups])
@@ -460,14 +450,14 @@ export default function Home() {
   const sendAiMessage = async e => {
     e?.preventDefault()
     const content = aiInput.trim()
-    if (!content || aiSending) return
-    const nextMessages = [...aiMessages, { role: 'user', content }]
-    setAiMessages(nextMessages)
+    if (!content || aiSending || !activeAiConversationId) return
     setAiInput('')
     setAiSending(true)
     try {
-      const response = await aiAPI.chat(nextMessages)
-      setAiMessages(items => [...items, response.data.message])
+      const response = await aiAPI.send(activeAiConversationId, content)
+      setAiMessages(items => [...items, ...response.data.messages])
+      const list = await aiAPI.list()
+      setAiConversations(list.data.conversations || [])
     } catch (error) {
       setAiMessages(items => [...items, { role: 'assistant', content: error.response?.data?.error || 'AI service မရနိုင်သေးပါ' }])
     } finally { setAiSending(false) }
@@ -576,6 +566,36 @@ export default function Home() {
     await loadNotifications()
     await userAPI.markNotificationsRead().catch(() => {})
     setUnreadNotificationCount(0)
+  }
+  const loadAiConversations = async (preferredId = null) => {
+    try {
+      const response = await aiAPI.list()
+      let items = response.data.conversations || []
+      if (!items.length) {
+        const created = await aiAPI.create()
+        items = [created.data.conversation]
+      }
+      setAiConversations(items)
+      const selectedId = preferredId || activeAiConversationId || items[0].id
+      setActiveAiConversationId(selectedId)
+      const selected = await aiAPI.get(selectedId)
+      setAiMessages(selected.data.conversation.messages || [])
+    } catch (error) { alert(error.response?.data?.error || 'AI chats ဖွင့်မရပါ') }
+  }
+  const createNewAiChat = async () => {
+    try {
+      const response = await aiAPI.create()
+      setAiConversations(items => [response.data.conversation, ...items])
+      setActiveAiConversationId(response.data.conversation.id)
+      setAiMessages([])
+    } catch (error) { alert(error.response?.data?.error || 'New chat ဖန်တီးမရပါ') }
+  }
+  const selectAiChat = async id => {
+    try { const response = await aiAPI.get(id); setActiveAiConversationId(id); setAiMessages(response.data.conversation.messages || []) } catch (error) { alert(error.response?.data?.error || 'AI chat ဖွင့်မရပါ') }
+  }
+  const deleteAiChat = async id => {
+    if (!window.confirm('ဒီ AI chat ကို ဖျက်မလား?')) return
+    try { await aiAPI.remove(id); const remaining = aiConversations.filter(item => item.id !== id); setAiConversations(remaining); if (id === activeAiConversationId) { if (remaining[0]) selectAiChat(remaining[0].id); else createNewAiChat() } } catch (error) { alert(error.response?.data?.error || 'AI chat ဖျက်မရပါ') }
   }
 
   const loadPosts = async (items) => {
@@ -1219,7 +1239,7 @@ export default function Home() {
           <Bell size={22} />
           {unreadNotificationCount > 0 && <span className="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span>}
         </button>
-        <button onClick={() => { setTab('ai-chat'); setActiveChat(null); setMessages([]) }} className={`p-3 rounded-xl ${tab === 'ai-chat' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="AI Chat">
+        <button onClick={() => { setTab('ai-chat'); setActiveChat(null); setMessages([]); loadAiConversations() }} className={`p-3 rounded-xl ${tab === 'ai-chat' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="AI Chat">
           <Bot size={22} />
         </button>
         <button onClick={() => { setTab('call-history'); setActiveChat(null); setMessages([]); loadCallHistory() }} className={`p-3 rounded-xl ${tab === 'call-history' ? 'bg-white/20 text-white' : 'text-white/70 hover:bg-white/10'}`} title="Call history">
@@ -1293,7 +1313,8 @@ export default function Home() {
             {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
           {tab === 'ai-chat' && <div className="flex h-full min-h-0 flex-col p-3">
-            <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI <button type="button" onClick={() => setAiMessages([])} className="ml-auto rounded-lg bg-white/15 px-2 py-1 text-xs hover:bg-white/25">Clear</button></div><p className="mt-1 text-xs text-white/80">မေးခွန်းများ၊ အကြံဉာဏ်များနဲ့ ဘာသာပြန်တာတွေကို မေးနိုင်ပါတယ်။ စကားပြောမှတ်တမ်းကို ဒီဖုန်းမှာ သိမ်းထားပါတယ်။</p></div>
+            <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI <button type="button" onClick={createNewAiChat} className="ml-auto rounded-lg bg-white/15 px-2 py-1 text-xs hover:bg-white/25">+ New chat</button></div><p className="mt-1 text-xs text-white/80">Account နဲ့သိမ်းထားတဲ့ chat ကို ပြန်ဖွင့်ပြီး ဆက်ပြောနိုင်ပါတယ်။</p></div>
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1">{aiConversations.map(conversation => <div key={conversation.id} className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1.5 text-xs ${activeAiConversationId === conversation.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200' : 'dark:border-gray-600 dark:text-gray-200'}`}><button type="button" onClick={() => selectAiChat(conversation.id)} className="max-w-32 truncate">{conversation.title}</button><button type="button" onClick={() => deleteAiChat(conversation.id)} className="text-gray-400 hover:text-red-500">×</button></div>)}</div>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-xl bg-gray-50 p-3 dark:bg-gray-700">{aiMessages.length === 0 && <p className="py-10 text-center text-sm text-gray-500">AI ကို မေးချင်တာရေးပါ…</p>}{aiMessages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${message.role === 'user' ? 'bg-sky-500 text-white' : 'bg-white text-gray-800 shadow-sm dark:bg-gray-800 dark:text-gray-100'}`}>{message.content}</div></div>)}{aiSending && <div className="text-xs text-gray-500">AI စဉ်းစားနေသည်…</div>}</div>
             <form onSubmit={sendAiMessage} className="mt-3 flex gap-2"><input value={aiInput} onChange={e => setAiInput(e.target.value)} placeholder="AI ကို မေးပါ…" className="min-w-0 flex-1 rounded-full border px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white" /><button disabled={aiSending || !aiInput.trim()} className="rounded-full bg-indigo-500 px-4 py-2 text-white disabled:opacity-50"><Send size={16} /></button></form>
           </div>}

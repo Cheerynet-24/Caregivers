@@ -69,7 +69,11 @@ export const reportsAPI = {
 }
 
 export const aiAPI = {
-  chat: (messages) => api.post('/api/ai/chat', { messages })
+  list: () => api.get('/api/ai/conversations'),
+  create: (title) => api.post('/api/ai/conversations', { title }),
+  get: (id) => api.get(`/api/ai/conversations/${id}`),
+  remove: (id) => api.delete(`/api/ai/conversations/${id}`),
+  send: (id, content) => api.post(`/api/ai/conversations/${id}/messages`, { content })
 }
 
 export const chatAPI = {
