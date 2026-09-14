@@ -22,9 +22,11 @@ async function callGemini(messages) {
   const contents = messages.map(message => ({ role: message.role === 'assistant' ? 'model' : 'user', parts: [{ text: message.content }] }));
   let lastError = null;
   for (const model of models) {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig: { maxOutputTokens: 700 } }) });
+    const generationConfig = { maxOutputTokens: 700 };
+    if (model.includes('2.5')) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig }) });
     const data = await response.json();
-    if (response.ok) return data?.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+    if (response.ok) return data?.candidates?.[0]?.content?.parts?.filter(part => !part.thought).map(part => part.text || '').join('').trim();
     lastError = { status: response.status, message: data?.error?.message || '' };
     console.error('Gemini provider error:', model, response.status, lastError.message);
     if ([401, 403, 429].includes(response.status)) break;
