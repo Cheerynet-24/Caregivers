@@ -22,6 +22,7 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
 
     @Override public void onMessageReceived(@NonNull RemoteMessage message) {
         String type = message.getData().getOrDefault("type", "message");
+        if (MainActivity.isAppVisible()) return;
         String callerName = message.getData().getOrDefault("callerName", "Someone");
         String title = value(message, "title", type.equals("call") ? callerName : "Caregivers");
         String body = value(message, "body", type.equals("call") ? "Incoming call" : "New message");
@@ -35,6 +36,25 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         return fallback;
     }
 
+    private int notificationId(String type, String fromUserId, java.util.Map<String, String> data) {
+        String key = type + ":" + data.getOrDefault("callId", fromUserId);
+        int id = key.hashCode() & 0x7fffffff;
+        return id == 0 ? 1 : id;
+    }
+
+    private PendingIntent callAction(String action, int notificationId, String fromUserId, java.util.Map<String, String> data) {
+        Intent intent = new Intent(this, CallNotificationActionReceiver.class)
+                .setAction(action)
+                .putExtra("notification_id", notificationId)
+                .putExtra("from_user_id", fromUserId)
+                .putExtra("call_id", data.getOrDefault("callId", ""))
+                .putExtra("caller_name", data.getOrDefault("callerName", "Someone"))
+                .putExtra("call_type", data.getOrDefault("callType", "audio"))
+                .putExtra("offer_b64", data.getOrDefault("offer", ""));
+        return PendingIntent.getBroadcast(this, notificationId ^ action.hashCode(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+    }
+
     private void showNotification(String type, String title, String body, String fromUserId, java.util.Map<String, String> data) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         String channelId = type.equals("call") ? CALL_CHANNEL_ID : CHANNEL_ID;
@@ -45,27 +65,33 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             manager.createNotificationChannel(channel);
         }
-        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+        int notificationId = notificationId(type, fromUserId, data);
+        Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (type.equals("call")) {
             open.putExtra("incoming_call", true);
             open.putExtra("from_user_id", fromUserId);
+            open.putExtra("call_id", data.getOrDefault("callId", ""));
             open.putExtra("caller_name", data.getOrDefault("callerName", title));
             open.putExtra("call_type", data.getOrDefault("callType", "audio"));
             open.putExtra("offer_b64", data.getOrDefault("offer", ""));
         }
-        PendingIntent content = PendingIntent.getActivity(this, (int) System.currentTimeMillis(), open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
-        int notificationId = (int) System.currentTimeMillis();
+        PendingIntent content = PendingIntent.getActivity(this, notificationId, open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(type.equals("call") ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)
                 .setColor(android.graphics.Color.rgb(14, 165, 233)).setDefaults(NotificationCompat.DEFAULT_ALL)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(!type.equals("call")).setContentIntent(content);
-        if (type.equals("call")) builder.setOngoing(true).setTimeoutAfter(60000).setFullScreenIntent(content, true);
-        if (!type.equals("call")) {
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(true).setContentIntent(content);
+        if (type.equals("call")) {
+            builder.setOngoing(false).setTimeoutAfter(60000).setFullScreenIntent(content, true)
+                    .setDeleteIntent(callAction(CallNotificationActionReceiver.ACTION_DISMISS, notificationId, fromUserId, data))
+                    .addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Accept", callAction(CallNotificationActionReceiver.ACTION_ACCEPT, notificationId, fromUserId, data)).build())
+                    .addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Decline", callAction(CallNotificationActionReceiver.ACTION_DECLINE, notificationId, fromUserId, data)).build());
+        } else {
             RemoteInput input = new RemoteInput.Builder(REPLY_KEY).setLabel("Reply").build();
             Intent reply = new Intent(this, NotificationReplyReceiver.class).putExtra("from_user_id", fromUserId).putExtra("notification_id", notificationId);
-            PendingIntent replyPending = PendingIntent.getBroadcast(this, (int) System.currentTimeMillis(), reply, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
+            PendingIntent replyPending = PendingIntent.getBroadcast(this, notificationId, reply, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0));
             builder.addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Reply", replyPending).addRemoteInput(input).setAllowGeneratedReplies(true).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build());
         }
         manager.notify(notificationId, builder.build());

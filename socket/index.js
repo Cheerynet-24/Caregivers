@@ -223,34 +223,36 @@ function setupSocket(io, prisma) {
     });
 
     // WebRTC signaling for 1-1 calls
-    socket.on('call:offer', (data, acknowledge) => {
-      prisma.callLog.create({ data: { callerId: userId, receiverId: data.toUserId, callType: data.callType || 'audio', status: 'ringing' } }).catch(err => console.error('call log error', err));
-      prisma.user.findUnique({ where: { id: data.toUserId }, select: { fcmToken: true } }).then(receiver => sendPush(receiver?.fcmToken, {
-        title: `Incoming ${data.callType || 'audio'} call`,
-        body: `${socket.user.displayName || socket.user.username} is calling you`,
-        type: 'call',
-        data: {
-          fromUserId: userId,
-          callerName: socket.user.displayName || socket.user.username,
-          callType: data.callType || 'audio',
-          offer: Buffer.from(JSON.stringify(data.offer || {}), 'utf8').toString('base64')
+    socket.on('call:offer', async (data, acknowledge) => {
+      try {
+        const receiverId = data?.toUserId;
+        const callType = data?.callType === 'video' ? 'video' : 'audio';
+        if (!receiverId || receiverId === userId || !data?.offer) return acknowledge?.({ ok: false });
+        const call = await prisma.callLog.create({ data: { callerId: userId, receiverId, callType, status: 'ringing' } });
+        const conversation = await prisma.conversation.findFirst({ where: { isGroup: false, OR: [{ user1Id: userId, user2Id: receiverId }, { user1Id: receiverId, user2Id: userId }] } });
+        if (conversation) {
+          const message = await prisma.message.create({ data: { conversationId: conversation.id, senderId: userId, receiverId, content: callType === 'video' ? '📹 Video call' : '📞 Voice call', type: 'call', mediaUrl: call.id, messageStatus: 'delivered' }, include: { sender: { select: { id: true, username: true, displayName: true, avatar: true } } } });
+          io.to(`user:${userId}`).to(`user:${receiverId}`).emit('message:new', message);
         }
-      })).catch(err => console.error('call push error', err));
-      io.to(`user:${data.toUserId}`).emit('call:offer', {
-        fromUserId: userId,
-        fromUsername: socket.user.username,
-        offer: data.offer,
-        callType: data.callType // 'audio' | 'video'
-      });
-      if (typeof acknowledge === 'function') acknowledge({ ok: true });
+        const receiver = await prisma.user.findUnique({ where: { id: receiverId }, select: { fcmToken: true } });
+        sendPush(receiver?.fcmToken, {
+          title: `Incoming ${callType} call`,
+          body: `${socket.user.displayName || socket.user.username} is calling you`,
+          type: 'call',
+          data: { callId: call.id, fromUserId: userId, callerName: socket.user.displayName || socket.user.username, callType, offer: Buffer.from(JSON.stringify(data.offer), 'utf8').toString('base64') }
+        }).catch(err => console.error('call push error', err));
+        io.to(`user:${receiverId}`).emit('call:offer', { callId: call.id, fromUserId: userId, fromUsername: socket.user.username, offer: data.offer, callType });
+        acknowledge?.({ ok: true, callId: call.id });
+      } catch (err) {
+        console.error('call offer error', err);
+        acknowledge?.({ ok: false });
+      }
     });
 
-    socket.on('call:answer', (data, acknowledge) => {
-      io.to(`user:${data.toUserId}`).emit('call:answer', {
-        fromUserId: userId,
-        answer: data.answer
-      });
-      if (typeof acknowledge === 'function') acknowledge({ ok: true });
+    socket.on('call:answer', async (data, acknowledge) => {
+      if (data?.callId) await prisma.callLog.updateMany({ where: { id: data.callId, receiverId: userId, status: 'ringing' }, data: { status: 'answered' } });
+      io.to(`user:${data.toUserId}`).emit('call:answer', { fromUserId: userId, answer: data.answer, callId: data.callId });
+      acknowledge?.({ ok: true });
     });
 
     socket.on('call:ice', (data) => {
@@ -260,8 +262,20 @@ function setupSocket(io, prisma) {
       });
     });
 
-    socket.on('call:end', (data) => {
-      io.to(`user:${data.toUserId}`).emit('call:end', { fromUserId: userId });
+    socket.on('call:end', async (data) => {
+      const call = data?.callId ? await prisma.callLog.findFirst({ where: { id: data.callId, OR: [{ callerId: userId }, { receiverId: userId }] } }) : null;
+      const outcome = call?.status === 'ringing' ? (data?.outcome === 'declined' ? 'declined' : 'missed') : (data?.outcome || 'completed');
+      if (call) {
+        const status = outcome === 'declined' ? 'declined' : outcome === 'missed' ? 'missed' : 'completed';
+        await prisma.callLog.update({ where: { id: call.id }, data: { status, endedAt: new Date() } });
+        const message = await prisma.message.findFirst({ where: { type: 'call', mediaUrl: call.id } });
+        if (message) {
+          const messageType = status === 'missed' ? 'missed_call' : status === 'declined' ? 'declined_call' : 'call_ended';
+          const updated = await prisma.message.update({ where: { id: message.id }, data: { type: messageType, content: status === 'missed' ? `❌ Missed ${call.callType} call` : status === 'declined' ? `📵 Declined ${call.callType} call` : `📞 ${call.callType} call ended` } });
+          io.to(`user:${call.callerId}`).to(`user:${call.receiverId}`).emit('message:update', updated);
+        }
+      }
+      io.to(`user:${data.toUserId}`).emit('call:end', { fromUserId: userId, callId: data.callId });
     });
 
     // Group call signaling (basic - room based)

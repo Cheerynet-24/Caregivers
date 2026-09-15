@@ -35,6 +35,7 @@ import android.widget.Toast;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
+    private static volatile boolean appVisible;
     private static final int FILE_PICKER = 1001;
     private static final int RUNTIME_PERMISSIONS = 1002;
     private static final int NOTIFICATION_PERMISSION = 1003;
@@ -52,6 +53,8 @@ public class MainActivity extends Activity {
     private String pendingCallUsername;
     private String pendingCallType;
     private String pendingCallOffer;
+    private String pendingCallAction;
+    private String pendingCallId;
     private MediaSession musicSession;
     private NotificationManager musicNotificationManager;
     private String musicTitle = "Caregivers Music";
@@ -68,6 +71,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         readReplyIntent(getIntent());
         readIncomingCallIntent(getIntent());
+        readIncomingCallAction(getIntent());
         webView = new WebView(this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         setupMusicSession();
@@ -101,6 +105,7 @@ public class MainActivity extends Activity {
                 });
                 deliverPendingReply();
                 deliverIncomingCall();
+                deliverIncomingCallAction();
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
@@ -169,6 +174,18 @@ public class MainActivity extends Activity {
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
         }
+    }
+
+    public static boolean isAppVisible() { return appVisible; }
+
+    @Override protected void onResume() {
+        super.onResume();
+        appVisible = true;
+    }
+
+    @Override protected void onPause() {
+        appVisible = false;
+        super.onPause();
     }
 
     private void setupMusicSession() {
@@ -282,6 +299,17 @@ public class MainActivity extends Activity {
         pendingCallUsername = intent.getStringExtra("caller_name");
         pendingCallType = intent.getStringExtra("call_type");
         pendingCallOffer = intent.getStringExtra("offer_b64");
+        pendingCallId = intent.getStringExtra("call_id");
+        pendingCallAction = null;
+    }
+
+    private void readIncomingCallAction(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getStringExtra("incoming_call_action");
+        if (action == null || action.isEmpty()) return;
+        pendingCallFromUserId = intent.getStringExtra("from_user_id");
+        pendingCallId = intent.getStringExtra("call_id");
+        pendingCallAction = action;
     }
 
     private void deliverIncomingCall() {
@@ -289,9 +317,22 @@ public class MainActivity extends Activity {
         String from = encodeJs(pendingCallFromUserId);
         String name = encodeJs(pendingCallUsername == null ? "Someone" : pendingCallUsername);
         String type = encodeJs(pendingCallType == null ? "audio" : pendingCallType);
-        String script = "(()=>{const d=s=>atob('" + from + "');const u=d('" + from + "');const n=atob('" + name + "');const t=atob('" + type + "');let tries=0;const send=()=>{if(window.CaregiversIncomingCall)window.CaregiversIncomingCall(u,n,t," + quoteForJs(pendingCallOffer) + ");else if(++tries<30)setTimeout(send,500)};send()})()";
+        String callId = encodeJs(pendingCallId == null ? "" : pendingCallId);
+        String script = "(()=>{const d=s=>atob('" + from + "');const u=d('" + from + "');const n=atob('" + name + "');const t=atob('" + type + "');const c=atob('" + callId + "');let tries=0;const send=()=>{if(window.CaregiversIncomingCall)window.CaregiversIncomingCall(u,n,t," + quoteForJs(pendingCallOffer) + ",c);else if(++tries<30)setTimeout(send,500)};send()})()";
         webView.evaluateJavascript(script, null);
-        pendingCallFromUserId = null; pendingCallUsername = null; pendingCallType = null; pendingCallOffer = null;
+        pendingCallFromUserId = null; pendingCallUsername = null; pendingCallType = null; pendingCallOffer = null; pendingCallId = null;
+    }
+
+    private void deliverIncomingCallAction() {
+        if (webView == null || pendingCallAction == null || pendingCallFromUserId == null) return;
+        String action = encodeJs(pendingCallAction);
+        String from = encodeJs(pendingCallFromUserId);
+        String callId = encodeJs(pendingCallId == null ? "" : pendingCallId);
+        String script = "(()=>{const d=s=>atob(s);let n=0;const send=()=>{if(window.CaregiversIncomingCallAction)window.CaregiversIncomingCallAction(d('" + action + "'),d('" + from + "'),d('" + callId + "'));else if(++n<30)setTimeout(send,500)};send()})()";
+        webView.evaluateJavascript(script, null);
+        pendingCallAction = null;
+        pendingCallFromUserId = null;
+        pendingCallId = null;
     }
 
     private String encodeJs(String value) {
@@ -308,8 +349,10 @@ public class MainActivity extends Activity {
         handleMusicIntent(intent);
         readReplyIntent(intent);
         readIncomingCallIntent(intent);
+        readIncomingCallAction(intent);
         deliverPendingReply();
         deliverIncomingCall();
+        deliverIncomingCallAction();
     }
 
     private class AudioRouteBridge {

@@ -168,6 +168,7 @@ export default function Home() {
   const effectAnimationRef = useRef(null)
   const videoEffectRef = useRef('none')
   const pendingIceRef = useRef([])
+  const outgoingCallIdRef = useRef(null)
   const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
@@ -267,11 +268,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!socket) return
-    const onOffer = ({ fromUserId, fromUsername, offer, callType }) => {
+    const onOffer = ({ fromUserId, fromUsername, offer, callType, callId }) => {
       if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
-      setIncomingCall({ fromUserId, fromUsername, offer, callType })
+      setIncomingCall({ fromUserId, fromUsername, offer, callType, callId })
       window.CaregiversAudio?.notify(`Incoming ${callType} call`, `${fromUsername} is calling you`, 'call', fromUserId)
-      if ('Notification' in window && Notification.permission === 'granted') new Notification(`Incoming ${callType} call`, { body: `${fromUsername} is calling you`, tag: 'incoming-call' })
+      if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') new Notification(`Incoming ${callType} call`, { body: `${fromUsername} is calling you`, tag: 'incoming-call' })
     }
     const onAnswer = async ({ answer }) => {
       if (peerRef.current) {
@@ -327,11 +328,11 @@ export default function Home() {
   }, [socket])
 
   useEffect(() => {
-    window.CaregiversIncomingCall = (fromUserId, fromUsername, callType, offerJson) => {
+    window.CaregiversIncomingCall = (fromUserId, fromUsername, callType, offerJson, callId) => {
       if (!fromUserId || !offerJson) return false
       try {
         const offer = JSON.parse(atob(offerJson))
-        setIncomingCall({ fromUserId, fromUsername: fromUsername || 'Someone', offer, callType: callType || 'audio' })
+        setIncomingCall({ fromUserId, fromUsername: fromUsername || 'Someone', offer, callType: callType || 'audio', callId: callId || null })
         if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
         return true
       } catch (error) {
@@ -343,14 +344,36 @@ export default function Home() {
   }, [chatSettings])
 
   useEffect(() => {
-    if (!socket?.connected) return
-    const raw = localStorage.getItem('caregivers-pending-reply')
-    if (!raw) return
-    localStorage.removeItem('caregivers-pending-reply')
-    try {
-      const pending = JSON.parse(raw)
-      window.CaregiversNotificationReply?.(pending.fromUserId, pending.text)
-    } catch {}
+    window.CaregiversIncomingCallAction = (action, fromUserId, callId) => {
+      if (!fromUserId) return
+      if (action === 'accept') return
+      if (action === 'decline' || action === 'missed') {
+        stopNotificationSound()
+        const payload = { toUserId: fromUserId, callId, outcome: action === 'missed' ? 'missed' : 'declined' }
+        if (socket?.connected) socket.emit('call:end', payload)
+        else localStorage.setItem('caregivers-pending-call-action', JSON.stringify(payload))
+        setIncomingCall(null)
+      }
+    }
+    return () => { delete window.CaregiversIncomingCallAction }
+  }, [socket])
+
+  useEffect(() => {
+    if (!socket) return
+    const flushPendingActions = () => {
+      const raw = localStorage.getItem('caregivers-pending-reply')
+      if (raw) {
+        localStorage.removeItem('caregivers-pending-reply')
+        try { const pending = JSON.parse(raw); window.CaregiversNotificationReply?.(pending.fromUserId, pending.text) } catch {}
+      }
+      const pendingCall = localStorage.getItem('caregivers-pending-call-action')
+      if (pendingCall) {
+        try { socket.emit('call:end', JSON.parse(pendingCall)); localStorage.removeItem('caregivers-pending-call-action') } catch {}
+      }
+    }
+    socket.on('connect', flushPendingActions)
+    if (socket.connected) flushPendingActions()
+    return () => socket.off('connect', flushPendingActions)
   }, [socket])
 
   useEffect(() => {
@@ -368,6 +391,10 @@ export default function Home() {
       remoteAudioRef.current.play?.().catch(() => {})
     }
   }, [call])
+
+  useEffect(() => {
+    if (call) window.CaregiversAudio?.setRoute(audioRoute)
+  }, [call, audioRoute])
 
   useEffect(() => {
     if (activeChat?.id) {
@@ -865,8 +892,21 @@ export default function Home() {
     videoEffectPipelineRef.current = effectStream
     const drawFrame = () => {
       if (!effectSourceVideoRef.current || effectSourceVideoRef.current !== sourceVideo) return
-      context.filter = getVideoEffect(videoEffectRef.current).filter
+      const effect = getVideoEffect(videoEffectRef.current)
+      context.clearRect(0, 0, canvas.width, canvas.height)
+      context.filter = effect.filter
       context.drawImage(sourceVideo, 0, 0, canvas.width, canvas.height)
+      context.filter = 'none'
+      if (effect.overlay) {
+        context.font = `${Math.max(24, Math.round(canvas.width / 10))}px sans-serif`
+        context.textAlign = 'center'
+        context.textBaseline = 'middle'
+        for (let index = 0; index < 10; index += 1) {
+          const x = ((index * 37 + 13) % 100) / 100 * canvas.width
+          const y = ((index * 61 + 19) % 100) / 100 * canvas.height
+          context.fillText(effect.overlay, x, y)
+        }
+      }
       effectAnimationRef.current = requestAnimationFrame(drawFrame)
     }
     drawFrame()
@@ -960,7 +1000,7 @@ export default function Home() {
       const stream = event.streams?.[0] || remoteStreamRef.current || new MediaStream()
       if (!event.streams?.[0] && event.track && !stream.getTracks().some(track => track.id === event.track.id)) stream.addTrack(event.track)
       remoteStreamRef.current = stream
-      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.muted = false; remoteVideoRef.current.play?.().catch(() => {}) }
+      if (remoteVideoRef.current) { remoteVideoRef.current.srcObject = stream; remoteVideoRef.current.muted = callType === 'audio'; remoteVideoRef.current.play?.().catch(() => {}) }
       if (remoteAudioRef.current) { remoteAudioRef.current.srcObject = stream; remoteAudioRef.current.muted = false; remoteAudioRef.current.volume = 1; remoteAudioRef.current.play?.().catch(() => {}) }
       setCallStatus('Connected')
     }
@@ -988,7 +1028,10 @@ export default function Home() {
       const offer = await peer.createOffer()
       await peer.setLocalDescription(offer)
       let delivered = false
-      socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType }, () => { delivered = true })
+      socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType }, response => {
+        delivered = true
+        if (response?.callId) outgoingCallIdRef.current = response.callId
+      })
       setTimeout(() => { if (!delivered && peerRef.current === peer) setCallStatus('Signaling failed') }, 5000)
     } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
@@ -1007,6 +1050,7 @@ export default function Home() {
       setVideoEffect('none')
       localStreamRef.current = stream
       setCallStatus('Connecting')
+      outgoingCallIdRef.current = incomingCall.callId || null
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
       const peer = createPeer(incomingCall.fromUserId, incomingCall.callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
@@ -1015,7 +1059,7 @@ export default function Home() {
       for (const candidate of queued) { try { await peer.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
       const answer = await peer.createAnswer()
       await peer.setLocalDescription(answer)
-      socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer }, () => {})
+      socket.emit('call:answer', { toUserId: incomingCall.fromUserId, answer, callId: incomingCall.callId }, () => {})
       setIncomingCall(null)
     } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
@@ -1024,7 +1068,7 @@ export default function Home() {
 
   const endCall = (notify = true) => {
     stopNotificationSound()
-    if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId })
+    if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId, callId: outgoingCallIdRef.current, outcome: 'completed' })
     stopVideoEffectPipeline()
     peerRef.current?.close()
     rawStreamRef.current?.getTracks().forEach(track => track.stop())
@@ -1032,6 +1076,7 @@ export default function Home() {
     localStreamRef.current = null
     rawStreamRef.current = null
     setCall(null)
+    outgoingCallIdRef.current = null
     setCallStatus('')
     setIncomingCall(null)
     setMutedCall(false)
@@ -1067,6 +1112,8 @@ export default function Home() {
       const rawStream = rawStreamRef.current || localStreamRef.current
       rawStream?.getVideoTracks().forEach(track => track.stop())
       rawStream?.addTrack(nextTrack)
+      const sender = peerRef.current?.getSenders?.().find(item => item.track?.kind === 'video')
+      if (sender && !videoEffectPipelineRef.current) await sender.replaceTrack(nextTrack)
       await applyVideoEffect(videoEffectRef.current)
       setCameraFacing(nextFacing)
     } catch { alert('ဒီဖုန်းမှာ Camera ပြောင်းလို့မရပါ') }
@@ -1513,6 +1560,7 @@ export default function Home() {
                       <p className="text-xs font-semibold text-sky-600 dark:text-sky-400 mb-0.5">{m.sender?.displayName || m.sender?.username}</p>
                     )}
                     {m.type === 'deleted' ? <p className="italic opacity-70">This message was deleted</p>
+                      : ['call', 'missed_call', 'declined_call', 'call_ended'].includes(m.type) ? <div className="flex items-center gap-2 font-medium"><Phone size={18} className={m.type === 'missed_call' ? 'text-red-400' : 'text-sky-200'} /><span>{m.content || (m.type === 'missed_call' ? '❌ Missed call' : 'Call')}</span></div>
                       : m.type === 'profile' ? <ProfileMessageCard profile={getProfileMessageData(m)} onOpen={() => { const profile = getProfileMessageData(m); if (profile) showUserProfile(profile) }} />
                       : m.type === 'image' && m.fileUrl ? <><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
                       : m.type === 'video' && m.fileUrl ? <><video src={resolveMediaUrl(m.fileUrl)} controls className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
@@ -1610,7 +1658,7 @@ export default function Home() {
             <p className="text-lg font-semibold dark:text-white mb-2">Incoming {incomingCall.callType} call</p>
             <p className="text-gray-500 mb-5">{incomingCall.fromUsername} is calling you</p>
             <div className="flex gap-3">
-              <button onClick={() => { stopNotificationSound(); socket.emit('call:end', { toUserId: incomingCall.fromUserId }); setIncomingCall(null) }} className="flex-1 py-3 rounded-xl bg-red-500 text-white">Decline</button>
+              <button onClick={() => { stopNotificationSound(); socket.emit('call:end', { toUserId: incomingCall.fromUserId, callId: incomingCall.callId, outcome: 'declined' }); setIncomingCall(null) }} className="flex-1 py-3 rounded-xl bg-red-500 text-white">Decline</button>
               <button onClick={acceptCall} className="flex-1 py-3 rounded-xl bg-green-500 text-white">Accept</button>
             </div>
           </div>
@@ -1620,14 +1668,13 @@ export default function Home() {
       {call && (
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
           <div className="flex-1 relative flex items-center justify-center">
-            <video ref={remoteVideoRef} autoPlay playsInline className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
+            <video ref={remoteVideoRef} autoPlay muted={call.callType === 'audio'} playsInline className={`absolute inset-0 w-full h-full object-cover bg-black ${call.callType === 'audio' ? 'hidden' : ''}`} />
             <audio ref={remoteAudioRef} autoPlay className={call.callType === 'audio' ? 'block' : 'hidden'} />
             <video
               ref={localVideoRef}
               autoPlay muted playsInline
               style={{ filter: videoEffectPipelineRef.current ? 'none' : getVideoEffect(videoEffect).filter }} className={`absolute right-4 top-4 w-28 h-40 sm:w-40 sm:h-56 object-cover rounded-xl border-2 border-white ${call.callType === 'audio' || cameraOff ? 'hidden' : ''}`}
             />
-            {call.callType === 'video' && <VideoEffectOverlay effect={getVideoEffect(videoEffect)} />}
             <div className="absolute top-4 left-4 rounded-lg bg-black/60 px-3 py-2 text-white text-sm">{callStatus || 'Calling'}</div>
             {call.callType === 'audio' && <p className="text-white text-xl">Voice call in progress</p>}
           </div>
