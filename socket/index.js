@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { sendPush } = require('../utils/firebase');
+const groupCallHosts = new Map();
 
 function setupSocket(io, prisma) {
   // Auth middleware for socket
@@ -284,6 +285,7 @@ function setupSocket(io, prisma) {
       const membership = groupId ? await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } } }) : null;
       if (!membership) return acknowledge?.({ ok: false, error: 'You are not a group member' });
       const room = `call:${groupId}`;
+      if (!groupCallHosts.has(groupId)) groupCallHosts.set(groupId, userId);
       const existing = (await io.in(room).fetchSockets()).filter(item => item.id !== socket.id).map(item => ({ userId: item.user.id, username: item.user.username }));
       socket.join(room);
       const members = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } });
@@ -303,9 +305,19 @@ function setupSocket(io, prisma) {
       io.to(`user:${toUserId}`).emit('group-call:signal', { groupId, fromUserId: userId, signal: data.signal });
     });
 
+    socket.on('group-call:mute', async (data) => {
+      const groupId = String(data?.groupId || '');
+      const toUserId = String(data?.toUserId || '');
+      const membership = groupId ? await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } } }) : null;
+      const targetMembership = groupId && toUserId ? await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId, userId: toUserId } } }) : null;
+      if (!membership || !targetMembership || !toUserId || toUserId === userId || groupCallHosts.get(groupId) !== userId) return;
+      io.to(`user:${toUserId}`).emit('group-call:remote-mute', { groupId, fromUserId: userId, muted: data.muted !== false });
+    });
+
     socket.on('group-call:leave', (data) => {
       const groupId = String(data?.groupId || '');
       socket.leave(`call:${groupId}`);
+      if (groupCallHosts.get(groupId) === userId) groupCallHosts.delete(groupId);
       socket.to(`call:${groupId}`).emit('group-call:user-left', { groupId, userId });
     });
 

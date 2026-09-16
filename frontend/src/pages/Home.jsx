@@ -356,11 +356,17 @@ export default function Home() {
       groupPeersRef.current.get(userId)?.close(); groupPeersRef.current.delete(userId)
       setGroupParticipants(previous => previous.filter(item => item.userId !== userId))
     }
+    const onRemoteMute = ({ groupId, muted }) => {
+      if (groupCall?.groupId !== groupId || typeof muted !== 'boolean') return
+      groupLocalStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !muted })
+      setGroupMuted(muted)
+    }
     socket.on('group-call:user-joined', onJoined)
     socket.on('group-call:signal', onSignal)
     socket.on('group-call:user-left', onLeft)
     socket.on('group-call:invite', onInvite)
-    return () => { socket.off('group-call:user-joined', onJoined); socket.off('group-call:signal', onSignal); socket.off('group-call:user-left', onLeft); socket.off('group-call:invite', onInvite) }
+    socket.on('group-call:remote-mute', onRemoteMute)
+    return () => { socket.off('group-call:user-joined', onJoined); socket.off('group-call:signal', onSignal); socket.off('group-call:user-left', onLeft); socket.off('group-call:invite', onInvite); socket.off('group-call:remote-mute', onRemoteMute) }
   }, [socket, groupCall, user?.id])
 
   useEffect(() => {
@@ -1167,7 +1173,11 @@ export default function Home() {
     setGroupParticipantMutes({})
     setGroupCall(null)
   }
-  const toggleGroupParticipantMute = userId => setGroupParticipantMutes(previous => ({ ...previous, [userId]: !previous[userId] }))
+  const toggleGroupParticipantMute = userId => setGroupParticipantMutes(previous => {
+    const muted = !previous[userId]
+    if (groupCall?.isCaller && groupCall.groupId && socket) socket.emit('group-call:mute', { groupId: groupCall.groupId, toUserId: userId, muted })
+    return { ...previous, [userId]: muted }
+  })
   const toggleGroupMute = () => { const next = !groupMuted; groupLocalStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !next }); setGroupMuted(next) }
   const toggleGroupCamera = () => { const next = !groupCameraOff; groupLocalStreamRef.current?.getVideoTracks().forEach(track => { track.enabled = !next }); setGroupCameraOff(next) }
   const startGroupCall = async callType => {
