@@ -26,8 +26,7 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
       data: Object.fromEntries(Object.entries({ type, title, body, ...data }).map(([key, value]) => [key, String(value ?? '')])),
       android: {
         priority: 'high',
-        ttl: 3600 * 1000,
-        ...(type !== 'call' ? { notification: { channelId: 'caregivers_calls_messages_v3', title, body } } : {})
+        ttl: 3600 * 1000
       }
     });
     return true;

@@ -104,6 +104,9 @@ export default function Home() {
   const [chatBackground, setChatBackground] = useState('')
   const [chatBackgroundImage, setChatBackgroundImage] = useState('')
   const [showStickers, setShowStickers] = useState(false)
+  const [myStickers, setMyStickers] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]') } catch { return [] }
+  })
   const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
   const [reportTarget, setReportTarget] = useState(null)
@@ -156,6 +159,7 @@ export default function Home() {
   const messagesEndRef = useRef(null)
   const fileRef = useRef(null)
   const chatFileRef = useRef(null)
+  const stickerFileRef = useRef(null)
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
@@ -791,12 +795,32 @@ export default function Home() {
     finally { setAddingMembers(false) }
   }
 
-  const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null) => {
+  const saveMySticker = sticker => {
+    if (!sticker?.content && !sticker?.fileUrl) return
+    const normalized = { content: sticker.content || '', fileUrl: sticker.fileUrl || '', type: 'sticker' }
+    setMyStickers(previous => {
+      const next = [normalized, ...previous.filter(item => item.content !== normalized.content || item.fileUrl !== normalized.fileUrl)].slice(0, 80)
+      localStorage.setItem('caregivers-my-stickers', JSON.stringify(next))
+      return next
+    })
+  }
+  const stickerFromMessage = message => {
+    if (message?.type !== 'sticker') return
+    saveMySticker({ content: message.content, fileUrl: message.fileUrl })
+    setMessageMenu(null)
+  }
+  const sendSavedSticker = sticker => sendMessage(sticker.content || 'Sticker', 'sticker', null, sticker.fileUrl || null)
+  const createStickerFromImage = event => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (file) sendMessage(null, 'sticker', file)
+  }
+  const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null, overrideFileUrl = null) => {
     if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
     if (replyTarget && !overrideContent) content = `↪ ${replyTarget.sender?.displayName || replyTarget.sender?.username || 'Message'}: ${replyTarget.content || ''}\n${content}`
     let type = overrideType
-    let fileUrl
+    let fileUrl = overrideFileUrl
     const selectedFile = overrideFile || voiceFile || chatFileRef.current?.files?.[0]
     if (selectedFile) {
       const formData = new FormData()
@@ -804,7 +828,7 @@ export default function Home() {
       try {
         const uploaded = await chatAPI.upload(formData)
         fileUrl = uploaded.data.fileUrl
-        type = uploaded.data.type
+        type = overrideType === 'sticker' ? 'sticker' : uploaded.data.type
         content = uploaded.data.name
       } catch (err) {
         alert(err.response?.data?.error || 'File upload failed')
@@ -1585,6 +1609,7 @@ export default function Home() {
                     {m.type === 'deleted' ? <p className="italic opacity-70">This message was deleted</p>
                       : ['call', 'missed_call', 'declined_call', 'call_ended'].includes(m.type) ? <div className="flex items-center gap-2 font-medium"><Phone size={18} className={m.type === 'missed_call' ? 'text-red-400' : 'text-sky-200'} /><span>{m.content || (m.type === 'missed_call' ? '❌ Missed call' : 'Call')}</span></div>
                       : m.type === 'profile' ? <ProfileMessageCard profile={getProfileMessageData(m)} onOpen={() => { const profile = getProfileMessageData(m); if (profile) showUserProfile(profile) }} />
+                      : m.type === 'sticker' && m.fileUrl ? <img src={resolveMediaUrl(m.fileUrl)} alt="Sticker" className="max-w-[180px] max-h-[180px] rounded-xl object-contain" />
                       : m.type === 'image' && m.fileUrl ? <><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
                       : m.type === 'video' && m.fileUrl ? <><video src={resolveMediaUrl(m.fileUrl)} controls className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
                       : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
@@ -1596,7 +1621,7 @@ export default function Home() {
                     </p>
                   </div>
                   {messageMenu === m.id && <div className={`absolute z-20 top-8 ${m.senderId === user.id ? 'right-0' : 'left-0'} bg-white dark:bg-gray-800 border rounded-xl shadow-lg p-1 min-w-32 text-xs dark:text-white`}>
-                    {['share', 'forward', 'copy', 'report', ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action}</button>)}
+                    {['share', 'forward', 'copy', 'report', ...(m.type === 'sticker' ? ['add sticker'] : []), ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => action === 'add sticker' ? stickerFromMessage(m) : handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action === 'add sticker' ? 'Add My Sticker List' : action}</button>)}
                   </div>}
                   </div>
                 </div>
@@ -1607,12 +1632,15 @@ export default function Home() {
             <div className="shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative">
               {replyTarget && <div className="absolute -top-12 left-2 right-2 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
+              <input ref={stickerFileRef} type="file" accept="image/*" className="hidden" onChange={createStickerFromImage} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
               <button type="button" onPointerDown={startVoiceRecording} onPointerUp={stopVoiceRecording} onPointerCancel={stopVoiceRecording} onPointerLeave={stopVoiceRecording} className={`p-2 select-none touch-none ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title="ဖိထားပြီး voice ပို့ရန်"><Mic size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
               <button onClick={() => setShowStickers(v => !v)} className="p-2 text-gray-500 text-lg" title="Sticker">☺</button>
-              {showStickers && <div className="absolute bottom-14 left-2 bg-white dark:bg-gray-800 border rounded-xl shadow p-2 grid grid-cols-5 gap-2">
-                {['😀','😂','😍','🥰','😎','😢','😡','👍','❤️','🎉','🙏','🔥','👏','🤝','✨'].map(sticker => <button key={sticker} onClick={() => sendMessage(sticker, 'sticker')} className="text-2xl hover:bg-gray-100 rounded p-1">{sticker}</button>)}
+              {showStickers && <div className="absolute bottom-14 left-2 right-2 max-h-64 overflow-y-auto rounded-2xl border bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold text-gray-500 dark:text-gray-300">My Stickers</p><button type="button" onClick={() => stickerFileRef.current?.click()} className="rounded-lg bg-sky-500 px-2 py-1 text-xs text-white">Create from photo</button></div>
+                <div className="mb-3 grid grid-cols-6 gap-2">{myStickers.map((sticker, index) => <button type="button" key={`${sticker.fileUrl}-${sticker.content}-${index}`} onClick={() => sendSavedSticker(sticker)} className="flex h-12 items-center justify-center rounded-lg bg-gray-100 p-1 hover:bg-sky-100 dark:bg-gray-700">{sticker.fileUrl ? <img src={resolveMediaUrl(sticker.fileUrl)} alt="" className="h-full w-full object-contain" /> : <span className="text-2xl">{sticker.content}</span>}</button>)}</div>
+                <p className="mb-2 text-xs font-semibold text-gray-500 dark:text-gray-300">Quick stickers</p><div className="grid grid-cols-6 gap-2">{['😀','😂','😍','🥰','😎','😢','😡','👍','❤️','🎉','🙏','🔥','👏','🤝','✨'].map(sticker => <button type="button" key={sticker} onClick={() => { saveMySticker({ content: sticker }); sendMessage(sticker, 'sticker') }} className="rounded-lg p-1 text-2xl hover:bg-gray-100 dark:hover:bg-gray-700">{sticker}</button>)}</div>
               </div>}
               <textarea
                 rows="1"
