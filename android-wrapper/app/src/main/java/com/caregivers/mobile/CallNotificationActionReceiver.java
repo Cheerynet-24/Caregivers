@@ -32,7 +32,8 @@ public class CallNotificationActionReceiver extends BroadcastReceiver {
             } else {
                 open.putExtra("incoming_call", true).putExtra("caller_name", intent.getStringExtra("caller_name"))
                         .putExtra("call_type", intent.getStringExtra("call_type"))
-                        .putExtra("offer_b64", intent.getStringExtra("offer_b64"));
+                        .putExtra("offer_b64", intent.getStringExtra("offer_b64"))
+                        .putExtra("incoming_call_action", "accept");
             }
         } else if (ACTION_DECLINE.equals(action)) {
             open.putExtra("incoming_call_action", "decline");

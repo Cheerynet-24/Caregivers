@@ -104,6 +104,7 @@ export default function Home() {
   const [groupCameraOff, setGroupCameraOff] = useState(false)
   const [callStatus, setCallStatus] = useState('')
   const [incomingCall, setIncomingCall] = useState(null)
+  const [autoAcceptCall, setAutoAcceptCall] = useState(false)
   const [incomingGroupCall, setIncomingGroupCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
   const [cameraOff, setCameraOff] = useState(false)
@@ -425,7 +426,7 @@ export default function Home() {
   useEffect(() => {
     window.CaregiversIncomingCallAction = (action, fromUserId, callId) => {
       if (!fromUserId) return
-      if (action === 'accept') return
+      if (action === 'accept') { setAutoAcceptCall(true); return }
       if (action === 'decline' || action === 'missed') {
         stopNotificationSound()
         const payload = { toUserId: fromUserId, callId, outcome: action === 'missed' ? 'missed' : 'declined' }
@@ -436,6 +437,11 @@ export default function Home() {
     }
     return () => { delete window.CaregiversIncomingCallAction }
   }, [socket])
+  useEffect(() => {
+    if (!autoAcceptCall || !incomingCall) return
+    setAutoAcceptCall(false)
+    acceptCall()
+  }, [autoAcceptCall, incomingCall])
 
   useEffect(() => {
     if (!socket) return
@@ -650,7 +656,14 @@ export default function Home() {
   const loadConversations = async () => {
     try {
       const res = await chatAPI.getConversations()
-      const items = res.data.conversations || []
+      const items = (res.data.conversations || []).slice().sort((a, b) => {
+        const aHasMessage = Boolean(a.lastMessage)
+        const bHasMessage = Boolean(b.lastMessage)
+        if (aHasMessage !== bHasMessage) return bHasMessage ? 1 : -1
+        const aTime = new Date(a.lastMessage?.createdAt || a.updatedAt || a.createdAt || 0).getTime()
+        const bTime = new Date(b.lastMessage?.createdAt || b.updatedAt || b.createdAt || 0).getTime()
+        return bTime - aTime
+      })
       setConversations(items)
       setUnreadChatCount(items.reduce((sum, item) => sum + (item.unreadCount || 0), 0) + groups.reduce((sum, item) => sum + (item.unreadCount || 0), 0))
     } catch {}

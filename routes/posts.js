@@ -8,7 +8,7 @@ const { persistUpload } = require('../utils/uploads');
 const prisma = new PrismaClient();
 const upload = multer({
   storage: multer.memoryStorage(),
-  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/'))
+  fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/') || file.mimetype.startsWith('application/') || file.mimetype.startsWith('text/'))
 });
 
 const authorSelect = { id: true, username: true, displayName: true, avatar: true };
@@ -32,6 +32,7 @@ const shapeComment = (comment, userId) => ({
 });
 const shapePost = (post, userId) => ({
   ...post,
+  mediaItems: post.mediaUrls ? (() => { try { return JSON.parse(post.mediaUrls) } catch { return [] } })() : (post.mediaUrl ? [{ url: post.mediaUrl, type: post.mediaType || '' }] : []),
   likeCount: post.likes.length,
   liked: post.likes.some(like => like.userId === userId),
   saved: post.saves.some(save => save.userId === userId),
@@ -54,12 +55,14 @@ router.get('/saved', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to load saved posts' }); }
 });
 
-router.post('/', auth, upload.single('media'), async (req, res) => {
+router.post('/', auth, upload.array('media', 10), async (req, res) => {
   try {
     const caption = String(req.body.caption || '').trim();
-    if (!caption && !req.file) return res.status(400).json({ error: 'Caption or media is required' });
-    const mediaUrl = req.file ? await persistUpload(req.file, 'posts') : null;
-    const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, mediaUrl, mediaType: req.file?.mimetype || null }, include: postInclude });
+    const files = req.files || [];
+    if (!caption && !files.length) return res.status(400).json({ error: 'Caption or media is required' });
+    const mediaItems = await Promise.all(files.map(async file => ({ url: await persistUpload(file, 'posts'), type: file.mimetype || '', name: file.originalname || '' })));
+    const first = mediaItems[0] || null;
+    const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, mediaUrl: first?.url || null, mediaType: first?.type || null, mediaUrls: mediaItems.length ? JSON.stringify(mediaItems) : null }, include: postInclude });
     res.status(201).json({ post: shapePost(post, req.user.id) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create post' }); }
 });

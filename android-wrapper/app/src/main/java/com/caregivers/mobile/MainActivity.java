@@ -358,7 +358,8 @@ public class MainActivity extends Activity {
         String callId = encodeJs(pendingCallId == null ? "" : pendingCallId);
         String script = "(()=>{const d=s=>atob('" + from + "');const u=d('" + from + "');const n=atob('" + name + "');const t=atob('" + type + "');const c=atob('" + callId + "');let tries=0;const send=()=>{if(window.CaregiversIncomingCall)window.CaregiversIncomingCall(u,n,t," + quoteForJs(pendingCallOffer) + ",c);else if(++tries<30)setTimeout(send,500)};send()})()";
         webView.evaluateJavascript(script, null);
-        pendingCallFromUserId = null; pendingCallUsername = null; pendingCallType = null; pendingCallOffer = null; pendingCallId = null;
+        pendingCallUsername = null; pendingCallType = null; pendingCallOffer = null;
+        if (pendingCallAction == null) { pendingCallFromUserId = null; pendingCallId = null; }
     }
 
     private void deliverIncomingCallAction() {
