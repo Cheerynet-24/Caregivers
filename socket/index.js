@@ -140,10 +140,8 @@ function setupSocket(io, prisma) {
       try {
         const message = await prisma.message.findFirst({ where: { id: messageId, senderId: userId } });
         if (!message) return socket.emit('error', { message: 'You can only delete your own message' });
-        const deleted = await prisma.message.update({
-          where: { id: messageId },
-          data: { content: 'This message was deleted', fileUrl: null, type: 'deleted', deletedAt: new Date() }
-        });
+        await prisma.message.delete({ where: { id: messageId } });
+        const deleted = { id: messageId };
         if (message.conversationId) {
           const conversation = await prisma.conversation.findUnique({ where: { id: message.conversationId } });
           const otherId = conversation.user1Id === userId ? conversation.user2Id : conversation.user1Id;

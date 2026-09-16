@@ -284,7 +284,7 @@ export default function Home() {
       loadGroups()
     }
     const onUpdateMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg } : item))
-    const onDeleteMessage = msg => setMessages(prev => prev.map(item => item.id === msg.id ? { ...item, ...msg, type: 'deleted' } : item))
+    const onDeleteMessage = msg => setMessages(prev => prev.filter(item => item.id !== msg.id))
     const onGroupAdded = ({ groupName }) => { loadGroups(); setLatestNotification({ title: 'Added to group', message: `You were added to ${groupName}` }) }
     socket.on('message:new', onNewMessage)
     socket.on('message:update', onUpdateMessage)
@@ -1895,7 +1895,7 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div id={`chat-message-${m.id}`} key={m.id} className={`flex w-full min-w-0 rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
-                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
+                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => { swipeStartXRef.current = e.clientX; e.currentTarget.setPointerCapture?.(e.pointerId); beginMessageLongPress(m) }} onPointerUp={e => { cancelMessageLongPress(); if (Math.abs(e.clientX - swipeStartXRef.current) > 45) { setReplyTarget(m); setTimeout(() => messageInputRef.current?.focus(), 0) } }} onPointerMove={e => { if (Math.abs(e.clientX - swipeStartXRef.current) > 12) cancelMessageLongPress() }} onPointerCancel={cancelMessageLongPress}>
                   <div className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
