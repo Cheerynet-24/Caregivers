@@ -1583,7 +1583,7 @@ export default function Home() {
   const memberCandidates = [...friends, ...conversations.map(conversation => conversation.otherUser || conversation.user).filter(Boolean)].filter(candidate => candidate?.id && candidate.id !== user?.id && !existingMemberIds.has(candidate.id)).filter((candidate, index, list) => list.findIndex(item => item.id === candidate.id) === index)
 
   return (
-    <div className={`h-[100dvh] w-screen max-w-full overflow-hidden flex ${dark ? 'dark' : ''}`}>
+    <div className={`caregivers-shell h-[100dvh] w-full max-w-full overflow-x-hidden overflow-y-hidden flex ${dark ? 'dark' : ''}`}>
       {/* Sidebar */}
       <div className={`${activeChat ? 'hidden md:flex' : 'flex'} w-16 md:w-20 shrink-0 bg-sky-600 dark:bg-gray-900 flex-col items-center py-3 gap-2 overflow-y-auto overscroll-contain`}>
         <img src="/favicon.jpg" alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -1867,14 +1867,14 @@ export default function Home() {
               )}
             </div>
 
-            <div className={`min-w-0 flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground} ${chatBackgroundImage ? 'bg-cover bg-center bg-no-repeat' : ''}`} style={chatBackgroundImage ? { backgroundImage: `linear-gradient(rgba(255,255,255,.78),rgba(255,255,255,.78)), url(${chatBackgroundImage})` } : undefined}>
+            <div className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground} ${chatBackgroundImage ? 'bg-cover bg-center bg-no-repeat' : ''}`} style={chatBackgroundImage ? { backgroundImage: `linear-gradient(rgba(255,255,255,.78),rgba(255,255,255,.78)), url(${chatBackgroundImage})` } : undefined}>
               {messages.length === 0 && (
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
               {messages.map(m => (
                 <div id={`chat-message-${m.id}`} key={m.id} className={`flex rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
                   <div data-message-menu className="relative group max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
-                  <div className={`max-w-full px-4 py-2 rounded-2xl text-sm ${
+                  <div className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
                       : 'bg-white dark:bg-gray-700 dark:text-white rounded-bl-md shadow-sm'

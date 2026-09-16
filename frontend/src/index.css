@@ -6,6 +6,11 @@
   box-sizing: border-box;
 }
 
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Myanmar', sans-serif;
@@ -90,4 +95,9 @@ article > video[controls] {
   max-width: min(100%, 24rem);
   max-height: 20rem;
   object-fit: contain;
+}
+
+.caregivers-shell {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }

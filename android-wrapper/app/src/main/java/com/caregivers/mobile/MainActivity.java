@@ -75,6 +75,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getWindow().setStatusBarColor(android.graphics.Color.rgb(15, 23, 42));
+        getWindow().setNavigationBarColor(android.graphics.Color.rgb(15, 23, 42));
         readReplyIntent(getIntent());
         readIncomingCallIntent(getIntent());
         readIncomingGroupCallIntent(getIntent());

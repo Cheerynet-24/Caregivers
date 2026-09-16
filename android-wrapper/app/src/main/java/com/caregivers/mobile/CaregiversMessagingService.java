@@ -15,8 +15,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages_v6";
-    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v6";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v7";
+    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v7";
     public static final String REPLY_KEY = "caregivers_reply";
 
     @Override public void onNewToken(@NonNull String token) {
@@ -70,6 +70,8 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         boolean isCall = type.equals("call") || type.equals("group_call");
         String channelId = isCall ? CALL_CHANNEL_ID : CHANNEL_ID;
+        Uri sound = defaultSound(isCall);
+        AudioAttributes audio = new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel channel = new NotificationChannel(channelId, isCall ? "Incoming Caregivers calls" : "Caregivers messages", NotificationManager.IMPORTANCE_HIGH);
             channel.setDescription(isCall ? "Incoming audio and video calls" : "New messages");
@@ -77,8 +79,6 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             // Always use the phone's system defaults. Android remembers each channel's
             // sound separately, so users can configure Calls and Messages independently.
-            Uri sound = defaultSound(isCall);
-            AudioAttributes audio = new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
             channel.setSound(sound, audio);
             manager.createNotificationChannel(channel);
         }
