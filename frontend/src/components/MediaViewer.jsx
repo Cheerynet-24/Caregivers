@@ -6,13 +6,18 @@ export default function MediaViewer({ media, kind, onClose }) {
   const [zoomed, setZoomed] = useState(false)
   const pushed = useRef(false)
   const closing = useRef(false)
+  const originalState = useRef(null)
   const url = resolveMediaUrl(media)
 
   useEffect(() => {
+    originalState.current = window.history.state
     window.history.pushState({ ...window.history.state, caregiversMediaViewer: true }, '', window.location.href)
     pushed.current = true
     const handleBack = () => {
       if (closing.current) return
+      // Android WebView can otherwise leave the SPA when this is the first
+      // navigation entry. Restore the current entry before unmounting.
+      window.history.pushState({ ...window.history.state, caregiversMediaViewer: true }, '', window.location.href)
       closing.current = true
       onClose()
     }
@@ -25,8 +30,8 @@ export default function MediaViewer({ media, kind, onClose }) {
   const closeViewer = () => {
     if (closing.current) return
     closing.current = true
-    if (pushed.current) window.history.back()
-    else onClose()
+    if (pushed.current) window.history.replaceState(originalState.current, '', window.location.href)
+    onClose()
   }
   const toggleZoom = () => setZoomed(value => !value)
 

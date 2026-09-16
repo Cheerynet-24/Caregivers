@@ -49,12 +49,14 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   const [stickers, setStickers] = useState([])
   const [showStickers, setShowStickers] = useState(false)
   const closingFromBack = useRef(false)
+  const originalHistoryState = useRef(null)
   const total = useMemo(() => countComments(comments), [comments])
 
   useEffect(() => {
     try { setStickers(JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]')) } catch { setStickers([]) }
   }, [])
   useEffect(() => {
+    originalHistoryState.current = window.history.state
     window.history.pushState({ ...window.history.state, caregiversCommentModal: true }, '', window.location.href)
     const handleBack = () => {
       // Immediately restore an in-app history entry. This prevents Android WebView/PWA
@@ -62,6 +64,7 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
       window.history.pushState({ ...window.history.state, caregiversCommentModal: true }, '', window.location.href)
       if (!closingFromBack.current) {
         closingFromBack.current = true
+        window.history.replaceState(originalHistoryState.current, '', window.location.href)
         onClose()
       }
     }
@@ -71,6 +74,7 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   const closeModal = () => {
     if (closingFromBack.current) return
     closingFromBack.current = true
+    window.history.replaceState(originalHistoryState.current, '', window.location.href)
     onClose()
   }
   const submit = (content, parentId = replyTo?.id || null) => {
