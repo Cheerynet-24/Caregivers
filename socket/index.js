@@ -285,9 +285,18 @@ function setupSocket(io, prisma) {
       const membership = groupId ? await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } } }) : null;
       if (!membership) return acknowledge?.({ ok: false, error: 'You are not a group member' });
       const room = `call:${groupId}`;
-      if (!groupCallHosts.has(groupId)) groupCallHosts.set(groupId, userId);
+      const isNewCall = !groupCallHosts.has(groupId);
+      if (isNewCall) groupCallHosts.set(groupId, userId);
       const existing = (await io.in(room).fetchSockets()).filter(item => item.id !== socket.id).map(item => ({ userId: item.user.id, username: item.user.username }));
       socket.join(room);
+      if (isNewCall) {
+        const callType = data.callType === 'video' ? 'video' : 'audio';
+        const callMessage = await prisma.message.create({
+          data: { groupId, senderId: userId, content: callType === 'video' ? '📹 Group video call started' : '📞 Group voice call started', type: 'call', messageStatus: 'sent' },
+          include: { sender: { select: { id: true, username: true, displayName: true, avatar: true } } }
+        });
+        io.to(`group:${groupId}`).emit('message:new', callMessage);
+      }
       const members = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } });
       const invite = { groupId, fromUserId: userId, fromUsername: socket.user.displayName || socket.user.username, callType: data.callType === 'video' ? 'video' : 'audio' };
       for (const member of members) {
@@ -322,6 +331,7 @@ function setupSocket(io, prisma) {
     });
 
     socket.on('disconnect', async () => {
+      for (const [groupId, hostId] of groupCallHosts.entries()) if (hostId === userId) groupCallHosts.delete(groupId);
       await prisma.user.update({
         where: { id: userId },
         data: { isOnline: false, lastSeen: new Date() }
