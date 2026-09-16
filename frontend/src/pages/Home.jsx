@@ -104,6 +104,7 @@ export default function Home() {
   const [chatBackground, setChatBackground] = useState('')
   const [chatBackgroundImage, setChatBackgroundImage] = useState('')
   const [showStickers, setShowStickers] = useState(false)
+  const [stickerTab, setStickerTab] = useState('mine')
   const [myStickers, setMyStickers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]') } catch { return [] }
   })
@@ -796,9 +797,9 @@ export default function Home() {
     finally { setAddingMembers(false) }
   }
 
-  const saveMySticker = sticker => {
+  const saveMySticker = (sticker, source = 'mine') => {
     if (!sticker?.content && !sticker?.fileUrl) return
-    const normalized = { content: sticker.content || '', fileUrl: sticker.fileUrl || '', type: 'sticker' }
+    const normalized = { content: sticker.content || '', fileUrl: sticker.fileUrl || '', type: 'sticker', source }
     setMyStickers(previous => {
       const next = [normalized, ...previous.filter(item => item.content !== normalized.content || item.fileUrl !== normalized.fileUrl)].slice(0, 80)
       localStorage.setItem('caregivers-my-stickers', JSON.stringify(next))
@@ -807,7 +808,7 @@ export default function Home() {
   }
   const stickerFromMessage = message => {
     if (message?.type !== 'sticker') return
-    saveMySticker({ content: message.content, fileUrl: message.fileUrl })
+    saveMySticker({ content: message.content, fileUrl: message.fileUrl }, 'other')
     setMessageMenu(null)
   }
   const sendSavedSticker = sticker => sendMessage(sticker.content || 'Sticker', 'sticker', null, sticker.fileUrl || null)
@@ -1646,9 +1647,9 @@ export default function Home() {
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
               <button onClick={() => { const next = !showStickers; setShowStickers(next); if (next) messageInputRef.current?.blur(); else setTimeout(() => messageInputRef.current?.focus(), 0) }} className={`p-2 text-lg ${showStickers ? 'text-sky-500' : 'text-gray-500'}`} title="Sticker">☺</button>
               {showStickers && <div className="absolute bottom-14 left-2 right-2 max-h-64 overflow-y-auto rounded-2xl border bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-800">
-                <div className="mb-2 flex items-center justify-between"><p className="text-xs font-semibold text-gray-500 dark:text-gray-300">My Stickers</p><button type="button" onClick={() => stickerFileRef.current?.click()} className="rounded-lg bg-sky-500 px-2 py-1 text-xs text-white">Create from photo</button></div>
-                <div className="grid grid-cols-5 gap-2">{myStickers.map((sticker, index) => <button type="button" key={`${sticker.fileUrl}-${sticker.content}-${index}`} onClick={() => sendSavedSticker(sticker)} className="flex h-14 items-center justify-center rounded-lg bg-gray-100 p-1 hover:bg-sky-100 dark:bg-gray-700">{sticker.fileUrl ? <img src={resolveMediaUrl(sticker.fileUrl)} alt="" className="h-full w-full object-contain" /> : <span className="text-2xl">{sticker.content}</span>}</button>)}</div>
-                {myStickers.length === 0 && <p className="py-8 text-center text-xs text-gray-400">No saved stickers yet</p>}
+                <div className="mb-3 flex items-center gap-1 border-b dark:border-gray-700"><button type="button" onClick={() => setStickerTab('mine')} className={`flex-1 border-b-2 px-2 py-2 text-xs font-semibold ${stickerTab === 'mine' ? 'border-sky-500 text-sky-500' : 'border-transparent text-gray-400'}`}>My Sticker</button><button type="button" onClick={() => setStickerTab('other')} className={`flex-1 border-b-2 px-2 py-2 text-xs font-semibold ${stickerTab === 'other' ? 'border-sky-500 text-sky-500' : 'border-transparent text-gray-400'}`}>Other From Sticker</button></div>
+                {stickerTab === 'mine' && <div className="mb-3 flex justify-end"><button type="button" onClick={() => stickerFileRef.current?.click()} className="rounded-lg bg-sky-500 px-2 py-1 text-xs text-white">Create from photo</button></div>}
+                {(() => { const visibleStickers = myStickers.filter(sticker => stickerTab === 'other' ? sticker.source === 'other' : sticker.source !== 'other'); return <><div className="grid grid-cols-4 gap-2">{visibleStickers.map((sticker, index) => <button type="button" key={`${sticker.fileUrl}-${sticker.content}-${index}`} onClick={() => sendSavedSticker(sticker)} className="flex h-16 items-center justify-center rounded-lg bg-gray-100 p-1 hover:bg-sky-100 dark:bg-gray-700">{sticker.fileUrl ? <img src={resolveMediaUrl(sticker.fileUrl)} alt="" className="h-full w-full object-contain" /> : <span className="text-2xl">{sticker.content}</span>}</button>)}</div>{visibleStickers.length === 0 && <p className="py-8 text-center text-xs text-gray-400">No saved stickers yet</p>}</> })()}
               </div>}
               <textarea
                 ref={messageInputRef}
