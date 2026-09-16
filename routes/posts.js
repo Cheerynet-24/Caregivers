@@ -1,17 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
 const { auth } = require('../middleware/auth');
+const { persistUpload } = require('../utils/uploads');
 
 const prisma = new PrismaClient();
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: path.join(__dirname, '../uploads'),
-    filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
-  }),
+  storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/'))
 });
 
@@ -62,7 +58,8 @@ router.post('/', auth, upload.single('media'), async (req, res) => {
   try {
     const caption = String(req.body.caption || '').trim();
     if (!caption && !req.file) return res.status(400).json({ error: 'Caption or media is required' });
-    const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, mediaUrl: req.file ? `/uploads/${req.file.filename}` : null, mediaType: req.file?.mimetype || null }, include: postInclude });
+    const mediaUrl = req.file ? await persistUpload(req.file, 'posts') : null;
+    const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, mediaUrl, mediaType: req.file?.mimetype || null }, include: postInclude });
     res.status(201).json({ post: shapePost(post, req.user.id) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create post' }); }
 });

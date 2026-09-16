@@ -52,7 +52,7 @@ body {
 }
 
 /* Keep user media readable without letting a single photo/video take over the UI. */
-[class~="max-w-full"][class~="rounded-2xl"] > img,
+[class~="max-w-full"][class~="rounded-2xl"] > img:not([class~="max-w-24"]),
 [class~="max-w-full"][class~="rounded-2xl"] > video {
   display: block;
   width: auto;

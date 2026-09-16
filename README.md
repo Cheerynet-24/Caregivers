@@ -121,6 +121,10 @@ Password: **29580284**
      JWT_SECRET=<random long string>
      ADMIN_PASSWORD=29580284
      CLIENT_URL=https://your-frontend.up.railway.app
+     FIREBASE_PROJECT_ID=<Firebase project id>
+     FIREBASE_CLIENT_EMAIL=<Firebase service-account client email>
+     FIREBASE_PRIVATE_KEY=<Firebase service-account private key>
+     FIREBASE_STORAGE_BUCKET=<Firebase Storage bucket name>
      PORT=4000
      ```
 5. **Frontend service**
@@ -132,6 +136,10 @@ Password: **29580284**
      VITE_API_URL=https://your-backend.up.railway.app
      ```
 6. After deploy, open the frontend URL and register a user.
+
+### Persistent media storage
+
+Chat attachments, stickers, and post photos/videos are uploaded to Firebase Storage when the four `FIREBASE_*` variables above are configured. This is required on Railway or any other platform with an ephemeral filesystem; otherwise the app intentionally falls back to the local `uploads/` directory for development and self-hosted deployments.
 
 ---
 

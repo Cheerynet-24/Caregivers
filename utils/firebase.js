@@ -1,20 +1,40 @@
 const admin = require('firebase-admin');
 
 let messaging = null;
+let firebaseApp = null;
 
-function getMessaging() {
-  if (messaging) return messaging;
+function getFirebaseApp() {
+  if (firebaseApp) return firebaseApp;
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
   if (!projectId || !clientEmail || !privateKey) return null;
   if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({ projectId, clientEmail, privateKey })
+    firebaseApp = admin.initializeApp({
+      credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`
     });
+  } else {
+    firebaseApp = admin.app();
   }
-  messaging = admin.messaging();
+  return firebaseApp;
+}
+
+function getMessaging() {
+  if (messaging) return messaging;
+  const app = getFirebaseApp();
+  if (!app) return null;
+  messaging = admin.messaging(app);
   return messaging;
+}
+
+function getStorageBucket() {
+  const app = getFirebaseApp();
+  if (!app) return null;
+  try { return admin.storage(app).bucket(); } catch (error) {
+    console.error('Firebase Storage unavailable:', error.message);
+    return null;
+  }
 }
 
 async function sendPush(token, { title, body, type = 'message', data = {} }) {
@@ -50,4 +70,4 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
   }
 }
 
-module.exports = { sendPush };
+module.exports = { sendPush, getStorageBucket };
