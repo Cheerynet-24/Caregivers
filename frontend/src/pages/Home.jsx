@@ -87,6 +87,10 @@ export default function Home() {
   const [paymentInfo, setPaymentInfo] = useState({})
   const [dark, setDark] = useState(false)
   const [call, setCall] = useState(null)
+  const [groupCall, setGroupCall] = useState(null)
+  const [groupParticipants, setGroupParticipants] = useState([])
+  const [groupMuted, setGroupMuted] = useState(false)
+  const [groupCameraOff, setGroupCameraOff] = useState(false)
   const [callStatus, setCallStatus] = useState('')
   const [incomingCall, setIncomingCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
@@ -169,6 +173,8 @@ export default function Home() {
   const stickerLongPressTimer = useRef(null)
   const stickerLongPressedRef = useRef(false)
   const peerRef = useRef(null)
+  const groupPeersRef = useRef(new Map())
+  const groupLocalStreamRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
   const remoteAudioRef = useRef(null)
@@ -310,6 +316,34 @@ export default function Home() {
       socket.off('call:end', onEnd)
     }
   }, [socket, chatSettings])
+
+  useEffect(() => {
+    if (!socket) return
+    const onJoined = ({ groupId, userId, username }) => {
+      if (groupCall?.groupId !== groupId || userId === user?.id) return
+      setGroupParticipants(previous => previous.some(item => item.userId === userId) ? previous : [...previous, { userId, username, stream: null }])
+      createGroupPeer(userId, true, groupCall.callType).catch(() => {})
+    }
+    const onSignal = async ({ groupId, fromUserId, signal }) => {
+      if (groupCall?.groupId !== groupId || !groupLocalStreamRef.current) return
+      setGroupParticipants(previous => previous.some(item => item.userId === fromUserId) ? previous : [...previous, { userId: fromUserId, stream: null }])
+      const peer = await createGroupPeer(fromUserId, false, groupCall.callType)
+      if (signal.description) {
+        await peer.setRemoteDescription(new RTCSessionDescription(signal.description))
+        if (signal.description.type === 'offer') { const answer = await peer.createAnswer(); await peer.setLocalDescription(answer); socket.emit('group-call:signal', { groupId, toUserId: fromUserId, signal: { description: peer.localDescription } }) }
+      }
+      if (signal.candidate) { try { await peer.addIceCandidate(new RTCIceCandidate(signal.candidate)) } catch {} }
+    }
+    const onLeft = ({ groupId, userId }) => {
+      if (groupCall?.groupId !== groupId) return
+      groupPeersRef.current.get(userId)?.close(); groupPeersRef.current.delete(userId)
+      setGroupParticipants(previous => previous.filter(item => item.userId !== userId))
+    }
+    socket.on('group-call:user-joined', onJoined)
+    socket.on('group-call:signal', onSignal)
+    socket.on('group-call:user-left', onLeft)
+    return () => { socket.off('group-call:user-joined', onJoined); socket.off('group-call:signal', onSignal); socket.off('group-call:user-left', onLeft) }
+  }, [socket, groupCall, user?.id])
 
   useEffect(() => {
     const sendReply = async (fromUserId, text) => {
@@ -1050,6 +1084,48 @@ export default function Home() {
     return () => document.removeEventListener('pointerdown', closeMessageMenu)
   }, [messageMenu])
 
+  const createGroupPeer = async (remoteUserId, initiator, callType = groupCall?.callType || 'audio') => {
+    if (!socket || !groupLocalStreamRef.current || groupPeersRef.current.has(remoteUserId)) return groupPeersRef.current.get(remoteUserId)
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }, ...iceServers] })
+    groupPeersRef.current.set(remoteUserId, peer)
+    groupLocalStreamRef.current.getTracks().forEach(track => peer.addTrack(track, groupLocalStreamRef.current))
+    peer.onicecandidate = event => { if (event.candidate) socket.emit('group-call:signal', { groupId: groupCall?.groupId, toUserId: remoteUserId, signal: { candidate: event.candidate } }) }
+    peer.ontrack = event => { const stream = event.streams?.[0]; if (stream) setGroupParticipants(previous => previous.map(item => item.userId === remoteUserId ? { ...item, stream } : item)) }
+    peer.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(peer.connectionState)) { peer.close(); groupPeersRef.current.delete(remoteUserId) } }
+    if (initiator) {
+      const offer = await peer.createOffer()
+      await peer.setLocalDescription(offer)
+      socket.emit('group-call:signal', { groupId: groupCall?.groupId, toUserId: remoteUserId, signal: { description: peer.localDescription } })
+    }
+    return peer
+  }
+  const endGroupCall = () => {
+    if (groupCall?.groupId && socket) socket.emit('group-call:leave', { groupId: groupCall.groupId })
+    groupPeersRef.current.forEach(peer => peer.close())
+    groupPeersRef.current.clear()
+    groupLocalStreamRef.current?.getTracks().forEach(track => track.stop())
+    groupLocalStreamRef.current = null
+    setGroupParticipants([])
+    setGroupMuted(false)
+    setGroupCameraOff(false)
+    setGroupCall(null)
+  }
+  const toggleGroupMute = () => { const next = !groupMuted; groupLocalStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !next }); setGroupMuted(next) }
+  const toggleGroupCamera = () => { const next = !groupCameraOff; groupLocalStreamRef.current?.getVideoTracks().forEach(track => { track.enabled = !next }); setGroupCameraOff(next) }
+  const startGroupCall = async callType => {
+    if (!activeChat?.id || activeChat.type !== 'group' || !socket?.connected || groupCall) return
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' })
+      groupLocalStreamRef.current = stream
+      setGroupCall({ groupId: activeChat.id, callType })
+      setGroupParticipants([])
+      socket.emit('group-call:join', { groupId: activeChat.id, callType }, response => {
+        if (!response?.ok) { stream.getTracks().forEach(track => track.stop()); groupLocalStreamRef.current = null; setGroupCall(null); return alert(response?.error || 'Group call join failed') }
+        setGroupParticipants((response.participants || []).map(item => ({ ...item, stream: null })))
+      })
+    } catch (error) { alert(error.message || 'Camera/Microphone permission is required') }
+  }
+
   const createPeer = (targetUserId, callType, configuredIceServers = iceServers) => {
     const peer = new RTCPeerConnection({ iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -1608,6 +1684,12 @@ export default function Home() {
                   <button onClick={() => startCall('video')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('videoCall')}><Video size={18} /></button>
                 </>
               )}
+              {activeChat.type === 'group' && (
+                <>
+                  <button onClick={() => startGroupCall('audio')} disabled={Boolean(groupCall)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full disabled:opacity-40" title="Group voice call"><Phone size={18} /></button>
+                  <button onClick={() => startGroupCall('video')} disabled={Boolean(groupCall)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full disabled:opacity-40" title="Group video call"><Video size={18} /></button>
+                </>
+              )}
               <button onClick={() => setShowBackgrounds(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Chat background"><Settings size={18} /></button>
               {showBackgrounds && <div className="absolute right-3 top-12 z-20 bg-white dark:bg-gray-800 border rounded-xl shadow p-3 flex flex-wrap gap-2 w-64">
                 {['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); setChatBackgroundImage(''); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); localStorage.removeItem(`chat-bg-image-${activeChat.id}`); setShowBackgrounds(false) }} className={`w-7 h-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}
@@ -1795,6 +1877,27 @@ export default function Home() {
             </button>}
             {call.callType === 'video' && <button onClick={switchCamera} className="p-4 rounded-full bg-gray-700 text-white" title="Switch camera"><RefreshCw size={22} /></button>}
             <button onClick={() => endCall(true)} className="p-4 rounded-full bg-red-600 text-white" title="End call"><PhoneOff size={22} /></button>
+          </div>
+        </div>
+      )}
+      {groupCall && (
+        <div className="fixed inset-0 z-40 flex flex-col bg-gray-950">
+          <div className={`min-h-0 flex-1 gap-2 overflow-y-auto p-3 ${groupCall.callType === 'video' ? 'grid grid-cols-2 sm:grid-cols-3' : 'flex flex-col items-center justify-center'}`}>
+            <div className={`relative overflow-hidden rounded-2xl bg-gray-800 ${groupCall.callType === 'video' ? 'min-h-48' : 'flex h-32 w-32 items-center justify-center rounded-full'}`}>
+              {groupCall.callType === 'video' ? <video autoPlay muted playsInline ref={node => { if (node && groupLocalStreamRef.current) node.srcObject = groupLocalStreamRef.current }} className={`h-full min-h-48 w-full object-cover ${groupCameraOff ? 'hidden' : ''}`} /> : <Mic size={32} className="text-white" />}
+              <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs text-white">You</span>
+            </div>
+            {groupParticipants.map(participant => <div key={participant.userId} className={`relative overflow-hidden rounded-2xl bg-gray-800 ${groupCall.callType === 'video' ? 'min-h-48' : 'flex h-24 w-full max-w-sm items-center gap-3 px-5'}`}>
+              {groupCall.callType === 'video' && participant.stream ? <video autoPlay playsInline ref={node => { if (node) node.srcObject = participant.stream }} className="h-full min-h-48 w-full object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white">{(participant.username || '?')[0].toUpperCase()}</div>}
+              <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs text-white">{participant.username || 'Participant'}</span>
+            </div>)}
+            {!groupParticipants.length && <p className="col-span-full self-center text-center text-sm text-gray-400">Waiting for group members to join…</p>}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 bg-gray-900 p-4">
+            <span className="mr-2 text-sm text-white">Group {groupCall.callType} call · {groupParticipants.length + 1}</span>
+            <button onClick={toggleGroupMute} className={`rounded-full p-4 text-white ${groupMuted ? 'bg-red-600' : 'bg-gray-700'}`} title="Mute">{groupMuted ? <MicOff size={22} /> : <Mic size={22} />}</button>
+            {groupCall.callType === 'video' && <button onClick={toggleGroupCamera} className={`rounded-full p-4 text-white ${groupCameraOff ? 'bg-red-600' : 'bg-gray-700'}`} title="Camera">{groupCameraOff ? <VideoOff size={22} /> : <Video size={22} />}</button>}
+            <button onClick={endGroupCall} className="rounded-full bg-red-600 p-4 text-white" title="End group call"><PhoneOff size={22} /></button>
           </div>
         </div>
       )}

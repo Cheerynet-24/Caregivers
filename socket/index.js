@@ -278,25 +278,30 @@ function setupSocket(io, prisma) {
       io.to(`user:${data.toUserId}`).emit('call:end', { fromUserId: userId, callId: data.callId });
     });
 
-    // Group call signaling (basic - room based)
-    socket.on('group-call:join', (data) => {
-      socket.join(`call:${data.groupId}`);
-      socket.to(`call:${data.groupId}`).emit('group-call:user-joined', {
-        userId,
-        username: socket.user.username
-      });
+    // Group call signaling: only group members may join; WebRTC signals are targeted peer-to-peer.
+    socket.on('group-call:join', async (data, acknowledge) => {
+      const groupId = String(data?.groupId || '');
+      const membership = groupId ? await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } } }) : null;
+      if (!membership) return acknowledge?.({ ok: false, error: 'You are not a group member' });
+      const room = `call:${groupId}`;
+      const existing = (await io.in(room).fetchSockets()).filter(item => item.id !== socket.id).map(item => ({ userId: item.user.id, username: item.user.username }));
+      socket.join(room);
+      socket.to(room).emit('group-call:user-joined', { groupId, userId, username: socket.user.username, callType: data.callType === 'video' ? 'video' : 'audio' });
+      acknowledge?.({ ok: true, participants: existing });
     });
 
-    socket.on('group-call:signal', (data) => {
-      socket.to(`call:${data.groupId}`).emit('group-call:signal', {
-        fromUserId: userId,
-        signal: data.signal
-      });
+    socket.on('group-call:signal', async (data) => {
+      const groupId = String(data?.groupId || '');
+      const toUserId = String(data?.toUserId || '');
+      const membership = groupId ? await prisma.groupMember.findUnique({ where: { groupId_userId: { groupId, userId } } }) : null;
+      if (!membership || !toUserId || !data.signal) return;
+      io.to(`user:${toUserId}`).emit('group-call:signal', { groupId, fromUserId: userId, signal: data.signal });
     });
 
     socket.on('group-call:leave', (data) => {
-      socket.leave(`call:${data.groupId}`);
-      socket.to(`call:${data.groupId}`).emit('group-call:user-left', { userId });
+      const groupId = String(data?.groupId || '');
+      socket.leave(`call:${groupId}`);
+      socket.to(`call:${groupId}`).emit('group-call:user-left', { groupId, userId });
     });
 
     socket.on('disconnect', async () => {
