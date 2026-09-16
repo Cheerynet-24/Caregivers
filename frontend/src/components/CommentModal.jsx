@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Send, X, Heart, Reply, Trash2, Pencil, BarChart3 } from 'lucide-react'
 import { resolveMediaUrl } from '../services/api'
 
@@ -48,20 +48,30 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   const [draft, setDraft] = useState('')
   const [stickers, setStickers] = useState([])
   const [showStickers, setShowStickers] = useState(false)
+  const closingFromBack = useRef(false)
   const total = useMemo(() => countComments(comments), [comments])
 
   useEffect(() => {
     try { setStickers(JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]')) } catch { setStickers([]) }
   }, [])
   useEffect(() => {
-    window.history.pushState({ caregiversCommentModal: true }, '')
-    const handleBack = () => onClose()
+    window.history.pushState({ ...window.history.state, caregiversCommentModal: true }, '', window.location.href)
+    const handleBack = () => {
+      // Immediately restore an in-app history entry. This prevents Android WebView/PWA
+      // from interpreting the Back action as an app exit.
+      window.history.pushState({ ...window.history.state, caregiversCommentModal: true }, '', window.location.href)
+      if (!closingFromBack.current) {
+        closingFromBack.current = true
+        onClose()
+      }
+    }
     window.addEventListener('popstate', handleBack)
     return () => window.removeEventListener('popstate', handleBack)
   }, [])
   const closeModal = () => {
-    if (window.history.state?.caregiversCommentModal) window.history.back()
-    else onClose()
+    if (closingFromBack.current) return
+    closingFromBack.current = true
+    onClose()
   }
   const submit = (content, parentId = replyTo?.id || null) => {
     const value = content ?? draft.trim()
