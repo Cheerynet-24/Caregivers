@@ -917,7 +917,17 @@ export default function Home() {
       })
       saveMySticker({ fileUrl })
       setShowStickers(true)
-    } catch (error) { alert(error.response?.data?.error || 'Sticker upload failed') }
+    } catch (error) {
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+        const uploaded = await chatAPI.upload(formData)
+        saveMySticker({ fileUrl: uploaded.data.fileUrl })
+        setShowStickers(true)
+      } catch (fallbackError) {
+        alert(fallbackError.response?.data?.error || error.message || 'Sticker upload failed')
+      }
+    }
   }
   const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null, overrideFileUrl = null) => {
     if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return

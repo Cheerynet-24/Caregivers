@@ -27,17 +27,23 @@ async function persistUpload(file, folder = 'media') {
   const bucket = getStorageBucket();
 
   if (bucket) {
-    const token = uuidv4();
-    const remoteFile = bucket.file(objectName);
-    const buffer = file.buffer || fs.readFileSync(file.path);
-    await remoteFile.save(buffer, {
-      resumable: false,
-      metadata: {
-        contentType: file.mimetype || 'application/octet-stream',
-        metadata: { firebaseStorageDownloadTokens: token }
-      }
-    });
-    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectName)}?alt=media&token=${token}`;
+    try {
+      const token = uuidv4();
+      const remoteFile = bucket.file(objectName);
+      const buffer = file.buffer || fs.readFileSync(file.path);
+      await remoteFile.save(buffer, {
+        resumable: false,
+        metadata: {
+          contentType: file.mimetype || 'application/octet-stream',
+          metadata: { firebaseStorageDownloadTokens: token }
+        }
+      });
+      return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectName)}?alt=media&token=${token}`;
+    } catch (error) {
+      // A misconfigured bucket must not prevent a user from sending a message.
+      // The local fallback keeps development/self-hosted deployments usable.
+      console.error('Firebase upload failed; using local fallback:', error.message);
+    }
   }
 
   ensureLocalUploadDir();
