@@ -72,3 +72,22 @@ article > video[controls] {
   margin-inline: auto;
   object-fit: contain;
 }
+
+/* Feed post previews stay compact; tap them to open the full-screen viewer. */
+.post-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: 20rem;
+  min-height: 0;
+  overflow: hidden;
+  background: #111827;
+}
+.post-media > img,
+.post-media > video {
+  display: block;
+  width: auto;
+  max-width: min(100%, 24rem);
+  max-height: 20rem;
+  object-fit: contain;
+}

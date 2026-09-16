@@ -59,7 +59,7 @@ export default function MediaViewer({ media, kind, onClose }) {
     </header>
     <main className="min-h-0 flex-1 overflow-auto p-2" onClick={event => { if (event.target === event.currentTarget) closeViewer() }}>
       <div className={`flex min-h-full w-full items-center justify-center ${zoomed ? 'min-w-[115vw] min-h-[115vh]' : ''}`}>
-        {kind === 'video' ? <video src={url} controls autoPlay playsInline className={zoomed ? 'max-h-none w-[115vw] max-w-none object-contain' : 'max-h-full max-w-full object-contain'} /> : <img src={url} alt="Full screen" className="max-h-full max-w-full object-contain" />}
+        {kind === 'video' ? <video src={url} controls controlsList="nodownload" disablePictureInPicture autoPlay playsInline className={zoomed ? 'max-h-none w-[115vw] max-w-none object-contain' : 'max-h-full max-w-full object-contain'} /> : <img src={url} alt="Full screen" className="max-h-full max-w-full object-contain" />}
       </div>
     </main>
   </div>
