@@ -46,6 +46,11 @@ async function persistUpload(file, folder = 'media') {
     }
   }
 
+  const isEphemeralDeployment = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
+  if (isEphemeralDeployment) {
+    throw new Error('Persistent media storage is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and FIREBASE_STORAGE_BUCKET before enabling uploads in production.');
+  }
+
   ensureLocalUploadDir();
   const localName = `${uuidv4()}${getExtension(file)}`;
   const localPath = path.join(localUploadDir, localName);

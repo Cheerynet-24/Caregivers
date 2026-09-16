@@ -139,7 +139,7 @@ Password: **29580284**
 
 ### Persistent media storage
 
-Chat attachments, stickers, and post photos/videos are uploaded to Firebase Storage when the four `FIREBASE_*` variables above are configured. This is required on Railway or any other platform with an ephemeral filesystem; otherwise the app intentionally falls back to the local `uploads/` directory for development and self-hosted deployments.
+Chat attachments, stickers, and post photos/videos are uploaded to Firebase Storage when the four `FIREBASE_*` variables above are configured. This is required on Railway or any other platform with an ephemeral filesystem. Use the exact Firebase Storage bucket shown in Firebase Console, commonly `project-id.firebasestorage.app` (some older projects use `project-id.appspot.com`), without the `gs://` prefix. In production, uploads now fail clearly when Firebase Storage is missing instead of silently writing to disposable local disk. The local `uploads/` fallback is development/self-hosted only.
 
 ---
 
