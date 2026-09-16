@@ -50,6 +50,7 @@ export const userAPI = {
   friendRequests: () => api.get('/api/users/friend-requests'),
   notifications: () => api.get('/api/users/notifications'),
   markNotificationsRead: () => api.post('/api/users/notifications/read'),
+  profileFriends: (id) => api.get(`/api/users/${id}/friends`),
   sendRequest: (toUserId) => api.post('/api/users/friend-request', { toUserId }),
   acceptRequest: (id) => api.post(`/api/users/friend-request/${id}/accept`),
   rejectRequest: (id) => api.post(`/api/users/friend-request/${id}/reject`),

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, reportsAPI, aiAPI, resolveMediaUrl } from '../services/api'
-import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
+import { ProfilePanel, PublicProfilePanel, FeedPanel } from '../components/SocialPanels'
 import MediaViewer from '../components/MediaViewer'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
@@ -122,6 +122,7 @@ export default function Home() {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [latestNotification, setLatestNotification] = useState(null)
+  const [notificationTarget, setNotificationTarget] = useState(null)
   const [latestMessageNotification, setLatestMessageNotification] = useState(null)
   const [translations, setTranslations] = useState({})
   const [translatingKey, setTranslatingKey] = useState(null)
@@ -156,6 +157,7 @@ export default function Home() {
   const [conversationToDelete, setConversationToDelete] = useState(null)
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePosts, setProfilePosts] = useState([])
+  const [profileFriends, setProfileFriends] = useState([])
   const [profileShareTarget, setProfileShareTarget] = useState(null)
   const [profileShareUsers, setProfileShareUsers] = useState([])
   const [profileShareSearch, setProfileShareSearch] = useState('')
@@ -709,6 +711,14 @@ export default function Home() {
     } catch (err) { alert(err.response?.data?.error || 'Request update failed') }
   }
 
+  const openNotificationTarget = notification => {
+    if (!notification?.postId) return
+    setLatestNotification(null)
+    setTab('feed')
+    setActiveChat(null)
+    setMessages([])
+    setNotificationTarget({ postId: notification.postId, commentId: notification.commentId || null, nonce: Date.now() })
+  }
   const loadNotifications = async () => {
     try {
       const res = await userAPI.notifications()
@@ -792,8 +802,10 @@ export default function Home() {
   }
   const showUserProfile = userItem => {
     setSelectedProfile(userItem)
-    Promise.all([userAPI.profile(userItem.id), postsAPI.list()]).then(([profileRes, postsRes]) => {
+    setProfileFriends([])
+    Promise.all([userAPI.profile(userItem.id), userAPI.profileFriends(userItem.id), postsAPI.list()]).then(([profileRes, friendsRes, postsRes]) => {
       setSelectedProfile(profileRes.data.user)
+      setProfileFriends(friendsRes.data.friends || [])
       setProfilePosts((postsRes.data.posts || []).filter(post => post.authorId === userItem.id || post.author?.id === userItem.id))
     }).catch(() => {})
   }
@@ -1654,13 +1666,13 @@ export default function Home() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {tab === 'feed' && <FeedPanel user={user} posts={posts} onRefresh={loadPosts} onTranslate={text => translateText(`post-${text.slice(0, 80)}`, text)} onShareToChat={sharePostToChat} onReportPost={post => openReport('post', { targetPostId: post.id, content: post.caption || post.mediaUrl || 'Post' })} />}
+          {tab === 'feed' && <FeedPanel user={user} posts={posts} onRefresh={loadPosts} notificationTarget={notificationTarget} onNotificationTargetHandled={() => setNotificationTarget(null)} onTranslate={text => translateText(`post-${text.slice(0, 80)}`, text)} onShareToChat={sharePostToChat} onReportPost={post => openReport('post', { targetPostId: post.id, content: post.caption || post.mediaUrl || 'Post' })} />}
           {tab === 'profile' && <ProfilePanel user={user} setUser={setUser} posts={posts} onRefreshPosts={loadPosts} />}
           {tab === 'friends-list' && <div className="p-3"><h3 className="font-bold dark:text-white mb-2">Friends ({friends.length})</h3>{friends.length === 0 && <p className="text-sm text-gray-500">No friends yet</p>}{friends.map(friend => <div key={friend.id} className="p-2 flex items-center gap-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"><div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(friend.displayName || friend.username)[0].toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium dark:text-white truncate">{friend.displayName || friend.username}</p><p className="text-xs text-gray-500">@{friend.username}</p></div><button onClick={() => openPrivateChat(friend)} className="p-2 text-sky-500"><MessageCircle size={17} /></button></div>)}</div>}
           {tab === 'friend-requests' && <div className="p-3"><h3 className="font-bold dark:text-white mb-2">Friend Requests ({friendRequests.length})</h3>{friendRequests.length === 0 && <p className="text-sm text-gray-500">No pending requests</p>}{friendRequests.map(request => <div key={request.id} className="p-2 flex items-center gap-2 rounded-lg bg-gray-50 dark:bg-gray-700"><div className="flex-1"><p className="text-sm font-medium dark:text-white">{request.fromUser?.displayName || request.fromUser?.username}</p><p className="text-xs text-gray-500">wants to be your friend</p></div><button onClick={() => respondToFriendRequest(request.id, 'accept')} className="px-2 py-1 text-xs rounded bg-green-500 text-white">Accept</button><button onClick={() => respondToFriendRequest(request.id, 'decline')} className="px-2 py-1 text-xs rounded bg-red-500 text-white">Decline</button></div>)}</div>}
           {tab === 'admin-noti' && <div className="p-3 space-y-3">
             {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Notification မရှိသေးပါ</div>}
-            {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p>{translations[`notification-${notification.id}`] && <p className="mt-2 rounded-lg bg-white/60 p-2 text-sm whitespace-pre-wrap dark:bg-gray-800/60 dark:text-sky-100">{translations[`notification-${notification.id}`]}</p>}<button type="button" onClick={() => translateText(`notification-${notification.id}`, notification.message)} className="mt-2 text-xs text-sky-600 dark:text-sky-300">{translatingKey === `notification-${notification.id}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်'}</button><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
+            {notifications.map(notification => <article key={notification.id} role={notification.postId ? 'button' : undefined} onClick={() => notification.postId && openNotificationTarget(notification)} className={`rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm ${notification.postId ? 'cursor-pointer hover:bg-sky-100 dark:hover:bg-gray-600' : ''}`}><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p>{translations[`notification-${notification.id}`] && <p className="mt-2 rounded-lg bg-white/60 p-2 text-sm whitespace-pre-wrap dark:bg-gray-800/60 dark:text-sky-100">{translations[`notification-${notification.id}`]}</p>}<button type="button" onClick={event => { event.stopPropagation(); translateText(`notification-${notification.id}`, notification.message) }} className="mt-2 text-xs text-sky-600 dark:text-sky-300">{translatingKey === `notification-${notification.id}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်'}</button><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
           {tab === 'ai-chat' && <div className="flex h-full min-h-0 flex-col p-3">
             <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI <button type="button" onClick={createNewAiChat} className="ml-auto rounded-lg bg-white/15 px-2 py-1 text-xs hover:bg-white/25">+ New chat</button></div><p className="mt-1 text-xs text-white/80">Account နဲ့သိမ်းထားတဲ့ chat ကို ပြန်ဖွင့်ပြီး ဆက်ပြောနိုင်ပါတယ်။</p></div>
@@ -1928,8 +1940,8 @@ export default function Home() {
       </div>
 
       {latestNotification && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
-          <button onClick={() => { stopNotificationSound(); setLatestNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
+        <div role={latestNotification.postId ? 'button' : undefined} tabIndex={latestNotification.postId ? 0 : undefined} onClick={() => latestNotification.postId && openNotificationTarget(latestNotification)} onKeyDown={event => { if (latestNotification.postId && (event.key === 'Enter' || event.key === ' ')) openNotificationTarget(latestNotification) }} className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white text-left dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
+          <button onClick={event => { event.stopPropagation(); stopNotificationSound(); setLatestNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
           <p className="font-bold text-sky-600 dark:text-sky-300">📣 {latestNotification.title}</p>
           <p className="mt-1 text-sm dark:text-gray-200 whitespace-pre-wrap">{latestNotification.message}</p>{translations[`notification-${latestNotification.id || latestNotification.title}`] && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-sm whitespace-pre-wrap dark:bg-sky-950/40 dark:text-sky-100">{translations[`notification-${latestNotification.id || latestNotification.title}`]}</p>}<button type="button" onClick={() => translateText(`notification-${latestNotification.id || latestNotification.title}`, latestNotification.message)} className="mt-2 text-xs text-sky-600 dark:text-sky-300">{translatingKey === `notification-${latestNotification.id || latestNotification.title}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်'}</button>
         </div>
@@ -2102,16 +2114,8 @@ export default function Home() {
         </div>
       )}
       {selectedProfile && (
-        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={() => setSelectedProfile(null)}>
-          <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-white dark:bg-gray-800 p-6 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
-            {selectedProfile.avatar ? <img src={resolveMediaUrl(selectedProfile.avatar)} alt="" className="w-28 h-28 rounded-full object-cover mx-auto border-4 border-sky-200" /> : <div className="w-28 h-28 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold text-4xl mx-auto">{(selectedProfile.displayName || selectedProfile.username || '?')[0].toUpperCase()}</div>}
-            <h3 className="mt-4 text-xl font-bold dark:text-white">{selectedProfile.displayName || selectedProfile.username}</h3>
-            <p className="text-sm text-gray-500">@{selectedProfile.username}</p>
-            {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
-            <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => openProfileSharePicker(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Share in chat</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} className="px-3 py-2 rounded-lg border border-red-200 text-red-500">Report</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
-            <h4 className="mt-6 text-left font-semibold dark:text-white">Posts</h4>
-            <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <button type="button" onClick={() => setMediaViewer({ media: post.mediaUrl, kind: String(post.mediaType || '').startsWith('video/') ? 'video' : 'image' })} className="mt-2 block w-full cursor-zoom-in text-left">{String(post.mediaType || '').startsWith('video/') ? <video src={resolveMediaUrl(post.mediaUrl)} controls playsInline className="max-h-56 w-full object-contain rounded-lg bg-black" /> : <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="max-h-56 w-full rounded-lg object-cover" />}</button>}</article>)}</div>
-          </div>
+        <div className="fixed inset-0 z-[70] bg-white dark:bg-gray-900">
+          <PublicProfilePanel profile={selectedProfile} posts={profilePosts} friends={profileFriends} user={user} onBack={() => setSelectedProfile(null)} onMessage={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} onShareToChat={() => openProfileSharePicker(selectedProfile)} onShare={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text) }} onReport={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} onRefresh={loadPosts} />
         </div>
       )}
       {profileShareTarget && (

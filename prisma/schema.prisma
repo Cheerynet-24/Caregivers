@@ -202,6 +202,8 @@ model Notification {
   reads     NotificationRead[]
   title     String
   message   String
+  postId    String?
+  commentId String?
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
@@ -280,6 +282,7 @@ model Post {
   authorId    String
   author      User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   caption     String?
+  visibility  String       @default("public")
   mediaUrl    String?
   mediaType   String?
   mediaUrls   String?

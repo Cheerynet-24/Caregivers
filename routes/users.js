@@ -166,6 +166,18 @@ router.post('/friend-request/:id/reject', auth, async (req, res) => {
   }
 });
 
+router.get('/:id/friends', auth, async (req, res) => {
+  try {
+    const friendships = await prisma.friendship.findMany({
+      where: { OR: [{ user1Id: req.params.id }, { user2Id: req.params.id }] },
+      select: { user1Id: true, user2Id: true }
+    });
+    const friendIds = friendships.map(item => item.user1Id === req.params.id ? item.user2Id : item.user1Id);
+    const friends = friendIds.length ? await prisma.user.findMany({ where: { id: { in: friendIds } }, select: { id: true, username: true, displayName: true, avatar: true, isOnline: true } }) : [];
+    res.json({ friends });
+  } catch { res.status(500).json({ error: 'Failed to load friends' }); }
+});
+
 // Pending requests
 router.get('/friend-requests', auth, async (req, res) => {
   try {

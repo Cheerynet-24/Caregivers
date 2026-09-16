@@ -46,21 +46,22 @@ const shapePost = (post, userId) => ({
   saved: post.saves.some(save => save.userId === userId),
   comments: post.comments.map(comment => shapeComment(comment, userId))
 });
-const notifyPostOwner = async ({ postId, actorId, action }) => {
+const notifyPostOwner = async ({ postId, commentId = null, actorId, action, io }) => {
   const post = await prisma.post.findUnique({ where: { id: postId }, select: { authorId: true } });
   if (!post || post.authorId === actorId) return;
   const friendship = await prisma.friendship.findFirst({ where: { OR: [{ user1Id: actorId, user2Id: post.authorId }, { user1Id: post.authorId, user2Id: actorId }] } });
   if (!friendship) return;
   const actor = await prisma.user.findUnique({ where: { id: actorId }, select: { displayName: true, username: true } });
   const actorName = actor?.displayName || actor?.username || 'Someone';
-  await prisma.notification.create({ data: { userId: post.authorId, title: 'Post activity', message: `${actorName} ${action} your post.` } });
+  const notification = await prisma.notification.create({ data: { userId: post.authorId, title: 'Post activity', message: `${actorName} ${action} your post.`, postId, commentId } });
+  io?.to(`user:${post.authorId}`).emit('notification:new', notification);
 };
 
 router.get('/', auth, async (req, res) => {
   try {
     const friendships = await prisma.friendship.findMany({ where: { OR: [{ user1Id: req.user.id }, { user2Id: req.user.id }] }, select: { user1Id: true, user2Id: true } });
     const friendIds = friendships.map(friendship => friendship.user1Id === req.user.id ? friendship.user2Id : friendship.user1Id);
-    const posts = await prisma.post.findMany({ where: { OR: [{ authorId: req.user.id }, { author: { allowPostsFrom: 'everyone' } }, { authorId: { in: friendIds } }] }, include: postInclude, orderBy: { createdAt: 'desc' }, take: 100 });
+    const posts = await prisma.post.findMany({ where: { OR: [{ authorId: req.user.id }, { visibility: 'public', author: { allowPostsFrom: 'everyone' } }, { visibility: 'friends', authorId: { in: friendIds } }] }, include: postInclude, orderBy: { createdAt: 'desc' }, take: 100 });
     res.json({ posts: posts.map(post => shapePost(post, req.user.id)) });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to load feed' }); }
 });
@@ -75,11 +76,12 @@ router.get('/saved', auth, async (req, res) => {
 router.post('/', auth, parsePostUpload, async (req, res) => {
   try {
     const caption = String(req.body.caption || '').trim();
+    const visibility = req.body.visibility === 'friends' ? 'friends' : 'public';
     const files = req.files || [];
     if (!caption && !files.length) return res.status(400).json({ error: 'Caption or media is required' });
     const mediaItems = await Promise.all(files.map(async file => ({ url: await persistUpload(file, 'posts'), type: file.mimetype || '', name: file.originalname || '' })));
     const first = mediaItems[0] || null;
-    const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, mediaUrl: first?.url || null, mediaType: first?.type || null, mediaUrls: mediaItems.length ? JSON.stringify(mediaItems) : null }, include: postInclude });
+    const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, visibility, mediaUrl: first?.url || null, mediaType: first?.type || null, mediaUrls: mediaItems.length ? JSON.stringify(mediaItems) : null }, include: postInclude });
     res.status(201).json({ post: shapePost(post, req.user.id) });
   } catch (err) { console.error('post create error:', err); res.status(500).json({ error: err.message || 'Failed to create post' }); }
 });
@@ -106,7 +108,7 @@ router.post('/:id/like', auth, async (req, res) => {
   try {
     const where = { postId_userId: { postId: req.params.id, userId: req.user.id } };
     const existing = await prisma.postLike.findUnique({ where });
-    if (existing) await prisma.postLike.delete({ where }); else { await prisma.postLike.create({ data: { postId: req.params.id, userId: req.user.id } }); notifyPostOwner({ postId: req.params.id, actorId: req.user.id, action: 'liked' }).catch(error => console.error('post like notification error', error)); }
+    if (existing) await prisma.postLike.delete({ where }); else { await prisma.postLike.create({ data: { postId: req.params.id, userId: req.user.id } }); notifyPostOwner({ postId: req.params.id, actorId: req.user.id, action: 'liked', io: req.app.get('io') }).catch(error => console.error('post like notification error', error)); }
     res.json({ liked: !existing });
   } catch (err) { res.status(500).json({ error: 'Failed to like post' }); }
 });
@@ -115,7 +117,7 @@ router.post('/:id/save', auth, async (req, res) => {
   try {
     const where = { postId_userId: { postId: req.params.id, userId: req.user.id } };
     const existing = await prisma.postSave.findUnique({ where });
-    if (existing) await prisma.postSave.delete({ where }); else { await prisma.postSave.create({ data: { postId: req.params.id, userId: req.user.id } }); notifyPostOwner({ postId: req.params.id, actorId: req.user.id, action: 'saved' }).catch(error => console.error('post save notification error', error)); }
+    if (existing) await prisma.postSave.delete({ where }); else { await prisma.postSave.create({ data: { postId: req.params.id, userId: req.user.id } }); notifyPostOwner({ postId: req.params.id, actorId: req.user.id, action: 'saved', io: req.app.get('io') }).catch(error => console.error('post save notification error', error)); }
     res.json({ saved: !existing });
   } catch (err) { res.status(500).json({ error: 'Failed to save post' }); }
 });
@@ -125,7 +127,7 @@ router.post('/:id/comments', auth, async (req, res) => {
     const content = String(req.body.content || '').trim();
     if (!content) return res.status(400).json({ error: 'Comment is required' });
     const comment = await prisma.comment.create({ data: { postId: req.params.id, authorId: req.user.id, parentId: req.body.parentId || null, content }, include: commentInclude });
-    notifyPostOwner({ postId: req.params.id, actorId: req.user.id, action: 'commented on' }).catch(error => console.error('post comment notification error', error));
+    notifyPostOwner({ postId: req.params.id, commentId: comment.id, actorId: req.user.id, action: 'commented on', io: req.app.get('io') }).catch(error => console.error('post comment notification error', error));
     res.status(201).json({ comment: shapeComment(comment, req.user.id) });
   } catch (err) { res.status(500).json({ error: 'Failed to add comment' }); }
 });
