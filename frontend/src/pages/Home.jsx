@@ -1106,9 +1106,17 @@ export default function Home() {
     if (!call || call.callType !== 'video' || !localStreamRef.current || !navigator.mediaDevices?.getUserMedia) return
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
     try {
+      const rawStream = rawStreamRef.current || localStreamRef.current
+      const currentTrack = rawStream?.getVideoTracks?.()[0]
+      const currentId = currentTrack?.getSettings?.().deviceId || localStreamRef.current.getVideoTracks?.()[0]?.getSettings?.().deviceId
+      currentTrack?.stop()
+      if (currentTrack && rawStream?.removeTrack) rawStream.removeTrack(currentTrack)
+      if (localVideoRef.current) {
+        localVideoRef.current.pause?.()
+        localVideoRef.current.srcObject = null
+      }
       const devices = await navigator.mediaDevices.enumerateDevices().catch(() => [])
       const cameras = devices.filter(device => device.kind === 'videoinput')
-      const currentId = rawStreamRef.current?.getVideoTracks?.()[0]?.getSettings?.().deviceId || localStreamRef.current.getVideoTracks?.()[0]?.getSettings?.().deviceId
       const currentIndex = currentId ? cameras.findIndex(device => device.deviceId === currentId) : (cameraFacing === 'user' ? 0 : Math.min(1, cameras.length - 1))
       const oppositeByLabel = cameras.find(device => {
         const label = (device.label || '').toLowerCase()
@@ -1122,12 +1130,14 @@ export default function Home() {
       else try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: nextFacing } } }) } catch { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } }) }
       const nextTrack = stream.getVideoTracks()[0]
       if (!nextTrack) return
-      const rawStream = rawStreamRef.current || localStreamRef.current
       const sender = peerRef.current?.getSenders?.().find(item => item.track?.kind === 'video')
-      if (sender && !videoEffectPipelineRef.current) await sender.replaceTrack(nextTrack)
-      rawStream?.getVideoTracks().forEach(track => track.stop())
       rawStream?.addTrack(nextTrack)
+      if (sender && !videoEffectPipelineRef.current) await sender.replaceTrack(nextTrack)
       await applyVideoEffect(videoEffectRef.current)
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current
+        localVideoRef.current.play?.().catch(() => {})
+      }
       setCameraFacing(nextFacing)
     } catch { alert('ဒီဖုန်းမှာ Camera ပြောင်းလို့မရပါ') }
   }
