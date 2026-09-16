@@ -183,6 +183,20 @@ function setupSocket(io, prisma) {
         });
 
         io.to(`group:${groupId}`).emit('message:new', msg);
+        const [group, members] = await Promise.all([
+          prisma.group.findUnique({ where: { id: groupId }, select: { name: true } }),
+          prisma.groupMember.findMany({ where: { groupId, userId: { not: userId } }, select: { userId: true, user: { select: { fcmToken: true } } } })
+        ]);
+        const senderName = socket.user.displayName || socket.user.username || 'Someone';
+        const messageBody = content || (type === 'audio' ? 'Voice message' : 'Attachment');
+        for (const recipient of members) {
+          sendPush(recipient.user?.fcmToken, {
+            title: `${senderName} · ${group?.name || 'Group'}`,
+            body: messageBody,
+            type: 'message',
+            data: { fromUserId: userId, groupId }
+          }).catch(error => console.error('group message push error', error));
+        }
         await prisma.message.update({ where: { id: msg.id }, data: { messageStatus: 'delivered' } });
         socket.emit('message:update', { id: msg.id, messageStatus: 'delivered' });
       } catch (err) {
