@@ -6,7 +6,7 @@ const router = express.Router();
 const prisma = new PrismaClient();
 const SYSTEM_PROMPT = 'You are Caregivers AI, a friendly and safe assistant. Always answer in the same language as the latest user message: Burmese only for Burmese messages, English only for English messages, and never mix languages unless the user asks for translation. Be direct and concise: for greetings reply with a short greeting; normally answer in 1-4 short sentences or a few clear bullets. Use the full conversation history to keep context and do not repeat the user\'s question. Do not claim to be human, request passwords or private secrets, or replace qualified medical, legal, or financial professionals.';
 
-async function callGemini(messages) {
+async function callGemini(messages, systemPrompt = SYSTEM_PROMPT) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   const requestedModel = process.env.GEMINI_MODEL;
   let models = requestedModel ? [requestedModel, 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'] : ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
@@ -24,7 +24,7 @@ async function callGemini(messages) {
   for (const model of models) {
     const configs = model.includes('2.5') ? [{ maxOutputTokens: 700 }, { maxOutputTokens: 700, thinkingConfig: { thinkingBudget: 128 } }] : [{ maxOutputTokens: 700 }];
     for (const generationConfig of configs) {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] }, contents, generationConfig }) });
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: systemPrompt }] }, contents, generationConfig }) });
       const data = await response.json();
       if (response.ok) {
         const content = data?.candidates?.[0]?.content?.parts?.filter(part => !part.thought && part.text).map(part => part.text).join('').trim();
@@ -45,10 +45,10 @@ async function callGemini(messages) {
   throw new Error(`Gemini model မတွေ့ပါ (နောက်ဆုံး error ${lastError?.status || 'unknown'})`);
 }
 
-async function callOpenAI(messages) {
+async function callOpenAI(messages, systemPrompt = SYSTEM_PROMPT) {
   const apiBase = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
   if (!process.env.OPENAI_API_KEY) throw new Error('AI provider မသတ်မှတ်ရသေးပါ။ GEMINI_API_KEY သို့မဟုတ် OPENAI_API_KEY ထည့်ပါ');
-  const requestBody = model => ({ model, messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages], max_completion_tokens: 700 });
+  const requestBody = model => ({ model, messages: [{ role: 'system', content: systemPrompt }, ...messages], max_completion_tokens: 700 });
   const request = model => fetch(`${apiBase.replace(/\/$/, '')}/chat/completions`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody(model)) });
   let response = await request(process.env.AI_MODEL || 'gpt-5-mini');
   let data = await response.json();
@@ -57,8 +57,8 @@ async function callOpenAI(messages) {
   return data?.choices?.[0]?.message?.content?.trim();
 }
 
-async function generateReply(messages) {
-  const content = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? await callGemini(messages) : await callOpenAI(messages);
+async function generateReply(messages, systemPrompt = SYSTEM_PROMPT) {
+  const content = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? await callGemini(messages, systemPrompt) : await callOpenAI(messages, systemPrompt);
   if (!content) throw new Error('AI returned an empty response');
   return content;
 }
@@ -111,7 +111,7 @@ router.post('/translate', auth, async (req, res) => {
   try {
     const text = String(req.body?.text || '').trim().slice(0, 6000);
     if (!text) return res.status(400).json({ error: 'Text is required' });
-    const translated = await generateReply([{ role: 'user', content: `Translate the following text into natural Myanmar Burmese. Return only the translation, with no explanation, no quotation marks, and preserve line breaks where possible:\n\n${text}` }]);
+    const translated = await generateReply([{ role: 'user', content: text }], 'You are a professional translator. Translate every input into natural Myanmar Burmese. Always output Burmese only. Preserve names, numbers, URLs, emojis, punctuation, and line breaks. Never explain, summarize, answer, or refuse; return only the translation.');
     res.json({ translation: translated });
   } catch (error) { console.error('Translation error:', error); res.status(502).json({ error: error.message || 'Translation failed' }); }
 });

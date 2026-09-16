@@ -4,7 +4,10 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.RemoteInput;
@@ -12,8 +15,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages_v3";
-    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v3";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v4";
+    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v4";
     public static final String REPLY_KEY = "caregivers_reply";
 
     @Override public void onNewToken(@NonNull String token) {
@@ -63,6 +66,9 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             channel.setDescription(type.equals("call") ? "Incoming audio and video calls" : "New messages");
             channel.enableVibration(true);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            Uri sound = RingtoneManager.getDefaultUri(type.equals("call") ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
+            AudioAttributes audio = new AudioAttributes.Builder().setUsage(type.equals("call") ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+            channel.setSound(sound, audio);
             manager.createNotificationChannel(channel);
         }
 

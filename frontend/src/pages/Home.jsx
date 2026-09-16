@@ -512,6 +512,9 @@ export default function Home() {
       const translated = response.data.translation || ''
       setTranslations(previous => ({ ...previous, [key]: translated }))
       return translated
+    } catch (error) {
+      alert(error.response?.data?.error || error.message || 'ဘာသာပြန်၍မရပါ')
+      return ''
     } finally { setTranslatingKey(null) }
   }
   const translateMessage = message => translateText(`message-${message.id}`, message.content || '')

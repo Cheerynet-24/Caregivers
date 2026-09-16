@@ -290,6 +290,11 @@ public class MainActivity extends Activity {
         if (intent == null) return;
         String text = intent.getStringExtra("notification_reply");
         String userId = intent.getStringExtra("from_user_id");
+        if (text == null || userId == null) {
+            android.content.SharedPreferences pending = getSharedPreferences("caregivers", MODE_PRIVATE);
+            text = pending.getString("pending_reply_text", null);
+            userId = pending.getString("pending_reply_user_id", null);
+        }
         if (text != null && userId != null) { pendingReplyText = text; pendingReplyUserId = userId; }
     }
 
@@ -298,6 +303,7 @@ public class MainActivity extends Activity {
         String text = android.util.Base64.encodeToString(pendingReplyText.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
         String userId = android.util.Base64.encodeToString(pendingReplyUserId.getBytes(java.nio.charset.StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
         webView.evaluateJavascript("(()=>{const u=atob('" + userId + "'),t=atob('" + text + "');let n=0;const send=()=>{if(window.CaregiversNotificationReply)window.CaregiversNotificationReply(u,t);else if(++n<30)setTimeout(send,1000)};send()})()", null);
+        getSharedPreferences("caregivers", MODE_PRIVATE).edit().remove("pending_reply_text").remove("pending_reply_user_id").apply();
         pendingReplyText = null;
         pendingReplyUserId = null;
     }
