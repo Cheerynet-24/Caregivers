@@ -8,7 +8,15 @@ const { persistUpload } = require('../utils/uploads');
 const prisma = new PrismaClient();
 const upload = multer({
   storage: multer.memoryStorage(),
+  limits: { files: 10, fileSize: 150 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/') || file.mimetype.startsWith('audio/') || file.mimetype.startsWith('application/') || file.mimetype.startsWith('text/'))
+});
+const parsePostUpload = (req, res, next) => upload.array('media', 10)(req, res, error => {
+  if (!error) return next();
+  if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Each post file must be 150 MB or smaller' });
+  if (error.code === 'LIMIT_FILE_COUNT') return res.status(413).json({ error: 'A post can contain up to 10 files' });
+  if (error.code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ error: 'Use the media field for post attachments' });
+  return res.status(400).json({ error: error.message || 'Post upload could not be read' });
 });
 
 const authorSelect = { id: true, username: true, displayName: true, avatar: true };
@@ -55,7 +63,7 @@ router.get('/saved', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Failed to load saved posts' }); }
 });
 
-router.post('/', auth, upload.array('media', 10), async (req, res) => {
+router.post('/', auth, parsePostUpload, async (req, res) => {
   try {
     const caption = String(req.body.caption || '').trim();
     const files = req.files || [];

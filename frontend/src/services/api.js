@@ -15,6 +15,12 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // Let the browser add the multipart boundary. Setting this header manually
+  // makes some browsers send FormData without a boundary, so multer rejects it.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+    delete config.headers['content-type']
+  }
   return config
 })
 
@@ -53,7 +59,7 @@ export const userAPI = {
 export const postsAPI = {
   list: () => api.get('/api/posts'),
   saved: () => api.get('/api/posts/saved'),
-  create: (formData) => api.post('/api/posts', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  create: (formData) => api.post('/api/posts', formData),
   edit: (id, data) => api.put(`/api/posts/${id}`, data),
   remove: (id) => api.delete(`/api/posts/${id}`),
   like: (id) => api.post(`/api/posts/${id}/like`),
