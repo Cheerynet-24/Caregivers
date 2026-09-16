@@ -1166,6 +1166,11 @@ export default function Home() {
 
   const handleMessageAction = async (action, message) => {
     setMessageMenu(null)
+    if (action === 'reply') {
+      setReplyTarget(message)
+      setTimeout(() => messageInputRef.current?.focus(), 0)
+      return
+    }
     if (action === 'copy') {
       await navigator.clipboard?.writeText(message.content || message.fileUrl || '')
       return
@@ -1915,7 +1920,7 @@ export default function Home() {
                     </p>
                   </div>
                   {messageMenu === m.id && <div className={`absolute z-20 top-8 ${m.senderId === user.id ? 'right-0' : 'left-0'} bg-white dark:bg-gray-800 border rounded-xl shadow-lg p-1 min-w-32 text-xs dark:text-white`}>
-                    {['share', 'forward', 'copy', 'report', ...(m.type === 'sticker' ? ['add sticker'] : []), ...(['text', 'call', 'missed_call', 'declined_call', 'call_ended'].includes(m.type) && m.content ? ['translate'] : []), ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => action === 'add sticker' ? stickerFromMessage(m) : action === 'translate' ? translateMessage(m) : handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action === 'add sticker' ? 'Add My Sticker List' : action === 'translate' ? (translatingKey === `message-${m.id}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်') : action}</button>)}
+                    {['reply', 'share', 'forward', 'copy', 'report', ...(m.type === 'sticker' ? ['add sticker'] : []), ...(['text', 'call', 'missed_call', 'declined_call', 'call_ended'].includes(m.type) && m.content ? ['translate'] : []), ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => action === 'add sticker' ? stickerFromMessage(m) : action === 'translate' ? translateMessage(m) : handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action === 'add sticker' ? 'Add My Sticker List' : action === 'translate' ? (translatingKey === `message-${m.id}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်') : action}</button>)}
                   </div>}
                   </div>
                 </div>
