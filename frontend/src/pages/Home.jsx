@@ -2119,7 +2119,7 @@ export default function Home() {
         </div>
       )}
       {selectedProfile && (
-        <div className="fixed inset-0 z-[70] bg-white dark:bg-gray-900">
+        <div className="fixed inset-0 z-[70] h-[100dvh] overflow-hidden bg-white dark:bg-gray-900">
           {showProfileFriends ? <FriendListScreen profile={selectedProfile} friends={profileFriends} hidden={profileFriendsHidden} onBack={() => setShowProfileFriends(false)} onOpenProfile={showUserProfile} /> : <PublicProfilePanel profile={selectedProfile} posts={profilePosts} friends={profileFriends} friendsHidden={profileFriendsHidden} user={user} onBack={() => setSelectedProfile(null)} onFriends={() => setShowProfileFriends(true)} onMessage={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} onShareToChat={() => openProfileSharePicker(selectedProfile)} onShare={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text) }} onReport={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} onRefresh={loadPosts} />}
         </div>
       )}
