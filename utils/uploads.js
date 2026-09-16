@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { getStorageBuckets } = require('./firebase');
 
@@ -16,12 +17,32 @@ const getExtension = file => {
   return `.${subtype.replace(/[^a-z0-9]/gi, '') || 'bin'}`;
 };
 
-/**
- * Persist an uploaded multer file. Firebase Storage is used when configured;
- * local disk remains available for development and self-hosted deployments.
- */
+async function uploadToCloudinary(file, folder) {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+  if (!cloudName || !apiKey || !apiSecret) return null;
+  const timestamp = Math.floor(Date.now() / 1000);
+  const params = `folder=${folder}&timestamp=${timestamp}`;
+  const signature = crypto.createHash('sha1').update(`${params}${apiSecret}`).digest('hex');
+  const form = new FormData();
+  form.append('file', new Blob([file.buffer || fs.readFileSync(file.path)], { type: file.mimetype || 'application/octet-stream' }), file.originalname || `${uuidv4()}${getExtension(file)}`);
+  form.append('api_key', apiKey);
+  form.append('timestamp', String(timestamp));
+  form.append('folder', folder);
+  form.append('signature', signature);
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/auto/upload`, { method: 'POST', body: form, signal: AbortSignal.timeout(120000) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.secure_url) throw new Error(result.error?.message || `Cloudinary upload failed (${response.status})`);
+  return result.secure_url;
+}
+
+/** Persist an uploaded file using Cloudinary, Firebase, or local development storage. */
 async function persistUpload(file, folder = 'media') {
   if (!file) return null;
+  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    return uploadToCloudinary(file, folder);
+  }
   const filename = `${uuidv4()}${getExtension(file)}`;
   const objectName = `${folder}/${filename}`;
   const buckets = getStorageBuckets();
@@ -47,7 +68,7 @@ async function persistUpload(file, folder = 'media') {
 
   const isEphemeralDeployment = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
   if (isEphemeralDeployment) {
-    throw new Error('Persistent media storage is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and FIREBASE_STORAGE_BUCKET before enabling uploads in production.');
+    throw new Error('Persistent media storage is not configured. Set the CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET variables in production.');
   }
 
   ensureLocalUploadDir();
