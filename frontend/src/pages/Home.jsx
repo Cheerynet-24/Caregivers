@@ -1106,14 +1106,19 @@ export default function Home() {
     if (!call || call.callType !== 'video' || !localStreamRef.current || !navigator.mediaDevices?.getUserMedia) return
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } })
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: nextFacing } } })
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } })
+      }
       const nextTrack = stream.getVideoTracks()[0]
       if (!nextTrack) return
       const rawStream = rawStreamRef.current || localStreamRef.current
-      rawStream?.getVideoTracks().forEach(track => track.stop())
-      rawStream?.addTrack(nextTrack)
       const sender = peerRef.current?.getSenders?.().find(item => item.track?.kind === 'video')
       if (sender && !videoEffectPipelineRef.current) await sender.replaceTrack(nextTrack)
+      rawStream?.getVideoTracks().forEach(track => track.stop())
+      rawStream?.addTrack(nextTrack)
       await applyVideoEffect(videoEffectRef.current)
       setCameraFacing(nextFacing)
     } catch { alert('ဒီဖုန်းမှာ Camera ပြောင်းလို့မရပါ') }
@@ -1685,7 +1690,7 @@ export default function Home() {
             <button onClick={toggleMute} className="p-4 rounded-full bg-gray-700 text-white" title="Mute">
               {mutedCall ? <MicOff size={22} /> : <Mic size={22} />}
             </button>
-            {call.callType === 'video' && <div className="relative"><button onClick={() => setShowVideoEffects(value => !value)} className="flex items-center gap-2 rounded-xl bg-gray-700 px-3 py-2 text-sm text-white" title="Video effects"><Sparkles size={16} /> {getVideoEffect(videoEffect).label}</button>{showVideoEffects && <div className="absolute bottom-14 left-1/2 z-50 flex -translate-x-1/2 gap-2 rounded-2xl border border-white/10 bg-gray-900/95 p-2 shadow-2xl backdrop-blur"><div className="grid grid-cols-3 gap-2">{VIDEO_EFFECTS.map(effect => <button key={effect.id} onClick={() => applyVideoEffect(effect.id)} className={`flex min-w-[58px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] text-white transition hover:bg-white/15 ${videoEffect === effect.id ? 'bg-sky-500' : ''}`}><span className="text-xl leading-none">{effect.emoji}</span><span>{effect.label}</span></button>)}</div></div>}</div>}
+            {call.callType === 'video' && <div className="relative"><button onClick={() => setShowVideoEffects(value => !value)} className="flex items-center gap-2 rounded-xl bg-gray-700 px-3 py-2 text-sm text-white" title="Video effects"><Sparkles size={16} /> {getVideoEffect(videoEffect).label}</button>{showVideoEffects && <div className="absolute bottom-16 left-1/2 z-50 flex w-[min(92vw,560px)] -translate-x-1/2 gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-gray-900/95 p-2 shadow-2xl backdrop-blur overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>{VIDEO_EFFECTS.map(effect => <button type="button" key={effect.id} onClick={() => applyVideoEffect(effect.id)} className={`flex min-w-[68px] shrink-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-[10px] text-white transition hover:bg-white/15 ${videoEffect === effect.id ? 'bg-sky-500' : ''}`}><span className="text-xl leading-none">{effect.emoji}</span><span>{effect.id === 'none' ? 'Normal' : effect.label}</span></button>)}</div>}</div>}
             {call.callType === 'video' && <button onClick={toggleCamera} className="p-4 rounded-full bg-gray-700 text-white" title="Camera">
               {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
             </button>}
