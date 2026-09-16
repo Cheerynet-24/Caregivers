@@ -801,7 +801,7 @@ export default function Home() {
     if (!sticker?.content && !sticker?.fileUrl) return
     const normalized = { content: sticker.content || '', fileUrl: sticker.fileUrl || '', type: 'sticker', source }
     setMyStickers(previous => {
-      const next = [normalized, ...previous.filter(item => item.content !== normalized.content || item.fileUrl !== normalized.fileUrl)].slice(0, 80)
+      const next = [normalized, ...previous.filter(item => item.content !== normalized.content || item.fileUrl !== normalized.fileUrl || item.source !== normalized.source)].slice(0, 80)
       localStorage.setItem('caregivers-my-stickers', JSON.stringify(next))
       return next
     })
