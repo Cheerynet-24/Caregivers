@@ -5,8 +5,9 @@ let firebaseApp = null;
 
 function getFirebaseApp() {
   if (firebaseApp) return firebaseApp;
-  const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const emailProjectId = clientEmail?.match(/@([^.]+)\.iam\.gserviceaccount\.com$/)?.[1];
+  const projectId = emailProjectId || process.env.FIREBASE_PROJECT_ID;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY
     ?.replace(/^['"]|['"]$/g, '')
     .replace(/\\n/g, '\n');
@@ -43,8 +44,17 @@ function getStorageBuckets() {
   const app = getFirebaseApp();
   if (!app) return [];
   const configured = process.env.FIREBASE_STORAGE_BUCKET?.replace(/^gs:\/\//, '').replace(/\/$/, '');
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const names = [...new Set([configured, `${projectId}.firebasestorage.app`, `${projectId}.appspot.com`].filter(Boolean))];
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const emailProjectId = clientEmail?.match(/@([^.]+)\.iam\.gserviceaccount\.com$/)?.[1];
+  const projectId = emailProjectId || process.env.FIREBASE_PROJECT_ID;
+  const configuredProjectId = process.env.FIREBASE_PROJECT_ID;
+  const names = [...new Set([
+    `${projectId}.firebasestorage.app`,
+    `${projectId}.appspot.com`,
+    configuredProjectId && `${configuredProjectId}.firebasestorage.app`,
+    configuredProjectId && `${configuredProjectId}.appspot.com`,
+    configured
+  ].filter(Boolean))];
   return names.map(name => { try { return admin.storage(app).bucket(name); } catch { return null; } }).filter(Boolean);
 }
 
