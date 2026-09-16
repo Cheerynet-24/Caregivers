@@ -219,13 +219,6 @@ export default function Home() {
   const swipeStartXRef = useRef(0)
 
   useEffect(() => {
-    for (const kind of ['call', 'message']) {
-      const uri = localStorage.getItem(`caregivers-${kind}-notification-sound`)
-      if (uri) window.CaregiversNotificationSound?.set?.(kind, uri)
-    }
-  }, [])
-
-  useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     callAPI.config().then(response => setIceServers(response.data?.iceServers || [])).catch(() => {})
     loadConversations()
@@ -649,13 +642,6 @@ export default function Home() {
     notificationAudioRef.current?.pause()
     notificationAudioRef.current?.removeAttribute('src')
     notificationAudioRef.current = null
-  }
-
-  const setPhoneNotificationSound = (kind, song) => {
-    if (!song?.url) return
-    localStorage.setItem(`caregivers-${kind}-notification-sound`, song.url)
-    window.CaregiversNotificationSound?.set?.(kind, song.url)
-    alert(`${kind === 'call' ? 'Call' : 'Message'} ringtone မှတ်ထားပြီးပါပြီ။ အသံမပြောင်းရင် Android Settings > Apps > Caregivers > Notifications ထဲမှာ Sound ကို Allow လုပ်ပါ။`)
   }
 
   const saveCustomSound = (kind, file) => {
@@ -1862,7 +1848,6 @@ export default function Home() {
                   <button onClick={() => saveChatSettings({ ...chatSettings, notifications: !chatSettings.notifications })} className="w-full flex items-center gap-2 text-left p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><BellOff size={16} /> {chatSettings.notifications ? 'Turn notifications off' : 'Turn notifications on'}</button>
                   <label className="block p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><span className="flex items-center gap-2"><Music size={16} /> Message sound (max 9 sec)</span><input type="file" accept="audio/*" className="mt-1 w-full text-xs" onChange={e => saveCustomSound('message', e.target.files[0])} /></label>
                   <label className="block p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><span className="flex items-center gap-2"><Phone size={16} /> Call sound (web / max 9 sec)</span><input type="file" accept="audio/*" className="mt-1 w-full text-xs" onChange={e => saveCustomSound('call', e.target.files[0])} /></label>
-                  <div className="rounded-lg border border-sky-100 p-2 dark:border-gray-600"><p className="mb-1 text-xs font-semibold">ဖုန်းထဲကသီချင်းကို Noti sound အဖြစ်သတ်မှတ်ရန်</p>{localSongs.length ? <div className="max-h-28 space-y-1 overflow-y-auto">{localSongs.slice(0, 20).map(song => <div key={`noti-${song.id}`} className="flex items-center gap-1"><span className="min-w-0 flex-1 truncate text-xs">{song.title}</span><button type="button" onClick={() => setPhoneNotificationSound('message', song)} className="rounded bg-sky-100 px-2 py-1 text-[10px] text-sky-700 dark:bg-sky-900 dark:text-sky-200">Message</button><button type="button" onClick={() => setPhoneNotificationSound('call', song)} className="rounded bg-emerald-100 px-2 py-1 text-[10px] text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200">Call</button></div>)}</div> : <button type="button" onClick={() => window.CaregiversLocalMusic?.requestPermission?.()} className="text-xs text-sky-600">Music permission ဖွင့်ရန်နှိပ်ပါ</button>}</div>
                   <button onClick={async () => { await chatAPI[chatSettings.blocked ? 'unblockUser' : 'blockUser'](activeChat.data.id); saveChatSettings({ ...chatSettings, blocked: !chatSettings.blocked }); setShowChatSettings(false) }} className="w-full flex items-center gap-2 text-left p-2 text-orange-600 rounded-lg hover:bg-orange-50"><Ban size={16} /> {chatSettings.blocked ? 'Unblock user' : 'Block user'}</button>
                   <button onClick={async () => { if (window.confirm('Delete this conversation?')) { await chatAPI.deleteConversation(activeChat.id); setActiveChat(null); setMessages([]); loadConversations(); setShowChatSettings(false) } }} className="w-full flex items-center gap-2 text-left p-2 text-red-600 rounded-lg hover:bg-red-50"><Trash2 size={16} /> Delete conversation</button>
                 </div>}

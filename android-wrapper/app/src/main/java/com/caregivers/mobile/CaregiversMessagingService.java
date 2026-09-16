@@ -15,8 +15,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages_v5";
-    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v5";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v6";
+    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v6";
     public static final String REPLY_KEY = "caregivers_reply";
 
     @Override public void onNewToken(@NonNull String token) {
@@ -75,14 +75,9 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             channel.setDescription(isCall ? "Incoming audio and video calls" : "New messages");
             channel.enableVibration(true);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-            String prefKey = isCall ? "call_sound_uri" : "message_sound_uri";
-            String selectedSound = getSharedPreferences("caregivers_notification_sounds", MODE_PRIVATE).getString(prefKey, "");
+            // Always use the phone's system defaults. Android remembers each channel's
+            // sound separately, so users can configure Calls and Messages independently.
             Uri sound = defaultSound(isCall);
-            if (selectedSound != null && !selectedSound.isEmpty()) {
-                try (android.content.res.AssetFileDescriptor ignored = getContentResolver().openAssetFileDescriptor(Uri.parse(selectedSound), "r")) {
-                    if (ignored != null) sound = Uri.parse(selectedSound);
-                } catch (Exception ignored) {}
-            }
             AudioAttributes audio = new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
             channel.setSound(sound, audio);
             manager.createNotificationChannel(channel);

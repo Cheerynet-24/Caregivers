@@ -180,7 +180,6 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
-        webView.addJavascriptInterface(new NotificationSoundBridge(), "CaregiversNotificationSound");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
@@ -476,34 +475,6 @@ public class MainActivity extends Activity {
             if (android.os.Build.VERSION.SDK_INT >= 33) return checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED;
             return android.os.Build.VERSION.SDK_INT < 23 || checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
         }
-    }
-
-    private class NotificationSoundBridge {
-        @JavascriptInterface public void set(String kind, String uri) {
-            if (!"call".equals(kind) && !"message".equals(kind)) return;
-            runOnUiThread(() -> {
-                String key = "call".equals(kind) ? "call_sound_uri" : "message_sound_uri";
-                String value = uri == null ? "" : uri.trim();
-                if (!value.isEmpty()) {
-                    try {
-                        Uri selected = Uri.parse(value);
-                        try (android.content.res.AssetFileDescriptor ignored = getContentResolver().openAssetFileDescriptor(selected, "r")) {
-                            if (ignored == null) value = "";
-                        }
-                        if (android.os.Build.VERSION.SDK_INT >= 19 && "content".equals(selected.getScheme())) {
-                            try { getContentResolver().takePersistableUriPermission(selected, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
-                        }
-                    } catch (Exception ignored) { value = ""; }
-                }
-                getSharedPreferences("caregivers_notification_sounds", MODE_PRIVATE).edit().putString(key, value).apply();
-                if (android.os.Build.VERSION.SDK_INT >= 26) {
-                    NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-                    String channel = "call".equals(kind) ? "caregivers_incoming_calls_v5" : "caregivers_calls_messages_v5";
-                    manager.deleteNotificationChannel(channel);
-                }
-            });
-        }
-        @JavascriptInterface public void clear(String kind) { set(kind, ""); }
     }
 
     private class MusicNotificationBridge {
