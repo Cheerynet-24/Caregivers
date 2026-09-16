@@ -1873,8 +1873,8 @@ export default function Home() {
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
               {messages.map(m => (
-                <div id={`chat-message-${m.id}`} key={m.id} className={`flex rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
-                  <div data-message-menu className="relative group max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
+                <div id={`chat-message-${m.id}`} key={m.id} className={`flex w-full min-w-0 rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
+                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
                   <div className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
@@ -1907,7 +1907,7 @@ export default function Home() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative">
+            <div className="w-full min-w-0 shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative overflow-hidden">
               {replyTarget && <div className="absolute -top-12 left-2 right-2 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <input ref={stickerFileRef} type="file" accept="image/*" className="hidden" onChange={createStickerFromImage} />

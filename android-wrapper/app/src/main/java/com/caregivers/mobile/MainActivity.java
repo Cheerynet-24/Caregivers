@@ -86,6 +86,12 @@ public class MainActivity extends Activity {
         readIncomingGroupCallIntent(getIntent());
         readIncomingCallAction(getIntent());
         webView = new WebView(this);
+        int statusBarId = getResources().getIdentifier("status_bar_height", "dimen", "android");
+        int navigationBarId = getResources().getIdentifier("navigation_bar_height", "dimen", "android");
+        int statusBarInset = statusBarId > 0 ? getResources().getDimensionPixelSize(statusBarId) : 0;
+        int navigationBarInset = navigationBarId > 0 ? getResources().getDimensionPixelSize(navigationBarId) : 0;
+        webView.setPadding(0, statusBarInset, 0, navigationBarInset);
+        webView.setClipToPadding(false);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         setupMusicSession();
         if (audioManager != null) {
