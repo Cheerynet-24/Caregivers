@@ -82,7 +82,9 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             open.putExtra("call_type", data.getOrDefault("callType", "audio"));
             open.putExtra("offer_b64", data.getOrDefault("offer", ""));
         }
-        PendingIntent content = PendingIntent.getActivity(this, notificationId, open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+        PendingIntent content = type.equals("call")
+                ? callAction(CallNotificationActionReceiver.ACTION_ACCEPT, notificationId, fromUserId, data)
+                : PendingIntent.getActivity(this, notificationId, open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
                 .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(type.equals("call") ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)

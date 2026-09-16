@@ -9,7 +9,7 @@ import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag, Bot, BarChart3
+  VolumeX, Volume2, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag, Bot, BarChart3
 } from 'lucide-react'
 
 const VIDEO_EFFECTS = [
@@ -98,11 +98,13 @@ export default function Home() {
   const [dark, setDark] = useState(false)
   const [call, setCall] = useState(null)
   const [groupCall, setGroupCall] = useState(null)
+  const [groupParticipantMutes, setGroupParticipantMutes] = useState({})
   const [groupParticipants, setGroupParticipants] = useState([])
   const [groupMuted, setGroupMuted] = useState(false)
   const [groupCameraOff, setGroupCameraOff] = useState(false)
   const [callStatus, setCallStatus] = useState('')
   const [incomingCall, setIncomingCall] = useState(null)
+  const [incomingGroupCall, setIncomingGroupCall] = useState(null)
   const [mutedCall, setMutedCall] = useState(false)
   const [cameraOff, setCameraOff] = useState(false)
   const [cameraFacing, setCameraFacing] = useState('user')
@@ -329,6 +331,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!socket) return
+    const onInvite = invite => {
+      if (!invite?.groupId || invite.fromUserId === user?.id || groupCall) return
+      setIncomingGroupCall(current => current || invite)
+      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+    }
     const onJoined = ({ groupId, userId, username }) => {
       if (groupCall?.groupId !== groupId || userId === user?.id) return
       setGroupParticipants(previous => previous.some(item => item.userId === userId) ? previous : [...previous, { userId, username, stream: null }])
@@ -352,7 +359,8 @@ export default function Home() {
     socket.on('group-call:user-joined', onJoined)
     socket.on('group-call:signal', onSignal)
     socket.on('group-call:user-left', onLeft)
-    return () => { socket.off('group-call:user-joined', onJoined); socket.off('group-call:signal', onSignal); socket.off('group-call:user-left', onLeft) }
+    socket.on('group-call:invite', onInvite)
+    return () => { socket.off('group-call:user-joined', onJoined); socket.off('group-call:signal', onSignal); socket.off('group-call:user-left', onLeft); socket.off('group-call:invite', onInvite) }
   }, [socket, groupCall, user?.id])
 
   useEffect(() => {
@@ -1156,8 +1164,10 @@ export default function Home() {
     setGroupParticipants([])
     setGroupMuted(false)
     setGroupCameraOff(false)
+    setGroupParticipantMutes({})
     setGroupCall(null)
   }
+  const toggleGroupParticipantMute = userId => setGroupParticipantMutes(previous => ({ ...previous, [userId]: !previous[userId] }))
   const toggleGroupMute = () => { const next = !groupMuted; groupLocalStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !next }); setGroupMuted(next) }
   const toggleGroupCamera = () => { const next = !groupCameraOff; groupLocalStreamRef.current?.getVideoTracks().forEach(track => { track.enabled = !next }); setGroupCameraOff(next) }
   const startGroupCall = async callType => {
@@ -1165,13 +1175,29 @@ export default function Home() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' })
       groupLocalStreamRef.current = stream
-      setGroupCall({ groupId: activeChat.id, callType })
+      setGroupCall({ groupId: activeChat.id, callType, isCaller: true })
       setGroupParticipants([])
       socket.emit('group-call:join', { groupId: activeChat.id, callType }, response => {
         if (!response?.ok) { stream.getTracks().forEach(track => track.stop()); groupLocalStreamRef.current = null; setGroupCall(null); return alert(response?.error || 'Group call join failed') }
         setGroupParticipants((response.participants || []).map(item => ({ ...item, stream: null })))
       })
     } catch (error) { alert(error.message || 'Camera/Microphone permission is required') }
+  }
+  const acceptGroupCall = async () => {
+    if (!incomingGroupCall || !socket?.connected || groupCall) return
+    stopNotificationSound()
+    try {
+      const callType = incomingGroupCall.callType === 'video' ? 'video' : 'audio'
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: callType === 'video' })
+      groupLocalStreamRef.current = stream
+      setGroupCall({ groupId: incomingGroupCall.groupId, callType, isCaller: false })
+      setGroupParticipants([])
+      socket.emit('group-call:join', { groupId: incomingGroupCall.groupId, callType }, response => {
+        if (!response?.ok) { stream.getTracks().forEach(track => track.stop()); groupLocalStreamRef.current = null; setGroupCall(null); alert(response?.error || 'Group call join failed'); return }
+        setGroupParticipants((response.participants || []).map(item => ({ ...item, stream: null })))
+      })
+      setIncomingGroupCall(null)
+    } catch (error) { alert(`Group call permission failed (${error?.name || 'unknown'}). Please allow Camera/Microphone.`) }
   }
 
   const createPeer = (targetUserId, callType, configuredIceServers = iceServers) => {
@@ -1900,6 +1926,18 @@ export default function Home() {
           </div>
         </div>
       )}
+      {incomingGroupCall && !groupCall && !incomingCall && (
+        <div className="fixed inset-0 z-50 pointer-events-none p-3 sm:p-5">
+          <div className="pointer-events-auto ml-auto mr-auto sm:mr-0 mt-2 bg-white dark:bg-gray-800 rounded-2xl p-5 w-full max-w-sm text-center shadow-2xl border border-indigo-200 dark:border-gray-700">
+            <p className="text-lg font-semibold dark:text-white mb-2">Incoming group {incomingGroupCall.callType} call</p>
+            <p className="text-gray-500 mb-5">{incomingGroupCall.fromUsername || 'Someone'} is calling the group</p>
+            <div className="flex gap-3">
+              <button onClick={() => { stopNotificationSound(); setIncomingGroupCall(null) }} className="flex-1 py-3 rounded-xl bg-red-500 text-white">Decline</button>
+              <button onClick={acceptGroupCall} className="flex-1 py-3 rounded-xl bg-green-500 text-white">Join</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {call && (
         <div className="fixed inset-0 z-40 bg-gray-950 flex flex-col">
@@ -1932,14 +1970,16 @@ export default function Home() {
       )}
       {groupCall && (
         <div className="fixed inset-0 z-40 flex flex-col bg-gray-950">
-          <div className={`min-h-0 flex-1 gap-2 overflow-y-auto p-3 ${groupCall.callType === 'video' ? 'grid grid-cols-2 sm:grid-cols-3' : 'flex flex-col items-center justify-center'}`}>
-            <div className={`relative overflow-hidden rounded-2xl bg-gray-800 ${groupCall.callType === 'video' ? 'min-h-48' : 'flex h-32 w-32 items-center justify-center rounded-full'}`}>
+          <div className="min-h-0 flex-1 grid grid-cols-1 gap-3 overflow-y-auto p-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={`relative overflow-hidden rounded-2xl bg-gray-800 ${groupCall.callType === 'video' ? 'min-h-48' : 'flex min-h-32 items-center justify-center'}`}>
               {groupCall.callType === 'video' ? <video autoPlay muted playsInline ref={node => { if (node && groupLocalStreamRef.current) node.srcObject = groupLocalStreamRef.current }} className={`h-full min-h-48 w-full object-cover ${groupCameraOff ? 'hidden' : ''}`} /> : <Mic size={32} className="text-white" />}
               <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs text-white">You</span>
             </div>
             {groupParticipants.map(participant => <div key={participant.userId} className={`relative overflow-hidden rounded-2xl bg-gray-800 ${groupCall.callType === 'video' ? 'min-h-48' : 'flex h-24 w-full max-w-sm items-center gap-3 px-5'}`}>
-              {groupCall.callType === 'video' && participant.stream ? <video autoPlay playsInline ref={node => { if (node) node.srcObject = participant.stream }} className="h-full min-h-48 w-full object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white">{(participant.username || '?')[0].toUpperCase()}</div>}
+              {groupCall.callType === 'video' && participant.stream ? <video autoPlay muted={Boolean(groupParticipantMutes[participant.userId])} playsInline ref={node => { if (node) node.srcObject = participant.stream }} className="h-full min-h-48 w-full object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500 text-xl font-bold text-white">{(participant.username || '?')[0].toUpperCase()}</div>}
+              {groupCall.callType === 'audio' && participant.stream && <audio autoPlay muted={Boolean(groupParticipantMutes[participant.userId])} ref={node => { if (node) { node.srcObject = participant.stream; node.play?.().catch(() => {}) } }} />}
               <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-xs text-white">{participant.username || 'Participant'}</span>
+              {groupCall.isCaller && <button type="button" onClick={() => toggleGroupParticipantMute(participant.userId)} className="absolute right-2 top-2 rounded-full bg-black/60 p-2 text-white" title={groupParticipantMutes[participant.userId] ? 'Unmute participant' : 'Mute participant'}>{groupParticipantMutes[participant.userId] ? <VolumeX size={16} /> : <Volume2 size={16} />}</button>}
             </div>)}
             {!groupParticipants.length && <p className="col-span-full self-center text-center text-sm text-gray-400">Waiting for group members to join…</p>}
           </div>

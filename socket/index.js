@@ -286,6 +286,11 @@ function setupSocket(io, prisma) {
       const room = `call:${groupId}`;
       const existing = (await io.in(room).fetchSockets()).filter(item => item.id !== socket.id).map(item => ({ userId: item.user.id, username: item.user.username }));
       socket.join(room);
+      const members = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } });
+      const invite = { groupId, fromUserId: userId, fromUsername: socket.user.displayName || socket.user.username, callType: data.callType === 'video' ? 'video' : 'audio' };
+      for (const member of members) {
+        if (member.userId !== userId) io.to(`user:${member.userId}`).emit('group-call:invite', invite);
+      }
       socket.to(room).emit('group-call:user-joined', { groupId, userId, username: socket.user.username, callType: data.callType === 'video' ? 'video' : 'audio' });
       acknowledge?.({ ok: true, participants: existing });
     });
