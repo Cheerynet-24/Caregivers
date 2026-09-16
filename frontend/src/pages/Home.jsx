@@ -330,7 +330,7 @@ export default function Home() {
       if (!peerRef.current?.remoteDescription) pendingIceRef.current.push(candidate)
       else { try { await peerRef.current.addIceCandidate(new RTCIceCandidate(candidate)) } catch {} }
     }
-    const onEnd = () => endCall(false)
+    const onEnd = () => { stopNotificationSound(); endCall(false) }
     socket.on('call:offer', onOffer)
     socket.on('call:answer', onAnswer)
     socket.on('call:ice', onIce)
@@ -1895,7 +1895,7 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div id={`chat-message-${m.id}`} key={m.id} className={`flex w-full min-w-0 rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
-                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => { swipeStartXRef.current = e.clientX; e.currentTarget.setPointerCapture?.(e.pointerId); beginMessageLongPress(m) }} onPointerUp={e => { cancelMessageLongPress(); if (Math.abs(e.clientX - swipeStartXRef.current) > 45) { setReplyTarget(m); setTimeout(() => messageInputRef.current?.focus(), 0) } }} onPointerMove={e => { if (Math.abs(e.clientX - swipeStartXRef.current) > 12) cancelMessageLongPress() }} onPointerCancel={cancelMessageLongPress}>
+                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => { swipeStartXRef.current = e.clientX; e.currentTarget.setPointerCapture?.(e.pointerId); beginMessageLongPress(m) }} onPointerUp={e => { cancelMessageLongPress(); if (Math.abs(e.clientX - swipeStartXRef.current) > 45) { setReplyTarget(m); setTimeout(() => messageInputRef.current?.focus(), 0) } }} onPointerMove={e => { if (Math.abs(e.clientX - swipeStartXRef.current) > 12) cancelMessageLongPress() }} onPointerCancel={cancelMessageLongPress} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 45) { setReplyTarget(m); setTimeout(() => messageInputRef.current?.focus(), 0) } }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
                   <div className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
@@ -1928,8 +1928,8 @@ export default function Home() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="w-full min-w-0 shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative overflow-hidden">
-              {replyTarget && <div className="absolute -top-12 left-2 right-2 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
+            <div className="w-full min-w-0 shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative overflow-visible">
+              {replyTarget && <div className="absolute bottom-full left-2 right-2 z-20 mb-1 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
               <input ref={stickerFileRef} type="file" accept="image/*" className="hidden" onChange={createStickerFromImage} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>

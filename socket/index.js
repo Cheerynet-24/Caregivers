@@ -296,7 +296,8 @@ function setupSocket(io, prisma) {
           io.to(`user:${call.callerId}`).to(`user:${call.receiverId}`).emit('message:update', updated);
         }
       }
-      io.to(`user:${data.toUserId}`).emit('call:end', { fromUserId: userId, callId: data.callId });
+      const targetUserId = call ? (call.callerId === userId ? call.receiverId : call.callerId) : data?.toUserId;
+      if (targetUserId) io.to(`user:${targetUserId}`).emit('call:end', { fromUserId: userId, callId: data.callId });
     });
 
     // Group call signaling: only group members may join; WebRTC signals are targeted peer-to-peer.
