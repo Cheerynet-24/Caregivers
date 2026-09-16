@@ -241,8 +241,6 @@ function setupSocket(io, prisma) {
         const receiverId = data?.toUserId;
         const callType = data?.callType === 'video' ? 'video' : 'audio';
         if (!receiverId || receiverId === userId || !data?.offer) return acknowledge?.({ ok: false });
-        const receiverPresence = await prisma.user.findUnique({ where: { id: receiverId }, select: { isOnline: true } });
-        if (!receiverPresence?.isOnline) return acknowledge?.({ ok: false, unavailable: true, error: 'The person is offline' });
         const activeCall = await prisma.callLog.findFirst({ where: { status: 'answered', OR: [{ callerId: receiverId }, { receiverId }] }, select: { id: true } });
         if (activeCall) return acknowledge?.({ ok: false, busy: true, error: 'The person is already on another call' });
         const call = await prisma.callLog.create({ data: { callerId: userId, receiverId, callType, status: 'ringing' } });
