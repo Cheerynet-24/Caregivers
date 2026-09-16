@@ -43,6 +43,28 @@ router.post('/download', auth, async (req, res) => {
   const sourceUrl = String(req.body?.url || '').trim();
   const requestedName = String(req.body?.name || 'caregivers-media').replace(/[^a-z0-9._-]/gi, '_').slice(0, 80) || 'caregivers-media';
   if (!isSafePublicUrl(sourceUrl)) return res.status(400).json({ error: 'Only safe public http(s) direct media links are supported' });
+  const sourceHost = new URL(sourceUrl).hostname.toLowerCase();
+  const isTikTok = /(^|\.)tiktok\.com$/.test(sourceHost) || /^(vm|vt)\.tiktok\.com$/.test(sourceHost);
+  if (isTikTok) {
+    let savedPath;
+    try {
+      const apiResponse = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(sourceUrl)}`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(30000) });
+      const apiData = await apiResponse.json();
+      const videoUrl = apiData?.code === 0 ? (apiData.data?.hdplay || apiData.data?.play) : null;
+      if (!apiResponse.ok || !videoUrl || !isSafePublicUrl(videoUrl)) return res.status(502).json({ error: apiData?.msg || 'TikTok video could not be found. Check that the link is public.' });
+      const videoResponse = await fetch(videoUrl, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(90000) });
+      if (!videoResponse.ok || !videoResponse.body) return res.status(502).json({ error: 'TikTok video file could not be downloaded' });
+      const contentLength = Number(videoResponse.headers.get('content-length') || 0);
+      if (contentLength > 150 * 1024 * 1024) return res.status(413).json({ error: 'Video is larger than 150 MB' });
+      const outputName = `${Date.now()}-${requestedName.replace(/\.[^.]+$/, '')}.mp4`;
+      savedPath = path.join(uploadDir, outputName);
+      await pipeline(videoResponse.body, fs.createWriteStream(savedPath));
+      return res.json({ fileUrl: `/uploads/${outputName}`, fileName: outputName, type: 'video', noWatermark: true });
+    } catch (error) {
+      if (savedPath) { try { fs.unlinkSync(savedPath); } catch {} }
+      return res.status(502).json({ error: error.name === 'TimeoutError' ? 'TikTok download timed out' : 'TikTok download service is unavailable' });
+    }
+  }
   const tempInput = path.join(os.tmpdir(), `caregivers-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   const outputName = `${Date.now()}-${requestedName.replace(/\.[^.]+$/, '')}.mp3`;
   const outputPath = path.join(uploadDir, outputName);
