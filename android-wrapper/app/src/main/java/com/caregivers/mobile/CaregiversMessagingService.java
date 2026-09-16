@@ -15,8 +15,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages_v7";
-    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v7";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v8";
+    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v8";
     public static final String REPLY_KEY = "caregivers_reply";
 
     @Override public void onNewToken(@NonNull String token) {
@@ -116,7 +116,7 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         manager.notify(notificationId, builder.build());
     }
     private Uri defaultSound(boolean isCall) {
-        return RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
+        return RingtoneManager.getActualDefaultRingtoneUri(this, isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
     }
     private void cancelCallNotification(java.util.Map<String, String> data) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);

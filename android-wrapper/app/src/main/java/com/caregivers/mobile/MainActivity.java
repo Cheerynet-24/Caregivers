@@ -94,10 +94,6 @@ public class MainActivity extends Activity {
         webView.setClipToPadding(false);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
         setupMusicSession();
-        if (audioManager != null) {
-            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-            audioManager.setSpeakerphoneOn(false);
-        }
         setContentView(webView);
         requestNotificationPermission();
         WebSettings settings = webView.getSettings();
@@ -495,7 +491,7 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 try {
                     stop();
-                    Uri uri = RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
+                    Uri uri = RingtoneManager.getActualDefaultRingtoneUri(MainActivity.this, isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
                     foregroundSystemRingtone = RingtoneManager.getRingtone(MainActivity.this, uri);
                     if (foregroundSystemRingtone != null && android.os.Build.VERSION.SDK_INT >= 21) {
                         foregroundSystemRingtone.setAudioAttributes(new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
