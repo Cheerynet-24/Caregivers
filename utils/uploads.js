@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { getStorageBucket } = require('./firebase');
+const { getStorageBuckets } = require('./firebase');
 
 const localUploadDir = path.join(__dirname, '../uploads');
 
@@ -24,10 +24,11 @@ async function persistUpload(file, folder = 'media') {
   if (!file) return null;
   const filename = `${uuidv4()}${getExtension(file)}`;
   const objectName = `${folder}/${filename}`;
-  const bucket = getStorageBucket();
+  const buckets = getStorageBuckets();
 
-  if (bucket) {
-    try {
+  if (buckets.length) {
+    let lastError = null;
+    for (const bucket of buckets) try {
       const token = uuidv4();
       const remoteFile = bucket.file(objectName);
       const buffer = file.buffer || fs.readFileSync(file.path);
@@ -39,11 +40,9 @@ async function persistUpload(file, folder = 'media') {
         }
       });
       return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(objectName)}?alt=media&token=${token}`;
-    } catch (error) {
-      // A misconfigured bucket must not prevent a user from sending a message.
-      // The local fallback keeps development/self-hosted deployments usable.
-      console.error('Firebase upload failed; using local fallback:', error.message);
-    }
+    } catch (error) { lastError = error; console.error(`Firebase upload failed for ${bucket.name}:`, error.message); }
+    const isEphemeralDeployment = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
+    if (isEphemeralDeployment) throw new Error(`Firebase Storage upload failed: ${lastError?.message || 'check bucket and service-account permissions'}`);
   }
 
   const isEphemeralDeployment = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;

@@ -39,6 +39,15 @@ function getStorageBucket() {
   }
 }
 
+function getStorageBuckets() {
+  const app = getFirebaseApp();
+  if (!app) return [];
+  const configured = process.env.FIREBASE_STORAGE_BUCKET?.replace(/^gs:\/\//, '').replace(/\/$/, '');
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const names = [...new Set([configured, `${projectId}.firebasestorage.app`, `${projectId}.appspot.com`].filter(Boolean))];
+  return names.map(name => { try { return admin.storage(app).bucket(name); } catch { return null; } }).filter(Boolean);
+}
+
 async function sendPush(token, { title, body, type = 'message', data = {} }) {
   const service = getMessaging();
   if (!service || !token) return false;
@@ -72,4 +81,4 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
   }
 }
 
-module.exports = { sendPush, getStorageBucket };
+module.exports = { sendPush, getStorageBucket, getStorageBuckets };

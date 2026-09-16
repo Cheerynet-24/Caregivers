@@ -64,7 +64,7 @@ router.post('/', auth, upload.array('media', 10), async (req, res) => {
     const first = mediaItems[0] || null;
     const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, mediaUrl: first?.url || null, mediaType: first?.type || null, mediaUrls: mediaItems.length ? JSON.stringify(mediaItems) : null }, include: postInclude });
     res.status(201).json({ post: shapePost(post, req.user.id) });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Failed to create post' }); }
+  } catch (err) { console.error('post create error:', err); res.status(500).json({ error: err.message || 'Failed to create post' }); }
 });
 
 router.put('/:id', auth, async (req, res) => {
