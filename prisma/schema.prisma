@@ -23,6 +23,7 @@ model User {
   isApproved          Boolean         @default(true)
   allowMessagesFrom   String          @default("everyone")
   allowPostsFrom      String          @default("everyone")
+  showFriends         Boolean         @default(true)
   coinBalance         Float           @default(0)
   role                String          @default("user")
   createdAt           DateTime        @default(now())

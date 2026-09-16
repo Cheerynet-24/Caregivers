@@ -168,6 +168,9 @@ router.post('/friend-request/:id/reject', auth, async (req, res) => {
 
 router.get('/:id/friends', auth, async (req, res) => {
   try {
+    const profile = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, showFriends: true } });
+    if (!profile) return res.status(404).json({ error: 'User not found' });
+    if (!profile.showFriends && profile.id !== req.user.id) return res.json({ friends: [], hidden: true });
     const friendships = await prisma.friendship.findMany({
       where: { OR: [{ user1Id: req.params.id }, { user2Id: req.params.id }] },
       select: { user1Id: true, user2Id: true }
@@ -195,7 +198,7 @@ router.get('/friend-requests', auth, async (req, res) => {
 
 router.get('/:id', auth, async (req, res) => {
   try {
-    const profile = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true, displayName: true, avatar: true, bio: true, isOnline: true, lastSeen: true } });
+    const profile = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true, displayName: true, avatar: true, bio: true, isOnline: true, lastSeen: true, showFriends: true } });
     if (!profile) return res.status(404).json({ error: 'User not found' });
     res.json({ user: profile });
   } catch { res.status(500).json({ error: 'Failed to load profile' }); }
@@ -204,7 +207,7 @@ router.get('/:id', auth, async (req, res) => {
 // Update profile
 router.put('/profile', auth, async (req, res) => {
   try {
-    const { username, displayName, bio, avatar, allowMessagesFrom, allowPostsFrom } = req.body;
+    const { username, displayName, bio, avatar, allowMessagesFrom, allowPostsFrom, showFriends } = req.body;
     if (username !== undefined) {
       const nextUsername = String(username).trim();
       if (nextUsername.length < 3) return res.status(400).json({ error: 'Username must be at least 3 characters' });
@@ -225,6 +228,7 @@ router.put('/profile', auth, async (req, res) => {
         ...(avatar !== undefined && { avatar }),
         ...(allowMessagesFrom !== undefined && { allowMessagesFrom: ['everyone', 'friends'].includes(allowMessagesFrom) ? allowMessagesFrom : 'everyone' }),
         ...(allowPostsFrom !== undefined && { allowPostsFrom: ['everyone', 'friends'].includes(allowPostsFrom) ? allowPostsFrom : 'everyone' }),
+        ...(showFriends !== undefined && { showFriends: Boolean(showFriends) }),
       }
     });
     res.json({ user: sanitizeUser(user) });

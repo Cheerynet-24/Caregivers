@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, reportsAPI, aiAPI, resolveMediaUrl } from '../services/api'
-import { ProfilePanel, PublicProfilePanel, FeedPanel } from '../components/SocialPanels'
+import { ProfilePanel, PublicProfilePanel, FriendListScreen, FeedPanel } from '../components/SocialPanels'
 import MediaViewer from '../components/MediaViewer'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
@@ -158,6 +158,8 @@ export default function Home() {
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profilePosts, setProfilePosts] = useState([])
   const [profileFriends, setProfileFriends] = useState([])
+  const [profileFriendsHidden, setProfileFriendsHidden] = useState(false)
+  const [showProfileFriends, setShowProfileFriends] = useState(false)
   const [profileShareTarget, setProfileShareTarget] = useState(null)
   const [profileShareUsers, setProfileShareUsers] = useState([])
   const [profileShareSearch, setProfileShareSearch] = useState('')
@@ -803,9 +805,12 @@ export default function Home() {
   const showUserProfile = userItem => {
     setSelectedProfile(userItem)
     setProfileFriends([])
+    setProfileFriendsHidden(false)
+    setShowProfileFriends(false)
     Promise.all([userAPI.profile(userItem.id), userAPI.profileFriends(userItem.id), postsAPI.list()]).then(([profileRes, friendsRes, postsRes]) => {
       setSelectedProfile(profileRes.data.user)
       setProfileFriends(friendsRes.data.friends || [])
+      setProfileFriendsHidden(Boolean(friendsRes.data.hidden))
       setProfilePosts((postsRes.data.posts || []).filter(post => post.authorId === userItem.id || post.author?.id === userItem.id))
     }).catch(() => {})
   }
@@ -2115,7 +2120,7 @@ export default function Home() {
       )}
       {selectedProfile && (
         <div className="fixed inset-0 z-[70] bg-white dark:bg-gray-900">
-          <PublicProfilePanel profile={selectedProfile} posts={profilePosts} friends={profileFriends} user={user} onBack={() => setSelectedProfile(null)} onMessage={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} onShareToChat={() => openProfileSharePicker(selectedProfile)} onShare={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text) }} onReport={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} onRefresh={loadPosts} />
+          {showProfileFriends ? <FriendListScreen profile={selectedProfile} friends={profileFriends} hidden={profileFriendsHidden} onBack={() => setShowProfileFriends(false)} onOpenProfile={showUserProfile} /> : <PublicProfilePanel profile={selectedProfile} posts={profilePosts} friends={profileFriends} friendsHidden={profileFriendsHidden} user={user} onBack={() => setSelectedProfile(null)} onFriends={() => setShowProfileFriends(true)} onMessage={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} onShareToChat={() => openProfileSharePicker(selectedProfile)} onShare={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text) }} onReport={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} onRefresh={loadPosts} />}
         </div>
       )}
       {profileShareTarget && (
