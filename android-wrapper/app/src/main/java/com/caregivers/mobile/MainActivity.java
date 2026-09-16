@@ -483,7 +483,19 @@ public class MainActivity extends Activity {
             if (!"call".equals(kind) && !"message".equals(kind)) return;
             runOnUiThread(() -> {
                 String key = "call".equals(kind) ? "call_sound_uri" : "message_sound_uri";
-                getSharedPreferences("caregivers_notification_sounds", MODE_PRIVATE).edit().putString(key, uri == null ? "" : uri).apply();
+                String value = uri == null ? "" : uri.trim();
+                if (!value.isEmpty()) {
+                    try {
+                        Uri selected = Uri.parse(value);
+                        try (android.content.res.AssetFileDescriptor ignored = getContentResolver().openAssetFileDescriptor(selected, "r")) {
+                            if (ignored == null) value = "";
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= 19 && "content".equals(selected.getScheme())) {
+                            try { getContentResolver().takePersistableUriPermission(selected, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
+                        }
+                    } catch (Exception ignored) { value = ""; }
+                }
+                getSharedPreferences("caregivers_notification_sounds", MODE_PRIVATE).edit().putString(key, value).apply();
                 if (android.os.Build.VERSION.SDK_INT >= 26) {
                     NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
                     String channel = "call".equals(kind) ? "caregivers_incoming_calls_v5" : "caregivers_calls_messages_v5";

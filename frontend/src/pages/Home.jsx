@@ -219,6 +219,13 @@ export default function Home() {
   const swipeStartXRef = useRef(0)
 
   useEffect(() => {
+    for (const kind of ['call', 'message']) {
+      const uri = localStorage.getItem(`caregivers-${kind}-notification-sound`)
+      if (uri) window.CaregiversNotificationSound?.set?.(kind, uri)
+    }
+  }, [])
+
+  useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     callAPI.config().then(response => setIceServers(response.data?.iceServers || [])).catch(() => {})
     loadConversations()
@@ -646,8 +653,9 @@ export default function Home() {
 
   const setPhoneNotificationSound = (kind, song) => {
     if (!song?.url) return
+    localStorage.setItem(`caregivers-${kind}-notification-sound`, song.url)
     window.CaregiversNotificationSound?.set?.(kind, song.url)
-    alert(`${kind === 'call' ? 'Call' : 'Message'} ringtone သတ်မှတ်ပြီးပါပြီ`)
+    alert(`${kind === 'call' ? 'Call' : 'Message'} ringtone မှတ်ထားပြီးပါပြီ။ အသံမပြောင်းရင် Android Settings > Apps > Caregivers > Notifications ထဲမှာ Sound ကို Allow လုပ်ပါ။`)
   }
 
   const saveCustomSound = (kind, file) => {

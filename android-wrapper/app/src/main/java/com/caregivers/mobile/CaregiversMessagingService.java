@@ -77,9 +77,12 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             String prefKey = isCall ? "call_sound_uri" : "message_sound_uri";
             String selectedSound = getSharedPreferences("caregivers_notification_sounds", MODE_PRIVATE).getString(prefKey, "");
-            Uri sound = selectedSound == null || selectedSound.isEmpty()
-                    ? RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION)
-                    : Uri.parse(selectedSound);
+            Uri sound = defaultSound(isCall);
+            if (selectedSound != null && !selectedSound.isEmpty()) {
+                try (android.content.res.AssetFileDescriptor ignored = getContentResolver().openAssetFileDescriptor(Uri.parse(selectedSound), "r")) {
+                    if (ignored != null) sound = Uri.parse(selectedSound);
+                } catch (Exception ignored) {}
+            }
             AudioAttributes audio = new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
             channel.setSound(sound, audio);
             manager.createNotificationChannel(channel);
@@ -116,6 +119,9 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             builder.addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Reply", replyPending).addRemoteInput(input).setAllowGeneratedReplies(true).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build());
         }
         manager.notify(notificationId, builder.build());
+    }
+    private Uri defaultSound(boolean isCall) {
+        return RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
     }
     private void cancelCallNotification(java.util.Map<String, String> data) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
