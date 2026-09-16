@@ -70,6 +70,7 @@ export const reportsAPI = {
 
 export const aiAPI = {
   list: () => api.get('/api/ai/conversations'),
+  translate: text => api.post('/api/ai/translate', { text }),
   create: (title) => api.post('/api/ai/conversations', { title }),
   get: (id) => api.get(`/api/ai/conversations/${id}`),
   remove: (id) => api.delete(`/api/ai/conversations/${id}`),

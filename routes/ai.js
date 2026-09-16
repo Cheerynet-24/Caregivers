@@ -107,4 +107,13 @@ router.post('/chat', auth, async (req, res) => {
   } catch (error) { console.error('AI chat error:', error); res.status(502).json({ error: error.message || 'Failed to contact AI' }); }
 });
 
+router.post('/translate', auth, async (req, res) => {
+  try {
+    const text = String(req.body?.text || '').trim().slice(0, 6000);
+    if (!text) return res.status(400).json({ error: 'Text is required' });
+    const translated = await generateReply([{ role: 'user', content: `Translate the following text into natural Myanmar Burmese. Return only the translation, with no explanation, no quotation marks, and preserve line breaks where possible:\n\n${text}` }]);
+    res.json({ translation: translated });
+  } catch (error) { console.error('Translation error:', error); res.status(502).json({ error: error.message || 'Translation failed' }); }
+});
+
 module.exports = router;

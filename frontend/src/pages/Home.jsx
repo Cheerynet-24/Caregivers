@@ -98,6 +98,9 @@ export default function Home() {
   const [unreadChatCount, setUnreadChatCount] = useState(0)
   const [latestNotification, setLatestNotification] = useState(null)
   const [latestMessageNotification, setLatestMessageNotification] = useState(null)
+  const [translations, setTranslations] = useState({})
+  const [translatingKey, setTranslatingKey] = useState(null)
+  const [sharePostTarget, setSharePostTarget] = useState(null)
   const [popupReply, setPopupReply] = useState('')
   const [popupReplying, setPopupReplying] = useState(false)
   const [sendingPopupReply, setSendingPopupReply] = useState(false)
@@ -466,6 +469,27 @@ export default function Home() {
     messageLongPressTimer.current = window.setTimeout(() => setMessageMenu(message.id), 500)
   }
   const cancelMessageLongPress = () => window.clearTimeout(messageLongPressTimer.current)
+  const translateText = async (key, text) => {
+    if (!text?.trim()) return ''
+    if (translations[key]) return translations[key]
+    setTranslatingKey(key)
+    try {
+      const response = await aiAPI.translate(text)
+      const translated = response.data.translation || ''
+      setTranslations(previous => ({ ...previous, [key]: translated }))
+      return translated
+    } finally { setTranslatingKey(null) }
+  }
+  const translateMessage = message => translateText(`message-${message.id}`, message.content || '')
+  const sharePostToChat = post => setSharePostTarget(post)
+  const sendPostToChat = target => {
+    if (!sharePostTarget || !socket || !target) return
+    const post = sharePostTarget
+    const content = `📌 Post from ${post.author?.displayName || post.author?.username || 'user'}\n${post.caption || ''}${post.mediaUrl ? `\n${resolveMediaUrl(post.mediaUrl)}` : ''}`.trim()
+    socket.emit(target.type === 'group' ? 'message:group' : 'message:private', target.type === 'group' ? { groupId: target.id, content, type: 'text' } : { conversationId: target.id, content, type: 'text' })
+    setSharePostTarget(null)
+    alert('Post ကို Chat ထဲပို့ပြီးပါပြီ')
+  }
   const openReport = (type, target = {}) => {
     setMessageMenu(null)
     setReportTarget({ type, ...target })
@@ -1426,7 +1450,7 @@ export default function Home() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {tab === 'feed' && <FeedPanel user={user} posts={posts} onRefresh={loadPosts} />}
+          {tab === 'feed' && <FeedPanel user={user} posts={posts} onRefresh={loadPosts} onTranslate={text => translateText(`post-${text.slice(0, 80)}`, text)} onShareToChat={sharePostToChat} onReportPost={post => openReport('post', { targetPostId: post.id, content: post.caption || post.mediaUrl || 'Post' })} />}
           {tab === 'profile' && <ProfilePanel user={user} setUser={setUser} posts={posts} onRefreshPosts={loadPosts} />}
           {tab === 'friends' && <div className="p-3 space-y-4">
             <section><h3 className="font-bold dark:text-white mb-2">Friends ({friends.length})</h3>{friends.length === 0 && <p className="text-sm text-gray-500">No friends yet</p>}{friends.map(friend => <div key={friend.id} className="p-2 flex items-center gap-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"><div className="w-9 h-9 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(friend.displayName || friend.username)[0].toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium dark:text-white truncate">{friend.displayName || friend.username}</p><p className="text-xs text-gray-500">@{friend.username}</p></div><button onClick={() => openPrivateChat(friend)} className="p-2 text-sky-500"><MessageCircle size={17} /></button></div>)}</section>
@@ -1434,7 +1458,7 @@ export default function Home() {
           </div>}
           {tab === 'admin-noti' && <div className="p-3 space-y-3">
             {notifications.length === 0 && <div className="rounded-xl bg-gray-50 dark:bg-gray-700 p-5 text-center text-sm text-gray-500">Admin notification မရှိသေးပါ</div>}
-            {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
+            {notifications.map(notification => <article key={notification.id} className="rounded-xl border border-sky-100 dark:border-gray-600 bg-sky-50 dark:bg-gray-700 p-4 shadow-sm"><div className="flex items-start gap-3"><div className="p-2 rounded-full bg-sky-500 text-white"><Bell size={17} /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-sky-700 dark:text-sky-300">{notification.title || 'From Admin'}</h3><p className="mt-1 text-sm whitespace-pre-wrap dark:text-gray-200">{notification.message}</p>{translations[`notification-${notification.id}`] && <p className="mt-2 rounded-lg bg-white/60 p-2 text-sm whitespace-pre-wrap dark:bg-gray-800/60 dark:text-sky-100">{translations[`notification-${notification.id}`]}</p>}<button type="button" onClick={() => translateText(`notification-${notification.id}`, notification.message)} className="mt-2 text-xs text-sky-600 dark:text-sky-300">{translatingKey === `notification-${notification.id}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်'}</button><p className="mt-2 text-xs text-gray-500">{new Date(notification.createdAt).toLocaleString()}</p></div></div></article>)}
           </div>}
           {tab === 'ai-chat' && <div className="flex h-full min-h-0 flex-col p-3">
             <div className="mb-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 p-4 text-white"><div className="flex items-center gap-2 font-bold"><Bot size={20} /> Caregivers AI <button type="button" onClick={createNewAiChat} className="ml-auto rounded-lg bg-white/15 px-2 py-1 text-xs hover:bg-white/25">+ New chat</button></div><p className="mt-1 text-xs text-white/80">Account နဲ့သိမ်းထားတဲ့ chat ကို ပြန်ဖွင့်ပြီး ဆက်ပြောနိုင်ပါတယ်။</p></div>
@@ -1642,13 +1666,13 @@ export default function Home() {
                       : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
                       : m.type === 'file' && m.fileUrl ? <a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
                       : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
-                      : <>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? <div className="mb-1 border-l-2 border-current/40 pl-2 text-xs opacity-60 whitespace-pre-wrap">{String(m.content).split('\n')[0]}</div> : null}<p className={m.type === 'sticker' ? 'text-5xl' : ''}>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? String(m.content).split('\n').slice(1).join('\n') : m.content}</p></>}
+                      : <>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? <div className="mb-1 border-l-2 border-current/40 pl-2 text-xs opacity-60 whitespace-pre-wrap">{String(m.content).split('\n')[0]}</div> : null}<p className={m.type === 'sticker' ? 'text-5xl' : ''}>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? String(m.content).split('\n').slice(1).join('\n') : m.content}</p></>}{translations[`message-${m.id}`] && <p className="mt-2 rounded-lg bg-black/10 p-2 text-xs whitespace-pre-wrap">{translations[`message-${m.id}`]}</p>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.senderId === user.id && <span className="ml-1">{m.pending ? 'Sending…' : m.messageStatus === 'seen' ? 'Seen' : m.messageStatus === 'delivered' || m.messageStatus === 'sent' ? 'Sent' : 'Sending…'}</span>}
                     </p>
                   </div>
                   {messageMenu === m.id && <div className={`absolute z-20 top-8 ${m.senderId === user.id ? 'right-0' : 'left-0'} bg-white dark:bg-gray-800 border rounded-xl shadow-lg p-1 min-w-32 text-xs dark:text-white`}>
-                    {['share', 'forward', 'copy', 'report', ...(m.type === 'sticker' ? ['add sticker'] : []), ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => action === 'add sticker' ? stickerFromMessage(m) : handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action === 'add sticker' ? 'Add My Sticker List' : action}</button>)}
+                    {['share', 'forward', 'copy', 'report', ...(m.type === 'sticker' ? ['add sticker'] : []), ...(['text', 'call', 'missed_call', 'declined_call', 'call_ended'].includes(m.type) && m.content ? ['translate'] : []), ...(m.senderId === user.id && m.type !== 'deleted' ? ['edit', 'delete'] : [])].map(action => <button key={action} onClick={() => action === 'add sticker' ? stickerFromMessage(m) : action === 'translate' ? translateMessage(m) : handleMessageAction(action, m)} className={`block w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 capitalize ${action === 'report' ? 'text-red-500' : ''}`}>{action === 'add sticker' ? 'Add My Sticker List' : action === 'translate' ? (translatingKey === `message-${m.id}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်') : action}</button>)}
                   </div>}
                   </div>
                 </div>
@@ -1697,15 +1721,16 @@ export default function Home() {
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
           <button onClick={() => { stopNotificationSound(); setLatestNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
           <p className="font-bold text-sky-600 dark:text-sky-300">📣 {latestNotification.title}</p>
-          <p className="mt-1 text-sm dark:text-gray-200 whitespace-pre-wrap">{latestNotification.message}</p>
+          <p className="mt-1 text-sm dark:text-gray-200 whitespace-pre-wrap">{latestNotification.message}</p>{translations[`notification-${latestNotification.id || latestNotification.title}`] && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-sm whitespace-pre-wrap dark:bg-sky-950/40 dark:text-sky-100">{translations[`notification-${latestNotification.id || latestNotification.title}`]}</p>}<button type="button" onClick={() => translateText(`notification-${latestNotification.id || latestNotification.title}`, latestNotification.message)} className="mt-2 text-xs text-sky-600 dark:text-sky-300">{translatingKey === `notification-${latestNotification.id || latestNotification.title}` ? 'ဘာသာပြန်နေသည်…' : 'မြန်မာလိုပြန်ရန်'}</button>
         </div>
       )}
       {latestMessageNotification && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md bg-white dark:bg-gray-800 border border-sky-200 rounded-2xl shadow-xl p-4">
           <button onClick={() => { stopNotificationSound(); setPopupReplying(false); setPopupReply(''); setLatestMessageNotification(null) }} className="absolute top-2 right-3 text-gray-400"><X size={18} /></button>
-          <div className="flex items-start gap-3 pr-5"><div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || '?')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><p className="font-bold text-sky-600 dark:text-sky-300">{latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || 'New message'}</p><p className="mt-1 text-sm dark:text-gray-200 truncate">{latestMessageNotification.content || (latestMessageNotification.type === 'audio' ? 'Voice message' : 'Attachment')}</p>{!popupReplying ? <div className="mt-3 flex gap-2"><button onClick={replyToMessageNotification} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm">Reply</button><button onClick={() => { stopNotificationSound(); openPrivateChat(latestMessageNotification.sender); setLatestMessageNotification(null) }} className="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-600 dark:text-sky-300 text-sm">Open chat</button></div> : <form onSubmit={sendPopupReply} className="mt-3 flex gap-2"><input autoFocus value={popupReply} onChange={e => setPopupReply(e.target.value)} placeholder="Reply..." className="min-w-0 flex-1 px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" /><button disabled={sendingPopupReply} className="px-3 py-2 rounded-lg bg-sky-500 text-white disabled:opacity-60">{sendingPopupReply ? 'Sending...' : 'Send'}</button></form>}</div></div>
+          <div className="flex items-start gap-3 pr-5"><div className="w-10 h-10 rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold">{(latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || '?')[0].toUpperCase()}</div><div className="min-w-0 flex-1"><p className="font-bold text-sky-600 dark:text-sky-300">{latestMessageNotification.sender?.displayName || latestMessageNotification.sender?.username || 'New message'}</p><p className="mt-1 text-sm dark:text-gray-200 truncate">{latestMessageNotification.content || (latestMessageNotification.type === 'audio' ? 'Voice message' : 'Attachment')}</p>{translations[`popup-message-${latestMessageNotification.id || latestMessageNotification.createdAt}`] && <p className="mt-2 rounded-lg bg-sky-50 p-2 text-sm whitespace-pre-wrap dark:bg-sky-950/40 dark:text-sky-100">{translations[`popup-message-${latestMessageNotification.id || latestMessageNotification.createdAt}`]}</p>}<button type="button" onClick={() => translateText(`popup-message-${latestMessageNotification.id || latestMessageNotification.createdAt}`, latestMessageNotification.content || '')} className="mt-2 text-xs text-sky-600 dark:text-sky-300">မြန်မာလိုပြန်ရန်</button>{!popupReplying ? <div className="mt-3 flex gap-2"><button onClick={replyToMessageNotification} className="px-3 py-1.5 rounded-lg bg-sky-500 text-white text-sm">Reply</button><button onClick={() => { stopNotificationSound(); openPrivateChat(latestMessageNotification.sender); setLatestMessageNotification(null) }} className="px-3 py-1.5 rounded-lg border border-sky-300 text-sky-600 dark:text-sky-300 text-sm">Open chat</button></div> : <form onSubmit={sendPopupReply} className="mt-3 flex gap-2"><input autoFocus value={popupReply} onChange={e => setPopupReply(e.target.value)} placeholder="Reply..." className="min-w-0 flex-1 px-3 py-2 rounded-lg border dark:bg-gray-700 dark:text-white" /><button disabled={sendingPopupReply} className="px-3 py-2 rounded-lg bg-sky-500 text-white disabled:opacity-60">{sendingPopupReply ? 'Sending...' : 'Send'}</button></form>}</div></div>
         </div>
       )}
+      {sharePostTarget && <div className="fixed inset-0 z-[85] flex items-center justify-center bg-black/60 p-4" onClick={() => setSharePostTarget(null)}><div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl dark:bg-gray-800" onClick={event => event.stopPropagation()}><div className="flex items-center justify-between"><h3 className="text-lg font-bold dark:text-white">Post to chat</h3><button type="button" onClick={() => setSharePostTarget(null)}><X size={18} /></button></div><p className="mt-1 truncate text-sm text-gray-500">{sharePostTarget.caption || 'Post'}</p><div className="mt-4 max-h-72 space-y-2 overflow-y-auto">{conversations.map(conversation => <button type="button" key={`private-${conversation.id}`} onClick={() => sendPostToChat({ type: 'private', id: conversation.id })} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"><UserCircle size={20} /><span>{conversation.otherUser?.displayName || conversation.otherUser?.username || 'Private chat'}</span></button>)}{groups.map(group => <button type="button" key={`group-${group.id}`} onClick={() => sendPostToChat({ type: 'group', id: group.id })} className="flex w-full items-center gap-3 rounded-xl p-3 text-left hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700"><Users size={20} /><span>{group.name}</span></button>)}{!conversations.length && !groups.length && <p className="py-8 text-center text-sm text-gray-400">Chat မရှိသေးပါ</p>}</div></div></div>}
       {reportTarget && (
         <div className="fixed inset-0 z-[90] bg-black/60 flex items-center justify-center p-4" onClick={() => setReportTarget(null)}>
           <form onSubmit={submitReport} onClick={e => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 p-5 shadow-2xl">
