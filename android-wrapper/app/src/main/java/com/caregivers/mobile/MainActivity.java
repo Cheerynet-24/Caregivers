@@ -54,6 +54,8 @@ public class MainActivity extends Activity {
     private AudioManager audioManager;
     private Ringtone foregroundSystemRingtone;
     private ToneGenerator ringbackTone;
+    private final android.os.Handler ringbackHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable ringbackRunnable = new Runnable() { public void run() { if (ringbackTone != null) { ringbackTone.startTone(ToneGenerator.TONE_SUP_RINGTONE, 1200); ringbackHandler.postDelayed(this, 2600); } } };
     private long lastBackPressedAt;
     private String pendingReplyText;
     private String pendingReplyUserId;
@@ -493,8 +495,8 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 try {
                     stop();
-                    ringbackTone = new ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80);
-                    ringbackTone.startTone(ToneGenerator.TONE_SUP_RINGTONE);
+                    ringbackTone = new ToneGenerator(AudioManager.STREAM_RING, 90);
+                    ringbackHandler.post(ringbackRunnable);
                 } catch (Exception ignored) {}
             });
         }
@@ -514,6 +516,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void stop() {
             if (foregroundSystemRingtone != null && foregroundSystemRingtone.isPlaying()) foregroundSystemRingtone.stop();
             foregroundSystemRingtone = null;
+            ringbackHandler.removeCallbacks(ringbackRunnable);
             if (ringbackTone != null) { ringbackTone.stopTone(); ringbackTone.release(); ringbackTone = null; }
         }
     }
