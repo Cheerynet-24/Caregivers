@@ -171,7 +171,6 @@ public class MainActivity extends Activity {
         });
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.addJavascriptInterface(new KeyboardBridge(), "CaregiversKeyboard");
-        webView.addJavascriptInterface(new OfflineTranslationBridge(this), "CaregiversOfflineTranslator");
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
@@ -182,7 +181,6 @@ public class MainActivity extends Activity {
     }
 
     public static boolean isAppVisible() { return appVisible; }
-    public void evaluateJavascript(String script) { if (webView != null) webView.evaluateJavascript(script, null); }
 
     @Override protected void onResume() {
         super.onResume();

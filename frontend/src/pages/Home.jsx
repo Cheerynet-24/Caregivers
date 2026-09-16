@@ -508,19 +508,8 @@ export default function Home() {
     if (translations[key]) return translations[key]
     setTranslatingKey(key)
     try {
-      if (!window.CaregiversOfflineTranslator?.translate) throw new Error('Offline translation is available in the latest Android APK only')
-      const requestId = `translation-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const translated = await new Promise((resolve, reject) => {
-        window.CaregiversOfflineTranslationPending = window.CaregiversOfflineTranslationPending || {}
-        window.CaregiversOfflineTranslationPending[requestId] = { resolve, reject, timer: window.setTimeout(() => { delete window.CaregiversOfflineTranslationPending[requestId]; reject(new Error('Offline translation timed out')) }, 30000) }
-        window.CaregiversOfflineTranslationResult = (id, result, error) => {
-          const pending = window.CaregiversOfflineTranslationPending?.[id]
-          if (!pending) return
-          delete window.CaregiversOfflineTranslationPending[id]; window.clearTimeout(pending.timer)
-          error ? pending.reject(new Error(error)) : pending.resolve(result || '')
-        }
-        window.CaregiversOfflineTranslator.translate(requestId, text)
-      })
+      const response = await aiAPI.translate(text)
+      const translated = response.data.translation || ''
       setTranslations(previous => ({ ...previous, [key]: translated }))
       return translated
     } catch (error) {
