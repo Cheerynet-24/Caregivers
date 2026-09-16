@@ -895,11 +895,27 @@ export default function Home() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file || !file.type.startsWith('image/')) return
-    const formData = new FormData()
-    formData.append('file', file)
     try {
-      const uploaded = await chatAPI.upload(formData)
-      saveMySticker({ fileUrl: uploaded.data.fileUrl })
+      const fileUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onerror = () => reject(new Error('Could not read the selected image'))
+        reader.onload = () => {
+          const image = new Image()
+          image.onerror = () => reject(new Error('Selected image could not be decoded'))
+          image.onload = () => {
+            const max = 256
+            const scale = Math.min(1, max / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height))
+            const canvas = document.createElement('canvas')
+            canvas.width = Math.max(1, Math.round((image.naturalWidth || image.width) * scale))
+            canvas.height = Math.max(1, Math.round((image.naturalHeight || image.height) * scale))
+            canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height)
+            resolve(canvas.toDataURL('image/webp', 0.82))
+          }
+          image.src = reader.result
+        }
+        reader.readAsDataURL(file)
+      })
+      saveMySticker({ fileUrl })
       setShowStickers(true)
     } catch (error) { alert(error.response?.data?.error || 'Sticker upload failed') }
   }
