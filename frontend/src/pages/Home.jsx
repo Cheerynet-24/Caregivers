@@ -8,7 +8,7 @@ import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
   ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin,
-  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag, Bot
+  VolumeX, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag, Bot, BarChart3
 } from 'lucide-react'
 
 const VIDEO_EFFECTS = [
@@ -52,6 +52,14 @@ function ProfileMessageCard({ profile, onOpen }) {
     </div>
     {profile.bio && <p className="mt-2 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">{profile.bio}</p>}
   </button>
+}
+
+function PollMessage({ content }) {
+  const [selected, setSelected] = useState(null)
+  let poll = null
+  try { poll = JSON.parse(String(content || '').slice('poll:'.length)) } catch {}
+  if (!poll?.question || !poll.options?.length) return <p className="italic opacity-70">Poll unavailable</p>
+  return <div className="w-full max-w-sm"><p className="font-semibold">{poll.question}</p><div className="mt-2 space-y-1">{poll.options.map((option, index) => <button type="button" key={option} onClick={() => setSelected(index)} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs ${selected === index ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'border-gray-200 dark:border-gray-600'}`}><span>{option}</span>{selected === index && <span>✓</span>}</button>)}</div></div>
 }
 
 function VideoEffectOverlay({ effect }) {
@@ -1000,6 +1008,15 @@ export default function Home() {
     )
   }
 
+  const sendPoll = () => {
+    if (!activeChat) return
+    const question = window.prompt('မဲခွဲမေးခွန်း ရေးပါ')?.trim()
+    if (!question) return
+    const options = window.prompt('ရွေးချယ်စရာများကို comma ဖြင့်ခွဲရေးပါ')?.split(',').map(item => item.trim()).filter(Boolean).slice(0, 6) || []
+    if (options.length < 2) return alert('ရွေးချယ်စရာ အနည်းဆုံး ၂ ခုလိုပါတယ်')
+    sendMessage(`poll:${JSON.stringify({ question, options })}`, 'poll')
+  }
+
   const stopVideoEffectPipeline = () => {
     if (effectAnimationRef.current) cancelAnimationFrame(effectAnimationRef.current)
     effectAnimationRef.current = null
@@ -1771,6 +1788,7 @@ export default function Home() {
                     {m.type === 'deleted' ? <p className="italic opacity-70">This message was deleted</p>
                       : ['call', 'missed_call', 'declined_call', 'call_ended'].includes(m.type) ? <div className="flex items-center gap-2 font-medium"><Phone size={18} className={m.type === 'missed_call' ? 'text-red-400' : 'text-sky-200'} /><span>{m.content || (m.type === 'missed_call' ? '❌ Missed call' : 'Call')}</span></div>
                       : m.type === 'profile' ? <ProfileMessageCard profile={getProfileMessageData(m)} onOpen={() => { const profile = getProfileMessageData(m); if (profile) showUserProfile(profile) }} />
+                      : m.type === 'poll' ? <PollMessage content={m.content} />
                       : m.type === 'sticker' && m.fileUrl ? <img src={resolveMediaUrl(m.fileUrl)} alt="Sticker" className="h-auto max-h-24 w-auto max-w-24 rounded-xl object-contain" />
                       : m.type === 'image' && m.fileUrl ? <><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
                       : m.type === 'video' && m.fileUrl ? <><video src={resolveMediaUrl(m.fileUrl)} controls className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
@@ -1799,6 +1817,7 @@ export default function Home() {
               <button type="button" onPointerDown={startVoiceRecording} onPointerUp={stopVoiceRecording} onPointerCancel={stopVoiceRecording} onPointerLeave={stopVoiceRecording} className={`p-2 select-none touch-none ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title="ဖိထားပြီး voice ပို့ရန်"><Mic size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
               <button onClick={() => { const next = !showStickers; setShowStickers(next); if (next) { messageInputRef.current?.blur(); window.CaregiversKeyboard?.hide?.() } else setTimeout(() => messageInputRef.current?.focus(), 0) }} className={`p-2 text-lg ${showStickers ? 'text-sky-500' : 'text-gray-500'}`} title="Sticker">☺</button>
+              <button onClick={sendPoll} className="p-2 text-gray-500" title="Create poll"><BarChart3 size={19} /></button>
               <textarea
                 ref={messageInputRef}
                 rows="1"
