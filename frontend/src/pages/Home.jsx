@@ -1106,12 +1106,18 @@ export default function Home() {
     if (!call || call.callType !== 'video' || !localStreamRef.current || !navigator.mediaDevices?.getUserMedia) return
     const nextFacing = cameraFacing === 'user' ? 'environment' : 'user'
     try {
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => [])
+      const cameras = devices.filter(device => device.kind === 'videoinput')
+      const currentId = rawStreamRef.current?.getVideoTracks?.()[0]?.getSettings?.().deviceId || localStreamRef.current.getVideoTracks?.()[0]?.getSettings?.().deviceId
+      const wanted = cameras.find(device => {
+        const label = (device.label || '').toLowerCase()
+        const isFront = /front|user|facetime|selfie/.test(label)
+        const isBack = /back|rear|environment|world/.test(label)
+        return device.deviceId !== currentId && (nextFacing === 'user' ? isFront : isBack)
+      }) || cameras.find(device => device.deviceId !== currentId)
       let stream
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: nextFacing } } })
-      } catch {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } })
-      }
+      if (wanted?.deviceId) stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: wanted.deviceId } } })
+      else try { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: nextFacing } } }) } catch { stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: nextFacing } } }) }
       const nextTrack = stream.getVideoTracks()[0]
       if (!nextTrack) return
       const rawStream = rawStreamRef.current || localStreamRef.current

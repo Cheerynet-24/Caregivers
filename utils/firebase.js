@@ -27,12 +27,26 @@ async function sendPush(token, { title, body, type = 'message', data = {} }) {
       android: {
         priority: 'high',
         ttl: 3600 * 1000,
-        ...(type === 'group' ? { notification: { channelId: 'caregivers_calls_messages_v3', title, body } } : {})
+        ...(type !== 'call' ? { notification: { channelId: 'caregivers_calls_messages_v3', title, body } } : {})
       }
     });
     return true;
   } catch (error) {
     console.error('FCM push failed:', error.code || error.message);
+    if (type === 'call' && data.offer) {
+      try {
+        const fallbackData = { ...data };
+        delete fallbackData.offer;
+        await service.send({
+          token,
+          data: Object.fromEntries(Object.entries({ type, title, body, ...fallbackData }).map(([key, value]) => [key, String(value ?? '')])),
+          android: { priority: 'high', ttl: 3600 * 1000 }
+        });
+        return true;
+      } catch (fallbackError) {
+        console.error('FCM fallback push failed:', fallbackError.code || fallbackError.message);
+      }
+    }
     return false;
   }
 }
