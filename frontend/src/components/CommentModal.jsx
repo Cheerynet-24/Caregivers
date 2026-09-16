@@ -50,6 +50,7 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   const [showStickers, setShowStickers] = useState(false)
   const closingFromBack = useRef(false)
   const originalHistoryState = useRef(null)
+  const previousBackHandler = useRef(null)
   const total = useMemo(() => countComments(comments), [comments])
 
   useEffect(() => {
@@ -58,27 +59,29 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   useEffect(() => {
     originalHistoryState.current = window.history.state
     window.history.pushState({ ...window.history.state, caregiversCommentModal: true }, '', window.location.href)
+    const handleOverlayBack = () => {
+      if (closingFromBack.current) return true
+      closingFromBack.current = true
+      window.history.replaceState(originalHistoryState.current, '', window.location.href)
+      onClose()
+      return true
+    }
+    previousBackHandler.current = window.CaregiversHandleBack
+    window.CaregiversHandleBack = handleOverlayBack
     const handleBack = () => {
       // Immediately restore an in-app history entry. This prevents Android WebView/PWA
       // from interpreting the Back action as an app exit.
       window.history.pushState({ ...window.history.state, caregiversCommentModal: true }, '', window.location.href)
-      if (!closingFromBack.current) {
-        closingFromBack.current = true
-        window.history.replaceState(originalHistoryState.current, '', window.location.href)
-        onClose()
-      }
+      handleOverlayBack()
     }
     const handleNativeBack = event => {
       event?.preventDefault?.()
-      if (closingFromBack.current) return
-      closingFromBack.current = true
-      window.history.replaceState(originalHistoryState.current, '', window.location.href)
-      onClose()
+      handleOverlayBack()
     }
     window.addEventListener('popstate', handleBack)
     document.addEventListener('backbutton', handleNativeBack)
     window.addEventListener('hardwareBackPress', handleNativeBack)
-    return () => { window.removeEventListener('popstate', handleBack); document.removeEventListener('backbutton', handleNativeBack); window.removeEventListener('hardwareBackPress', handleNativeBack) }
+    return () => { window.removeEventListener('popstate', handleBack); document.removeEventListener('backbutton', handleNativeBack); window.removeEventListener('hardwareBackPress', handleNativeBack); if (window.CaregiversHandleBack === handleOverlayBack) window.CaregiversHandleBack = previousBackHandler.current }
   }, [])
   const closeModal = () => {
     if (closingFromBack.current) return

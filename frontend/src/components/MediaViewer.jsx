@@ -7,32 +7,38 @@ export default function MediaViewer({ media, kind, onClose }) {
   const pushed = useRef(false)
   const closing = useRef(false)
   const originalState = useRef(null)
+  const previousBackHandler = useRef(null)
   const url = resolveMediaUrl(media)
 
   useEffect(() => {
     originalState.current = window.history.state
     window.history.pushState({ ...window.history.state, caregiversMediaViewer: true }, '', window.location.href)
     pushed.current = true
+    const handleOverlayBack = () => {
+      if (closing.current) return true
+      closing.current = true
+      onClose()
+      return true
+    }
+    previousBackHandler.current = window.CaregiversHandleBack
+    window.CaregiversHandleBack = handleOverlayBack
     const handleBack = () => {
       if (closing.current) return
       // Android WebView can otherwise leave the SPA when this is the first
       // navigation entry. Restore the current entry before unmounting.
       window.history.pushState({ ...window.history.state, caregiversMediaViewer: true }, '', window.location.href)
-      closing.current = true
-      onClose()
+      handleOverlayBack()
     }
     const handleNativeBack = event => {
       event?.preventDefault?.()
-      if (closing.current) return
-      closing.current = true
-      onClose()
+      handleOverlayBack()
     }
     const handleKey = event => { if (event.key === 'Escape') closeViewer() }
     window.addEventListener('popstate', handleBack)
     document.addEventListener('backbutton', handleNativeBack)
     window.addEventListener('hardwareBackPress', handleNativeBack)
     window.addEventListener('keydown', handleKey)
-    return () => { window.removeEventListener('popstate', handleBack); document.removeEventListener('backbutton', handleNativeBack); window.removeEventListener('hardwareBackPress', handleNativeBack); window.removeEventListener('keydown', handleKey) }
+    return () => { window.removeEventListener('popstate', handleBack); document.removeEventListener('backbutton', handleNativeBack); window.removeEventListener('hardwareBackPress', handleNativeBack); window.removeEventListener('keydown', handleKey); if (window.CaregiversHandleBack === handleOverlayBack) window.CaregiversHandleBack = previousBackHandler.current }
   }, [])
 
   const closeViewer = () => {
