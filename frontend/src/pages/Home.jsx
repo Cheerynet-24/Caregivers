@@ -266,7 +266,7 @@ export default function Home() {
         window.CaregiversAudio?.notify(title, body, 'message', msg.senderId || '')
         if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body, tag: `message-${msg.id}` })
       }
-      if (isIncoming && !chatSettings.muted && chatSettings.notifications) playCustomSound('message')
+      if (isIncoming && !chatSettings.muted && chatSettings.notifications) { window.CaregiversSystemSound?.play?.(false); playCustomSound('message') }
       if (activeChat) {
         const matchPrivate = activeChat.type === 'private' && msg.conversationId === activeChat.id
         const matchGroup = activeChat.type === 'group' && msg.groupId === activeChat.id
@@ -304,7 +304,7 @@ export default function Home() {
       setNotifications(prev => [notification, ...prev].slice(0, 20))
       setUnreadNotificationCount(prev => prev + 1)
       setLatestNotification(notification)
-      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('message')
+      if (!chatSettings.muted && chatSettings.notifications) { window.CaregiversSystemSound?.play?.(false); playCustomSound('message') }
     }
     socket.on('notification:new', onNotification)
     return () => socket.off('notification:new', onNotification)
@@ -313,7 +313,7 @@ export default function Home() {
   useEffect(() => {
     if (!socket) return
     const onOffer = ({ fromUserId, fromUsername, offer, callType, callId }) => {
-      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+      if (!chatSettings.muted && chatSettings.notifications) { window.CaregiversSystemSound?.play?.(true); playCustomSound('call') }
       setIncomingCall({ fromUserId, fromUsername, offer, callType, callId })
       window.CaregiversAudio?.notify(`Incoming ${callType} call`, `${fromUsername} is calling you`, 'call', fromUserId)
       if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') new Notification(`Incoming ${callType} call`, { body: `${fromUsername} is calling you`, tag: 'incoming-call' })
@@ -348,7 +348,7 @@ export default function Home() {
     const onInvite = invite => {
       if (!invite?.groupId || invite.fromUserId === user?.id || groupCall) return
       setIncomingGroupCall(current => current || invite)
-      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+      if (!chatSettings.muted && chatSettings.notifications) { window.CaregiversSystemSound?.play?.(true); playCustomSound('call') }
     }
     const onJoined = ({ groupId, userId, username }) => {
       if (groupCall?.groupId !== groupId || userId === user?.id) return
@@ -417,7 +417,7 @@ export default function Home() {
       try {
         const offer = JSON.parse(atob(offerJson))
         setIncomingCall({ fromUserId, fromUsername: fromUsername || 'Someone', offer, callType: callType || 'audio', callId: callId || null })
-        if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+        if (!chatSettings.muted && chatSettings.notifications) { window.CaregiversSystemSound?.play?.(true); playCustomSound('call') }
         return true
       } catch (error) {
         console.error('background call payload failed', error)
@@ -430,7 +430,7 @@ export default function Home() {
     window.CaregiversIncomingGroupCall = (groupId, fromUserId, fromUsername, callType) => {
       if (!groupId) return false
       setIncomingGroupCall({ groupId, fromUserId, fromUsername: fromUsername || 'Someone', callType: callType === 'video' ? 'video' : 'audio' })
-      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+      if (!chatSettings.muted && chatSettings.notifications) { window.CaregiversSystemSound?.play?.(true); playCustomSound('call') }
       return true
     }
     return () => { delete window.CaregiversIncomingGroupCall }
@@ -642,6 +642,7 @@ export default function Home() {
     notificationAudioRef.current?.pause()
     notificationAudioRef.current?.removeAttribute('src')
     notificationAudioRef.current = null
+    window.CaregiversSystemSound?.stop?.()
   }
 
   const saveCustomSound = (kind, file) => {

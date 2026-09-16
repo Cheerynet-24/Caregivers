@@ -21,6 +21,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.MediaPlayer;
 import android.media.session.MediaSession;
@@ -48,6 +51,7 @@ public class MainActivity extends Activity {
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
     private AudioManager audioManager;
+    private Ringtone foregroundSystemRingtone;
     private long lastBackPressedAt;
     private String pendingReplyText;
     private String pendingReplyUserId;
@@ -182,6 +186,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
+        webView.addJavascriptInterface(new ForegroundSystemSoundBridge(), "CaregiversSystemSound");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
@@ -479,6 +484,25 @@ public class MainActivity extends Activity {
         }
     }
 
+    private class ForegroundSystemSoundBridge {
+        @JavascriptInterface public void play(boolean isCall) {
+            runOnUiThread(() -> {
+                try {
+                    stop();
+                    Uri uri = RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
+                    foregroundSystemRingtone = RingtoneManager.getRingtone(MainActivity.this, uri);
+                    if (foregroundSystemRingtone != null && android.os.Build.VERSION.SDK_INT >= 21) {
+                        foregroundSystemRingtone.setAudioAttributes(new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+                    }
+                    if (foregroundSystemRingtone != null) foregroundSystemRingtone.play();
+                } catch (Exception ignored) {}
+            });
+        }
+        @JavascriptInterface public void stop() {
+            if (foregroundSystemRingtone != null && foregroundSystemRingtone.isPlaying()) foregroundSystemRingtone.stop();
+            foregroundSystemRingtone = null;
+        }
+    }
     private class MusicNotificationBridge {
         @JavascriptInterface public void playLocal(String url, String title, String artist) { playNativeMusic(url, title, artist); }
         @JavascriptInterface public void pause() { runOnUiThread(() -> pauseNativeMusic()); }
