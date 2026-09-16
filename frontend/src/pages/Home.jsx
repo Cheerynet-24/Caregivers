@@ -1318,7 +1318,7 @@ export default function Home() {
       setVideoEffect('none')
       localStreamRef.current = stream
       setCallStatus('Calling')
-      window.CaregiversSystemSound?.play?.(true)
+      window.CaregiversSystemSound?.playRingback?.()
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
       const peer = createPeer(activeChat.data.id, callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))

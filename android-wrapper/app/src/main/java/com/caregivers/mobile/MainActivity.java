@@ -23,6 +23,7 @@ import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
+import android.media.ToneGenerator;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.MediaPlayer;
@@ -52,6 +53,7 @@ public class MainActivity extends Activity {
     private String pendingGeoOrigin;
     private AudioManager audioManager;
     private Ringtone foregroundSystemRingtone;
+    private ToneGenerator ringbackTone;
     private long lastBackPressedAt;
     private String pendingReplyText;
     private String pendingReplyUserId;
@@ -487,6 +489,15 @@ public class MainActivity extends Activity {
     }
 
     private class ForegroundSystemSoundBridge {
+        @JavascriptInterface public void playRingback() {
+            runOnUiThread(() -> {
+                try {
+                    stop();
+                    ringbackTone = new ToneGenerator(AudioManager.STREAM_VOICE_CALL, 80);
+                    ringbackTone.startTone(ToneGenerator.TONE_SUP_RINGTONE);
+                } catch (Exception ignored) {}
+            });
+        }
         @JavascriptInterface public void play(boolean isCall) {
             runOnUiThread(() -> {
                 try {
@@ -503,6 +514,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void stop() {
             if (foregroundSystemRingtone != null && foregroundSystemRingtone.isPlaying()) foregroundSystemRingtone.stop();
             foregroundSystemRingtone = null;
+            if (ringbackTone != null) { ringbackTone.stopTone(); ringbackTone.release(); ringbackTone = null; }
         }
     }
     private class MusicNotificationBridge {
