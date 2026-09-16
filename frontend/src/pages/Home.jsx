@@ -63,6 +63,10 @@ function PollMessage({ content }) {
   return <div className="w-full max-w-sm"><p className="font-semibold">{poll.question}</p><div className="mt-2 space-y-1">{poll.options.map((option, index) => <button type="button" key={option} onClick={() => setSelected(current => current === index ? null : index)} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs ${selected === index ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'border-gray-200 dark:border-gray-600'}`}><span>{option}</span>{selected === index && <span>✓</span>}</button>)}</div></div>
 }
 
+const getReplyTargetId = content => String(content || '').match(/^↪\[([^\]]+)\]/)?.[1] || null
+const getReplyPreview = content => String(content || '').split('\n')[0].replace(/^↪(?:\[[^\]]+\])?\s*/, '')
+const getReplyBody = content => String(content || '').split('\n').slice(1).join('\n')
+
 function VideoEffectOverlay({ effect }) {
   const icon = effect?.overlay
   if (!icon) return null
@@ -141,6 +145,7 @@ export default function Home() {
   const [aiConversations, setAiConversations] = useState([])
   const [activeAiConversationId, setActiveAiConversationId] = useState(null)
   const [replyTarget, setReplyTarget] = useState(null)
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [posts, setPosts] = useState([])
   const [callHistory, setCallHistory] = useState([])
@@ -978,7 +983,7 @@ export default function Home() {
   const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null, overrideFileUrl = null) => {
     if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
-    if (replyTarget && !overrideContent) content = `↪ ${replyTarget.sender?.displayName || replyTarget.sender?.username || 'Message'}: ${replyTarget.content || ''}\n${content}`
+    if (replyTarget && !overrideContent) content = `↪[${replyTarget.id}] ${replyTarget.sender?.displayName || replyTarget.sender?.username || 'Message'}: ${replyTarget.content || ''}\n${content}`
     let type = overrideType
     let fileUrl = overrideFileUrl
     const selectedFile = overrideFile || voiceFile || chatFileRef.current?.files?.[0]
@@ -1019,6 +1024,14 @@ export default function Home() {
     setInput('')
     setReplyTarget(null)
     setShowStickers(false)
+  }
+  const jumpToRepliedMessage = messageId => {
+    if (!messageId) return
+    const element = document.getElementById(`chat-message-${messageId}`)
+    if (!element) return
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedMessageId(messageId)
+    window.setTimeout(() => setHighlightedMessageId(current => current === messageId ? null : current), 1600)
   }
 
   const startVoiceRecording = async () => {
@@ -1838,7 +1851,7 @@ export default function Home() {
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
               {messages.map(m => (
-                <div key={m.id} className={`flex ${m.senderId === user.id ? 'justify-end' : 'justify-start'}`}>
+                <div id={`chat-message-${m.id}`} key={m.id} className={`flex rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
                   <div data-message-menu className="relative group max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 60) setReplyTarget(m) }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
                   <div className={`max-w-full px-4 py-2 rounded-2xl text-sm ${
                     m.senderId === user.id
@@ -1858,7 +1871,7 @@ export default function Home() {
                       : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
                       : m.type === 'file' && m.fileUrl ? <a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
                       : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
-                      : <>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? <div className="mb-1 border-l-2 border-current/40 pl-2 text-xs opacity-60 whitespace-pre-wrap">{String(m.content).split('\n')[0]}</div> : null}<p className={m.type === 'sticker' ? 'text-5xl' : ''}>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? String(m.content).split('\n').slice(1).join('\n') : m.content}</p></>}{translations[`message-${m.id}`] && <p className="mt-2 rounded-lg bg-black/10 p-2 text-xs whitespace-pre-wrap">{translations[`message-${m.id}`]}</p>}
+                      : <>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? <button type="button" onClick={() => jumpToRepliedMessage(getReplyTargetId(m.content))} disabled={!getReplyTargetId(m.content)} className="mb-1 block w-full border-l-2 border-current/40 pl-2 text-left text-xs opacity-60 whitespace-pre-wrap hover:opacity-100">{getReplyPreview(m.content)}</button> : null}<p className={m.type === 'sticker' ? 'text-5xl' : ''}>{String(m.content || '').includes('\n') && String(m.content).startsWith('↪') ? getReplyBody(m.content) : m.content}</p></>}{translations[`message-${m.id}`] && <p className="mt-2 rounded-lg bg-black/10 p-2 text-xs whitespace-pre-wrap">{translations[`message-${m.id}`]}</p>}
                     <p className={`text-[10px] mt-1 ${m.senderId === user.id ? 'text-sky-100' : 'text-gray-400'}`}>
                       {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{m.senderId === user.id && <span className="ml-1">{m.pending ? 'Sending…' : m.messageStatus === 'seen' ? 'Seen' : m.messageStatus === 'delivered' || m.messageStatus === 'sent' ? 'Sent' : 'Sending…'}</span>}
                     </p>
