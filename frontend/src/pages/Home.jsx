@@ -105,6 +105,7 @@ export default function Home() {
   const [chatBackgroundImage, setChatBackgroundImage] = useState('')
   const [showStickers, setShowStickers] = useState(false)
   const [stickerTab, setStickerTab] = useState('mine')
+  const [stickerMenuKey, setStickerMenuKey] = useState(null)
   const [myStickers, setMyStickers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]') } catch { return [] }
   })
@@ -162,6 +163,8 @@ export default function Home() {
   const chatFileRef = useRef(null)
   const stickerFileRef = useRef(null)
   const messageInputRef = useRef(null)
+  const stickerLongPressTimer = useRef(null)
+  const stickerLongPressedRef = useRef(false)
   const peerRef = useRef(null)
   const localStreamRef = useRef(null)
   const remoteVideoRef = useRef(null)
@@ -810,6 +813,21 @@ export default function Home() {
     if (message?.type !== 'sticker') return
     saveMySticker({ content: message.content, fileUrl: message.fileUrl }, 'other')
     setMessageMenu(null)
+  }
+  const stickerKey = sticker => `${sticker.fileUrl || ''}|${sticker.content || ''}|${sticker.source || 'mine'}`
+  const beginStickerLongPress = sticker => {
+    window.clearTimeout(stickerLongPressTimer.current)
+    stickerLongPressTimer.current = window.setTimeout(() => { stickerLongPressedRef.current = true; setStickerMenuKey(stickerKey(sticker)) }, 550)
+  }
+  const cancelStickerLongPress = () => window.clearTimeout(stickerLongPressTimer.current)
+  const deleteMySticker = sticker => {
+    const key = stickerKey(sticker)
+    setMyStickers(previous => {
+      const next = previous.filter(item => stickerKey(item) !== key)
+      localStorage.setItem('caregivers-my-stickers', JSON.stringify(next))
+      return next
+    })
+    setStickerMenuKey(null)
   }
   const sendSavedSticker = sticker => sendMessage(sticker.content || 'Sticker', 'sticker', null, sticker.fileUrl || null)
   const createStickerFromImage = async event => {
@@ -1645,12 +1663,7 @@ export default function Home() {
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
               <button type="button" onPointerDown={startVoiceRecording} onPointerUp={stopVoiceRecording} onPointerCancel={stopVoiceRecording} onPointerLeave={stopVoiceRecording} className={`p-2 select-none touch-none ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title="ဖိထားပြီး voice ပို့ရန်"><Mic size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
-              <button onClick={() => { const next = !showStickers; setShowStickers(next); if (next) messageInputRef.current?.blur(); else setTimeout(() => messageInputRef.current?.focus(), 0) }} className={`p-2 text-lg ${showStickers ? 'text-sky-500' : 'text-gray-500'}`} title="Sticker">☺</button>
-              {showStickers && <div className="absolute bottom-14 left-2 right-2 max-h-64 overflow-y-auto rounded-2xl border bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-800">
-                <div className="mb-3 flex items-center gap-1 border-b dark:border-gray-700"><button type="button" onClick={() => setStickerTab('mine')} className={`flex-1 border-b-2 px-2 py-2 text-xs font-semibold ${stickerTab === 'mine' ? 'border-sky-500 text-sky-500' : 'border-transparent text-gray-400'}`}>My Sticker</button><button type="button" onClick={() => setStickerTab('other')} className={`flex-1 border-b-2 px-2 py-2 text-xs font-semibold ${stickerTab === 'other' ? 'border-sky-500 text-sky-500' : 'border-transparent text-gray-400'}`}>Other From Sticker</button></div>
-                {stickerTab === 'mine' && <div className="mb-3 flex justify-end"><button type="button" onClick={() => stickerFileRef.current?.click()} className="rounded-lg bg-sky-500 px-2 py-1 text-xs text-white">Create from photo</button></div>}
-                {(() => { const visibleStickers = myStickers.filter(sticker => stickerTab === 'other' ? sticker.source === 'other' : sticker.source !== 'other'); return <><div className="grid grid-cols-4 gap-2">{visibleStickers.map((sticker, index) => <button type="button" key={`${sticker.fileUrl}-${sticker.content}-${index}`} onClick={() => sendSavedSticker(sticker)} className="flex h-16 items-center justify-center rounded-lg bg-gray-100 p-1 hover:bg-sky-100 dark:bg-gray-700">{sticker.fileUrl ? <img src={resolveMediaUrl(sticker.fileUrl)} alt="" className="h-full w-full object-contain" /> : <span className="text-2xl">{sticker.content}</span>}</button>)}</div>{visibleStickers.length === 0 && <p className="py-8 text-center text-xs text-gray-400">No saved stickers yet</p>}</> })()}
-              </div>}
+              <button onClick={() => { const next = !showStickers; setShowStickers(next); if (next) { messageInputRef.current?.blur(); window.CaregiversKeyboard?.hide?.() } else setTimeout(() => messageInputRef.current?.focus(), 0) }} className={`p-2 text-lg ${showStickers ? 'text-sky-500' : 'text-gray-500'}`} title="Sticker">☺</button>
               <textarea
                 ref={messageInputRef}
                 rows="1"
@@ -1663,6 +1676,11 @@ export default function Home() {
                 <Send size={18} />
               </button>
             </div>
+            {showStickers && <div className="max-h-64 overflow-y-auto border-t bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-3 flex items-center gap-1 border-b dark:border-gray-700"><button type="button" onClick={() => setStickerTab('mine')} className={`flex-1 border-b-2 px-2 py-2 text-xs font-semibold ${stickerTab === 'mine' ? 'border-sky-500 text-sky-500' : 'border-transparent text-gray-400'}`}>My Sticker</button><button type="button" onClick={() => setStickerTab('other')} className={`flex-1 border-b-2 px-2 py-2 text-xs font-semibold ${stickerTab === 'other' ? 'border-sky-500 text-sky-500' : 'border-transparent text-gray-400'}`}>Other From Sticker</button></div>
+              {stickerTab === 'mine' && <div className="mb-3 flex justify-end"><button type="button" onClick={() => stickerFileRef.current?.click()} className="rounded-lg bg-sky-500 px-2 py-1 text-xs text-white">Create from photo</button></div>}
+              {(() => { const visibleStickers = myStickers.filter(sticker => stickerTab === 'other' ? sticker.source === 'other' : sticker.source !== 'other'); return <><div className="grid grid-cols-4 gap-2">{visibleStickers.map((sticker, index) => <button type="button" key={`${sticker.fileUrl}-${sticker.content}-${index}`} onClick={() => { if (stickerLongPressedRef.current) { stickerLongPressedRef.current = false; return } if (stickerMenuKey === stickerKey(sticker)) { setStickerMenuKey(null); return } sendSavedSticker(sticker) }} onContextMenu={event => { event.preventDefault(); setStickerMenuKey(stickerKey(sticker)) }} onTouchStart={() => beginStickerLongPress(sticker)} onTouchEnd={cancelStickerLongPress} onTouchCancel={cancelStickerLongPress} className="relative flex h-16 items-center justify-center rounded-lg bg-gray-100 p-1 hover:bg-sky-100 dark:bg-gray-700">{sticker.fileUrl ? <img src={resolveMediaUrl(sticker.fileUrl)} alt="" className="h-full w-full object-contain" /> : <span className="text-2xl">{sticker.content}</span>}{stickerMenuKey === stickerKey(sticker) && <span role="button" tabIndex={0} onClick={event => { event.stopPropagation(); deleteMySticker(sticker) }} className="absolute inset-x-1 bottom-1 rounded bg-red-600 py-0.5 text-[10px] text-white">Delete</span>}</button>)}</div>{visibleStickers.length === 0 && <p className="py-8 text-center text-xs text-gray-400">No saved stickers yet</p>}</> })()}
+            </div>}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-400">

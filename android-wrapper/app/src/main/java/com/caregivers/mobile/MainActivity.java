@@ -25,6 +25,8 @@ import android.media.AudioDeviceInfo;
 import android.media.MediaPlayer;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -168,6 +170,7 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
+        webView.addJavascriptInterface(new KeyboardBridge(), "CaregiversKeyboard");
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
@@ -391,6 +394,17 @@ public class MainActivity extends Activity {
 
     private class AppExitBridge {
         @JavascriptInterface public void exit() { runOnUiThread(() -> finish()); }
+    }
+
+    private class KeyboardBridge {
+        @JavascriptInterface public void hide() {
+            runOnUiThread(() -> {
+                InputMethodManager manager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+                View focused = getCurrentFocus();
+                if (manager != null && focused != null) manager.hideSoftInputFromWindow(focused.getWindowToken(), 0);
+                if (focused != null) focused.clearFocus();
+            });
+        }
     }
 
     private class LocalMusicBridge {
