@@ -57,6 +57,10 @@ public class MainActivity extends Activity {
     private String pendingCallOffer;
     private String pendingCallAction;
     private String pendingCallId;
+    private String pendingGroupCallId;
+    private String pendingGroupCallFrom;
+    private String pendingGroupCallName;
+    private String pendingGroupCallType;
     private MediaSession musicSession;
     private NotificationManager musicNotificationManager;
     private String musicTitle = "Caregivers Music";
@@ -73,6 +77,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         readReplyIntent(getIntent());
         readIncomingCallIntent(getIntent());
+        readIncomingGroupCallIntent(getIntent());
         readIncomingCallAction(getIntent());
         webView = new WebView(this);
         audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
@@ -108,6 +113,7 @@ public class MainActivity extends Activity {
                 });
                 deliverPendingReply();
                 deliverIncomingCall();
+                deliverIncomingGroupCall();
                 deliverIncomingCallAction();
             }
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -308,6 +314,23 @@ public class MainActivity extends Activity {
         pendingReplyUserId = null;
     }
 
+    private void readIncomingGroupCallIntent(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra("incoming_group_call", false)) return;
+        pendingGroupCallId = intent.getStringExtra("group_id");
+        pendingGroupCallFrom = intent.getStringExtra("from_user_id");
+        pendingGroupCallName = intent.getStringExtra("caller_name");
+        pendingGroupCallType = intent.getStringExtra("call_type");
+    }
+    private void deliverIncomingGroupCall() {
+        if (webView == null || pendingGroupCallId == null) return;
+        String group = encodeJs(pendingGroupCallId);
+        String from = encodeJs(pendingGroupCallFrom == null ? "" : pendingGroupCallFrom);
+        String name = encodeJs(pendingGroupCallName == null ? "Someone" : pendingGroupCallName);
+        String type = encodeJs(pendingGroupCallType == null ? "audio" : pendingGroupCallType);
+        String script = "(()=>{const d=s=>atob(s);let n=0;const send=()=>{if(window.CaregiversIncomingGroupCall)window.CaregiversIncomingGroupCall(d('" + group + "'),d('" + from + "'),d('" + name + "'),d('" + type + "'));else if(++n<30)setTimeout(send,500)};send()})()";
+        webView.evaluateJavascript(script, null);
+        pendingGroupCallId = null; pendingGroupCallFrom = null; pendingGroupCallName = null; pendingGroupCallType = null;
+    }
     private void readIncomingCallIntent(Intent intent) {
         if (intent == null || !intent.getBooleanExtra("incoming_call", false)) return;
         pendingCallFromUserId = intent.getStringExtra("from_user_id");
@@ -364,9 +387,11 @@ public class MainActivity extends Activity {
         handleMusicIntent(intent);
         readReplyIntent(intent);
         readIncomingCallIntent(intent);
+        readIncomingGroupCallIntent(intent);
         readIncomingCallAction(intent);
         deliverPendingReply();
         deliverIncomingCall();
+        deliverIncomingGroupCall();
         deliverIncomingCallAction();
     }
 

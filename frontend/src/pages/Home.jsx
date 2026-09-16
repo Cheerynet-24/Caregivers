@@ -412,6 +412,15 @@ export default function Home() {
     }
     return () => { delete window.CaregiversIncomingCall }
   }, [chatSettings])
+  useEffect(() => {
+    window.CaregiversIncomingGroupCall = (groupId, fromUserId, fromUsername, callType) => {
+      if (!groupId) return false
+      setIncomingGroupCall({ groupId, fromUserId, fromUsername: fromUsername || 'Someone', callType: callType === 'video' ? 'video' : 'audio' })
+      if (!chatSettings.muted && chatSettings.notifications) playCustomSound('call')
+      return true
+    }
+    return () => { delete window.CaregiversIncomingGroupCall }
+  }, [chatSettings])
 
   useEffect(() => {
     window.CaregiversIncomingCallAction = (action, fromUserId, callId) => {

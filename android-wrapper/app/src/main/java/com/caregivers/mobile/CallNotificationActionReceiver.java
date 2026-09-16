@@ -25,10 +25,15 @@ public class CallNotificationActionReceiver extends BroadcastReceiver {
                 .putExtra("call_id", intent.getStringExtra("call_id"));
 
         if (ACTION_ACCEPT.equals(action)) {
-            open.putExtra("incoming_call", true)
-                    .putExtra("caller_name", intent.getStringExtra("caller_name"))
-                    .putExtra("call_type", intent.getStringExtra("call_type"))
-                    .putExtra("offer_b64", intent.getStringExtra("offer_b64"));
+            if (intent.getBooleanExtra("group_call", false)) {
+                open.putExtra("incoming_group_call", true).putExtra("group_id", intent.getStringExtra("group_id"))
+                        .putExtra("caller_name", intent.getStringExtra("caller_name"))
+                        .putExtra("call_type", intent.getStringExtra("call_type"));
+            } else {
+                open.putExtra("incoming_call", true).putExtra("caller_name", intent.getStringExtra("caller_name"))
+                        .putExtra("call_type", intent.getStringExtra("call_type"))
+                        .putExtra("offer_b64", intent.getStringExtra("offer_b64"));
+            }
         } else if (ACTION_DECLINE.equals(action)) {
             open.putExtra("incoming_call_action", "decline");
         } else if (ACTION_DISMISS.equals(action)) {

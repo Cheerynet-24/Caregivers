@@ -297,10 +297,13 @@ function setupSocket(io, prisma) {
         });
         io.to(`group:${groupId}`).emit('message:new', callMessage);
       }
-      const members = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } });
+      const members = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true, user: { select: { fcmToken: true } } } });
       const invite = { groupId, fromUserId: userId, fromUsername: socket.user.displayName || socket.user.username, callType: data.callType === 'video' ? 'video' : 'audio' };
       for (const member of members) {
-        if (member.userId !== userId) io.to(`user:${member.userId}`).emit('group-call:invite', invite);
+        if (member.userId !== userId) {
+          io.to(`user:${member.userId}`).emit('group-call:invite', invite);
+          sendPush(member.user?.fcmToken, { title: `Incoming group ${invite.callType} call`, body: `${invite.fromUsername} is calling the group`, type: 'group_call', data: invite }).catch(error => console.error('group call push error', error));
+        }
       }
       socket.to(room).emit('group-call:user-joined', { groupId, userId, username: socket.user.username, callType: data.callType === 'video' ? 'video' : 'audio' });
       acknowledge?.({ ok: true, participants: existing });

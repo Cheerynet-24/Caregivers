@@ -26,9 +26,10 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
     @Override public void onMessageReceived(@NonNull RemoteMessage message) {
         String type = message.getData().getOrDefault("type", "message");
         if (MainActivity.isAppVisible()) return;
+        boolean isCall = type.equals("call") || type.equals("group_call");
         String callerName = message.getData().getOrDefault("callerName", "Someone");
-        String title = value(message, "title", type.equals("call") ? callerName : "Caregivers");
-        String body = value(message, "body", type.equals("call") ? "Incoming call" : "New message");
+        String title = value(message, "title", isCall ? callerName : "Caregivers");
+        String body = value(message, "body", isCall ? "Incoming call" : "New message");
         showNotification(type, title, body, message.getData().getOrDefault("fromUserId", ""), message.getData());
     }
 
@@ -40,7 +41,7 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
     }
 
     private int notificationId(String type, String fromUserId, java.util.Map<String, String> data) {
-        String key = type + ":" + data.getOrDefault("callId", fromUserId);
+        String key = type + ":" + data.getOrDefault("callId", data.getOrDefault("groupId", fromUserId));
         int id = key.hashCode() & 0x7fffffff;
         return id == 0 ? 1 : id;
     }
@@ -51,23 +52,26 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
                 .putExtra("notification_id", notificationId)
                 .putExtra("from_user_id", fromUserId)
                 .putExtra("call_id", data.getOrDefault("callId", ""))
+                .putExtra("group_id", data.getOrDefault("groupId", ""))
                 .putExtra("caller_name", data.getOrDefault("callerName", "Someone"))
                 .putExtra("call_type", data.getOrDefault("callType", "audio"))
-                .putExtra("offer_b64", data.getOrDefault("offer", ""));
+                .putExtra("offer_b64", data.getOrDefault("offer", ""))
+                .putExtra("group_call", data.containsKey("groupId"));
         return PendingIntent.getBroadcast(this, notificationId ^ action.hashCode(), intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
     }
 
     private void showNotification(String type, String title, String body, String fromUserId, java.util.Map<String, String> data) {
         NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        String channelId = type.equals("call") ? CALL_CHANNEL_ID : CHANNEL_ID;
+        boolean isCall = type.equals("call") || type.equals("group_call");
+        String channelId = isCall ? CALL_CHANNEL_ID : CHANNEL_ID;
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel channel = new NotificationChannel(channelId, type.equals("call") ? "Incoming Caregivers calls" : "Caregivers messages", NotificationManager.IMPORTANCE_HIGH);
-            channel.setDescription(type.equals("call") ? "Incoming audio and video calls" : "New messages");
+            NotificationChannel channel = new NotificationChannel(channelId, isCall ? "Incoming Caregivers calls" : "Caregivers messages", NotificationManager.IMPORTANCE_HIGH);
+            channel.setDescription(isCall ? "Incoming audio and video calls" : "New messages");
             channel.enableVibration(true);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-            Uri sound = RingtoneManager.getDefaultUri(type.equals("call") ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
-            AudioAttributes audio = new AudioAttributes.Builder().setUsage(type.equals("call") ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+            Uri sound = RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
+            AudioAttributes audio = new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
             channel.setSound(sound, audio);
             manager.createNotificationChannel(channel);
         }
@@ -75,26 +79,26 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
         int notificationId = notificationId(type, fromUserId, data);
         Intent open = new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (type.equals("call")) {
-            open.putExtra("incoming_call", true);
-            open.putExtra("from_user_id", fromUserId);
-            open.putExtra("call_id", data.getOrDefault("callId", ""));
-            open.putExtra("caller_name", data.getOrDefault("callerName", title));
-            open.putExtra("call_type", data.getOrDefault("callType", "audio"));
-            open.putExtra("offer_b64", data.getOrDefault("offer", ""));
+            open.putExtra("incoming_call", true).putExtra("from_user_id", fromUserId).putExtra("call_id", data.getOrDefault("callId", ""))
+                    .putExtra("caller_name", data.getOrDefault("callerName", title)).putExtra("call_type", data.getOrDefault("callType", "audio"))
+                    .putExtra("offer_b64", data.getOrDefault("offer", ""));
+        } else if (type.equals("group_call")) {
+            open.putExtra("incoming_group_call", true).putExtra("group_id", data.getOrDefault("groupId", ""))
+                    .putExtra("from_user_id", fromUserId).putExtra("caller_name", data.getOrDefault("callerName", title))
+                    .putExtra("call_type", data.getOrDefault("callType", "audio"));
         }
         PendingIntent content = type.equals("call")
                 ? callAction(CallNotificationActionReceiver.ACTION_ACCEPT, notificationId, fromUserId, data)
                 : PendingIntent.getActivity(this, notificationId, open, PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(com.caregivers.mobile.R.drawable.app_logo).setContentTitle(title).setContentText(body)
-                .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(type.equals("call") ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)
+                .setPriority(NotificationCompat.PRIORITY_MAX).setCategory(isCall ? NotificationCompat.CATEGORY_CALL : NotificationCompat.CATEGORY_MESSAGE)
                 .setColor(android.graphics.Color.rgb(14, 165, 233)).setDefaults(NotificationCompat.DEFAULT_ALL)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(true).setContentIntent(content);
-        if (type.equals("call")) {
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC).setStyle(new NotificationCompat.BigTextStyle().bigText(body)).setAutoCancel(true).setContentIntent(content);
+        if (isCall) {
             builder.setOngoing(false).setTimeoutAfter(60000).setFullScreenIntent(content, true)
                     .setDeleteIntent(callAction(CallNotificationActionReceiver.ACTION_DISMISS, notificationId, fromUserId, data))
-                    .addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Accept", callAction(CallNotificationActionReceiver.ACTION_ACCEPT, notificationId, fromUserId, data)).build())
+                    .addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Join", callAction(CallNotificationActionReceiver.ACTION_ACCEPT, notificationId, fromUserId, data)).build())
                     .addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Decline", callAction(CallNotificationActionReceiver.ACTION_DECLINE, notificationId, fromUserId, data)).build());
         } else {
             RemoteInput input = new RemoteInput.Builder(REPLY_KEY).setLabel("Reply").build();
