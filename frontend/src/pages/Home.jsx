@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { authAPI, callAPI, chatAPI, userAPI, groupAPI, walletAPI, postsAPI, mediaAPI, reportsAPI, aiAPI, resolveMediaUrl } from '../services/api'
 import { ProfilePanel, FeedPanel } from '../components/SocialPanels'
+import MediaViewer from '../components/MediaViewer'
 import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
@@ -81,6 +82,7 @@ export default function Home() {
   const [searchUsers, setSearchUsers] = useState([])
   const [searchQ, setSearchQ] = useState('')
   const [activeChat, setActiveChat] = useState(null) // { type: 'private'|'group', id, data }
+  const [mediaViewer, setMediaViewer] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [wallet, setWallet] = useState(null)
@@ -1790,8 +1792,8 @@ export default function Home() {
                       : m.type === 'profile' ? <ProfileMessageCard profile={getProfileMessageData(m)} onOpen={() => { const profile = getProfileMessageData(m); if (profile) showUserProfile(profile) }} />
                       : m.type === 'poll' ? <PollMessage content={m.content} />
                       : m.type === 'sticker' && m.fileUrl ? <img src={resolveMediaUrl(m.fileUrl)} alt="Sticker" className="h-auto max-h-24 w-auto max-w-24 rounded-xl object-contain" />
-                      : m.type === 'image' && m.fileUrl ? <><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
-                      : m.type === 'video' && m.fileUrl ? <><video src={resolveMediaUrl(m.fileUrl)} controls className="max-w-full rounded-lg" /><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
+                      : m.type === 'image' && m.fileUrl ? <><button type="button" onClick={() => setMediaViewer({ media: m.fileUrl, kind: 'image' })} className="block cursor-zoom-in text-left"><img src={resolveMediaUrl(m.fileUrl)} alt={m.content || 'Image'} className="max-w-full rounded-lg" /></button><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'image'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save image</a></>
+                      : m.type === 'video' && m.fileUrl ? <><button type="button" onClick={() => setMediaViewer({ media: m.fileUrl, kind: 'video' })} className="block cursor-zoom-in text-left"><video src={resolveMediaUrl(m.fileUrl)} controls playsInline preload="metadata" className="pointer-events-none max-w-full rounded-lg" /></button><a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'video'} className="mt-1 inline-flex items-center gap-1 text-xs underline"><Download size={13} /> Save video</a></>
                       : m.type === 'audio' && m.fileUrl ? <audio src={resolveMediaUrl(m.fileUrl)} controls />
                       : m.type === 'file' && m.fileUrl ? <a href={resolveMediaUrl(m.fileUrl)} download={m.content || 'file'} className="inline-flex items-center gap-1 underline"><Download size={14} /> {m.content || 'Download file'}</a>
                       : m.type === 'location' ? <a href={m.content.split('\n').pop()} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline"><MapPin size={16} /> Open location</a>
@@ -2016,7 +2018,7 @@ export default function Home() {
             {selectedProfile.bio && <p className="mt-3 text-sm dark:text-gray-200 whitespace-pre-wrap">{selectedProfile.bio}</p>}
             <div className="mt-5 flex flex-wrap gap-2"><button onClick={() => { openPrivateChat(selectedProfile); setSelectedProfile(null) }} className="flex-1 py-2 rounded-lg bg-sky-500 text-white">Message</button><button onClick={() => openProfileSharePicker(selectedProfile)} className="flex-1 py-2 rounded-lg bg-indigo-500 text-white">Share in chat</button><button onClick={() => { const text = `${selectedProfile.displayName || selectedProfile.username} @${selectedProfile.username}`; navigator.share ? navigator.share({ title: 'Caregivers profile', text }) : navigator.clipboard?.writeText(text); }} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Share</button><button onClick={() => { openReport('user', { targetUserId: selectedProfile.id, content: selectedProfile.displayName || selectedProfile.username }); setSelectedProfile(null) }} className="px-3 py-2 rounded-lg border border-red-200 text-red-500">Report</button><button onClick={() => setSelectedProfile(null)} className="px-3 py-2 rounded-lg border dark:border-gray-600 dark:text-white">Close</button></div>
             <h4 className="mt-6 text-left font-semibold dark:text-white">Posts</h4>
-            <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="mt-2 max-h-56 w-full object-cover rounded-lg" />}</article>)}</div>
+            <div className="mt-2 space-y-3 text-left">{profilePosts.length === 0 ? <p className="text-sm text-gray-500">No posts yet</p> : profilePosts.map(post => <article key={post.id} className="rounded-xl border dark:border-gray-600 p-3"><p className="text-sm dark:text-gray-200 whitespace-pre-wrap">{post.caption}</p>{post.mediaUrl && <button type="button" onClick={() => setMediaViewer({ media: post.mediaUrl, kind: String(post.mediaType || '').startsWith('video/') ? 'video' : 'image' })} className="mt-2 block w-full cursor-zoom-in text-left">{String(post.mediaType || '').startsWith('video/') ? <video src={resolveMediaUrl(post.mediaUrl)} controls playsInline className="max-h-56 w-full object-contain rounded-lg bg-black" /> : <img src={resolveMediaUrl(post.mediaUrl)} alt="" className="max-h-56 w-full rounded-lg object-cover" />}</button>}</article>)}</div>
           </div>
         </div>
       )}
@@ -2029,6 +2031,7 @@ export default function Home() {
           </div>
         </div>
       )}
+      {mediaViewer && <MediaViewer media={mediaViewer.media} kind={mediaViewer.kind} onClose={() => setMediaViewer(null)} />}
     </div>
   )
 }
