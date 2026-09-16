@@ -21,10 +21,18 @@ export default function MediaViewer({ media, kind, onClose }) {
       closing.current = true
       onClose()
     }
+    const handleNativeBack = event => {
+      event?.preventDefault?.()
+      if (closing.current) return
+      closing.current = true
+      onClose()
+    }
     const handleKey = event => { if (event.key === 'Escape') closeViewer() }
     window.addEventListener('popstate', handleBack)
+    document.addEventListener('backbutton', handleNativeBack)
+    window.addEventListener('hardwareBackPress', handleNativeBack)
     window.addEventListener('keydown', handleKey)
-    return () => { window.removeEventListener('popstate', handleBack); window.removeEventListener('keydown', handleKey) }
+    return () => { window.removeEventListener('popstate', handleBack); document.removeEventListener('backbutton', handleNativeBack); window.removeEventListener('hardwareBackPress', handleNativeBack); window.removeEventListener('keydown', handleKey) }
   }, [])
 
   const closeViewer = () => {

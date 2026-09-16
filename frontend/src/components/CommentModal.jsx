@@ -68,8 +68,17 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
         onClose()
       }
     }
+    const handleNativeBack = event => {
+      event?.preventDefault?.()
+      if (closingFromBack.current) return
+      closingFromBack.current = true
+      window.history.replaceState(originalHistoryState.current, '', window.location.href)
+      onClose()
+    }
     window.addEventListener('popstate', handleBack)
-    return () => window.removeEventListener('popstate', handleBack)
+    document.addEventListener('backbutton', handleNativeBack)
+    window.addEventListener('hardwareBackPress', handleNativeBack)
+    return () => { window.removeEventListener('popstate', handleBack); document.removeEventListener('backbutton', handleNativeBack); window.removeEventListener('hardwareBackPress', handleNativeBack) }
   }, [])
   const closeModal = () => {
     if (closingFromBack.current) return
