@@ -65,7 +65,11 @@ function PollMessage({ content }) {
 
 const getReplyTargetId = content => String(content || '').match(/^↪\[([^\]]+)\]/)?.[1] || null
 const getReplyPreview = content => String(content || '').split('\n')[0].replace(/^↪(?:\[[^\]]+\])?\s*/, '')
-const getReplyBody = content => String(content || '').split('\n').slice(1).join('\n')
+const getReplyBody = content => {
+  let value = String(content || '')
+  while (value.startsWith('↪') && value.includes('\n')) value = value.split('\n').slice(1).join('\n')
+  return value
+}
 
 function VideoEffectOverlay({ effect }) {
   const icon = effect?.overlay
@@ -983,7 +987,7 @@ export default function Home() {
   const sendMessage = async (overrideContent = null, overrideType = 'text', overrideFile = null, overrideFileUrl = null) => {
     if ((!input.trim() && !overrideContent && !overrideFile && !voiceFile && !chatFileRef.current?.files?.[0]) || !activeChat || !socket) return
     let content = overrideContent || input.trim()
-    if (replyTarget && !overrideContent) content = `↪[${replyTarget.id}] ${replyTarget.sender?.displayName || replyTarget.sender?.username || 'Message'}: ${replyTarget.content || ''}\n${content}`
+    if (replyTarget && !overrideContent) content = `↪[${replyTarget.id}] ${replyTarget.sender?.displayName || replyTarget.sender?.username || 'Message'}: ${getReplyBody(replyTarget.content || '')}\n${content}`
     let type = overrideType
     let fileUrl = overrideFileUrl
     const selectedFile = overrideFile || voiceFile || chatFileRef.current?.files?.[0]
