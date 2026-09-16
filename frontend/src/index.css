@@ -50,3 +50,25 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .video-effect-particle { animation-duration: 7s; }
 }
+
+/* Keep user media readable without letting a single photo/video take over the UI. */
+[class~="max-w-full"][class~="rounded-2xl"] > img,
+[class~="max-w-full"][class~="rounded-2xl"] > video {
+  display: block;
+  width: auto;
+  max-width: min(100%, 20rem);
+  max-height: 20rem;
+  margin-inline: auto;
+  object-fit: contain;
+}
+
+/* Feed media stays prominent, but is bounded and never cropped by object-cover. */
+article > img[alt="Post"],
+article > video[controls] {
+  display: block;
+  width: auto;
+  max-width: min(100%, 32rem);
+  max-height: 26rem;
+  margin-inline: auto;
+  object-fit: contain;
+}
