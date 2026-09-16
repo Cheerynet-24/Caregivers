@@ -59,7 +59,7 @@ function PollMessage({ content }) {
   let poll = null
   try { poll = JSON.parse(String(content || '').slice('poll:'.length)) } catch {}
   if (!poll?.question || !poll.options?.length) return <p className="italic opacity-70">Poll unavailable</p>
-  return <div className="w-full max-w-sm"><p className="font-semibold">{poll.question}</p><div className="mt-2 space-y-1">{poll.options.map((option, index) => <button type="button" key={option} onClick={() => setSelected(index)} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs ${selected === index ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'border-gray-200 dark:border-gray-600'}`}><span>{option}</span>{selected === index && <span>✓</span>}</button>)}</div></div>
+  return <div className="w-full max-w-sm"><p className="font-semibold">{poll.question}</p><div className="mt-2 space-y-1">{poll.options.map((option, index) => <button type="button" key={option} onClick={() => setSelected(current => current === index ? null : index)} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs ${selected === index ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'border-gray-200 dark:border-gray-600'}`}><span>{option}</span>{selected === index && <span>✓</span>}</button>)}</div></div>
 }
 
 function VideoEffectOverlay({ effect }) {

@@ -12,7 +12,7 @@ function PollComment({ content }) {
   const [selected, setSelected] = useState(null)
   const poll = pollData(content)
   if (!poll?.question || !poll.options?.length) return <span>Poll unavailable</span>
-  return <div className="w-full max-w-sm"><p className="font-semibold">{poll.question}</p><div className="mt-2 space-y-1">{poll.options.map((option, index) => <button type="button" key={option} onClick={() => setSelected(index)} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs ${selected === index ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'border-gray-200 dark:border-gray-600'}`}><span>{option}</span>{selected === index && <span>✓</span>}</button>)}</div></div>
+  return <div className="w-full max-w-sm"><p className="font-semibold">{poll.question}</p><div className="mt-2 space-y-1">{poll.options.map((option, index) => <button type="button" key={option} onClick={() => setSelected(current => current === index ? null : index)} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs ${selected === index ? 'border-sky-500 bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-200' : 'border-gray-200 dark:border-gray-600'}`}><span>{option}</span>{selected === index && <span>✓</span>}</button>)}</div></div>
 }
 
 function CommentContent({ content }) {
@@ -53,6 +53,16 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   useEffect(() => {
     try { setStickers(JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]')) } catch { setStickers([]) }
   }, [])
+  useEffect(() => {
+    window.history.pushState({ caregiversCommentModal: true }, '')
+    const handleBack = () => onClose()
+    window.addEventListener('popstate', handleBack)
+    return () => window.removeEventListener('popstate', handleBack)
+  }, [])
+  const closeModal = () => {
+    if (window.history.state?.caregiversCommentModal) window.history.back()
+    else onClose()
+  }
   const submit = (content, parentId = replyTo?.id || null) => {
     const value = content ?? draft.trim()
     if (!value) return
@@ -69,7 +79,7 @@ export default function CommentModal({ post, comments, user, replyTo, onReply, o
   }
   return <div className="fixed inset-0 z-[100] flex flex-col bg-gray-50 dark:bg-gray-900">
     <header className="flex shrink-0 items-center gap-3 border-b bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <button type="button" onClick={onClose} className="rounded-full p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={21} /></button>
+      <button type="button" onClick={closeModal} className="rounded-full p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"><X size={21} /></button>
       <div className="min-w-0 flex-1"><h2 className="truncate font-bold dark:text-white">Comments</h2><p className="truncate text-xs text-gray-500">{post.caption || 'Post'} · {total} comments</p></div>
     </header>
     <main className="min-h-0 flex-1 overflow-y-auto p-3 sm:mx-auto sm:w-full sm:max-w-2xl"><div className="mb-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-gray-800"><p className="line-clamp-3 text-sm dark:text-gray-200">{post.caption || 'Post comments'}</p></div>{comments.length ? comments.map(comment => <CommentItem key={comment.id} comment={comment} user={user} onReply={onReply} onLike={onLike} onDelete={onDelete} onEdit={onEdit} />) : <p className="py-16 text-center text-sm text-gray-400">No comments yet</p>}</main>
