@@ -282,6 +282,12 @@ function setupSocket(io, prisma) {
       const outcome = call?.status === 'ringing' ? (data?.outcome === 'declined' ? 'declined' : 'missed') : (data?.outcome || 'completed');
       if (call) {
         const status = outcome === 'declined' ? 'declined' : outcome === 'missed' ? 'missed' : 'completed';
+        const otherUserId = call.callerId === userId ? call.receiverId : call.callerId;
+        const otherUser = await prisma.user.findUnique({ where: { id: otherUserId }, select: { fcmToken: true } });
+        sendPush(otherUser?.fcmToken, {
+          title: '', body: '', type: 'call_cancel',
+          data: { callId: call.id, fromUserId: userId }
+        }).catch(err => console.error('call notification cancel error', err));
         await prisma.callLog.update({ where: { id: call.id }, data: { status, endedAt: new Date() } });
         const message = await prisma.message.findFirst({ where: { type: 'call', mediaUrl: call.id } });
         if (message) {

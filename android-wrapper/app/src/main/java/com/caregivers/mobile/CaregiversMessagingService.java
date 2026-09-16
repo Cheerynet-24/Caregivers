@@ -15,8 +15,8 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class CaregiversMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "caregivers_calls_messages_v4";
-    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v4";
+    private static final String CHANNEL_ID = "caregivers_calls_messages_v5";
+    private static final String CALL_CHANNEL_ID = "caregivers_incoming_calls_v5";
     public static final String REPLY_KEY = "caregivers_reply";
 
     @Override public void onNewToken(@NonNull String token) {
@@ -25,6 +25,10 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
 
     @Override public void onMessageReceived(@NonNull RemoteMessage message) {
         String type = message.getData().getOrDefault("type", "message");
+        if (type.equals("call_cancel") || type.equals("call_end")) {
+            cancelCallNotification(message.getData());
+            return;
+        }
         if (MainActivity.isAppVisible()) return;
         boolean isCall = type.equals("call") || type.equals("group_call");
         String callerName = message.getData().getOrDefault("callerName", "Someone");
@@ -41,7 +45,8 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
     }
 
     private int notificationId(String type, String fromUserId, java.util.Map<String, String> data) {
-        String key = type + ":" + data.getOrDefault("callId", data.getOrDefault("groupId", fromUserId));
+        String normalizedType = (type.equals("call_cancel") || type.equals("call_end")) ? "call" : type;
+        String key = normalizedType + ":" + data.getOrDefault("callId", data.getOrDefault("groupId", fromUserId));
         int id = key.hashCode() & 0x7fffffff;
         return id == 0 ? 1 : id;
     }
@@ -70,7 +75,11 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             channel.setDescription(isCall ? "Incoming audio and video calls" : "New messages");
             channel.enableVibration(true);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
-            Uri sound = RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION);
+            String prefKey = isCall ? "call_sound_uri" : "message_sound_uri";
+            String selectedSound = getSharedPreferences("caregivers_notification_sounds", MODE_PRIVATE).getString(prefKey, "");
+            Uri sound = selectedSound == null || selectedSound.isEmpty()
+                    ? RingtoneManager.getDefaultUri(isCall ? RingtoneManager.TYPE_RINGTONE : RingtoneManager.TYPE_NOTIFICATION)
+                    : Uri.parse(selectedSound);
             AudioAttributes audio = new AudioAttributes.Builder().setUsage(isCall ? AudioAttributes.USAGE_NOTIFICATION_RINGTONE : AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
             channel.setSound(sound, audio);
             manager.createNotificationChannel(channel);
@@ -107,5 +116,9 @@ public class CaregiversMessagingService extends FirebaseMessagingService {
             builder.addAction(new NotificationCompat.Action.Builder(com.caregivers.mobile.R.drawable.app_logo, "Reply", replyPending).addRemoteInput(input).setAllowGeneratedReplies(true).setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY).build());
         }
         manager.notify(notificationId, builder.build());
+    }
+    private void cancelCallNotification(java.util.Map<String, String> data) {
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager != null) manager.cancel(notificationId("call", data.getOrDefault("fromUserId", ""), data));
     }
 }
