@@ -1313,6 +1313,7 @@ export default function Home() {
       setVideoEffect('none')
       localStreamRef.current = stream
       setCallStatus('Calling')
+      window.CaregiversSystemSound?.play?.(true)
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
       const peer = createPeer(activeChat.data.id, callType, config)
       stream.getTracks().forEach(track => peer.addTrack(track, stream))
@@ -1323,7 +1324,21 @@ export default function Home() {
       socket.emit('call:offer', { toUserId: activeChat.data.id, offer, callType }, response => {
         delivered = true
         if (response?.callId) outgoingCallIdRef.current = response.callId
+        if (!response?.ok) {
+          window.CaregiversSystemSound?.stop?.()
+          window.CaregiversSystemSound?.play?.(Boolean(response?.busy))
+          setCallStatus(response?.busy ? 'Line busy' : 'Offline / unavailable')
+          peer.close(); rawStreamRef.current?.getTracks().forEach(track => track.stop()); rawStreamRef.current = null; localStreamRef.current = null; peerRef.current = null; setCall(null);
+          setTimeout(() => window.CaregiversSystemSound?.stop?.(), 1800)
+        }
       })
+      setTimeout(() => {
+        if (peerRef.current === peer && peer.connectionState !== 'connected') {
+          window.CaregiversSystemSound?.stop?.()
+          if (outgoingCallIdRef.current) socket.emit('call:end', { toUserId: activeChat.data.id, callId: outgoingCallIdRef.current, outcome: 'missed' })
+          peer.close(); rawStreamRef.current?.getTracks().forEach(track => track.stop()); rawStreamRef.current = null; localStreamRef.current = null; peerRef.current = null; setCall(null); setCallStatus('No answer');
+        }
+      }, 30000)
       setTimeout(() => { if (!delivered && peerRef.current === peer) setCallStatus('Signaling failed') }, 5000)
     } catch (err) {
       alert(`Call permission failed (${err?.name || 'unknown'}). Please allow Camera/Microphone in Android Settings, then reopen the app.`)
@@ -1360,6 +1375,7 @@ export default function Home() {
 
   const endCall = (notify = true) => {
     stopNotificationSound()
+    window.CaregiversSystemSound?.stop?.()
     if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId, callId: outgoingCallIdRef.current, outcome: 'completed' })
     stopVideoEffectPipeline()
     peerRef.current?.close()
