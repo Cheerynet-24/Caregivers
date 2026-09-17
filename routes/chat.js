@@ -104,8 +104,7 @@ router.get('/messages/:conversationId', auth, async (req, res) => {
       include: {
         sender: { select: { id: true, username: true, displayName: true } }
       },
-      orderBy: { createdAt: 'desc' },
-      take: 300
+      orderBy: { createdAt: 'desc' }
     });
     messages.reverse();
     res.json({ messages: messages.map(message => ({ ...message, sender: compactUser(message.sender) })) });
@@ -129,8 +128,7 @@ router.get('/group-messages/:groupId', auth, async (req, res) => {
       include: {
         sender: { select: { id: true, username: true, displayName: true } }
       },
-      orderBy: { createdAt: 'desc' },
-      take: 300
+      orderBy: { createdAt: 'desc' }
     });
     messages.reverse();
     res.json({ messages: messages.map(message => ({ ...message, sender: compactUser(message.sender) })) });
