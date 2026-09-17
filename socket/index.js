@@ -40,7 +40,7 @@ function setupSocket(io, prisma) {
     memberships.forEach(m => socket.join(`group:${m.groupId}`));
 
     // Private message
-    socket.on('message:private', async (data) => {
+    socket.on('message:private', async (data, acknowledge) => {
       try {
         if (socket.user.isMuted) {
           return socket.emit('error', { message: 'You are muted' });
@@ -102,7 +102,9 @@ function setupSocket(io, prisma) {
           data: { fromUserId: userId, conversationId }
         });
         socket.emit('message:new', delivered);
+        acknowledge?.({ ok: true, message: delivered });
       } catch (err) {
+        acknowledge?.({ ok: false, error: err.message });
         console.error('private msg error', err);
       }
     });
@@ -152,7 +154,7 @@ function setupSocket(io, prisma) {
     });
 
     // Group message
-    socket.on('message:group', async (data) => {
+    socket.on('message:group', async (data, acknowledge) => {
       try {
         if (socket.user.isMuted) {
           return socket.emit('error', { message: 'You are muted' });
@@ -197,7 +199,9 @@ function setupSocket(io, prisma) {
         }
         await prisma.message.update({ where: { id: msg.id }, data: { messageStatus: 'delivered' } });
         socket.emit('message:update', { id: msg.id, messageStatus: 'delivered' });
+        acknowledge?.({ ok: true, message: msg });
       } catch (err) {
+        acknowledge?.({ ok: false, error: err.message });
         console.error('group msg error', err);
       }
     });

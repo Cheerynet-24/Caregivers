@@ -388,8 +388,8 @@ export default function Home() {
       if (!socket?.connected || !fromUserId || !text) return false
       try {
         const res = await chatAPI.getOrCreateConversation(fromUserId)
-        socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' })
-        return true
+        const result = await new Promise(resolve => socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' }, resolve))
+        return result?.ok !== false
       } catch (error) { console.error('notification reply failed', error); return false }
     }
     const flushPending = async () => {
@@ -881,7 +881,12 @@ export default function Home() {
       setActiveChat({ type: 'private', id: conv.id, data: otherUser })
       setMessages([])
       await chatAPI.markRead(conv.id).catch(() => {})
-      chatAPI.getMessages(conv.id).then(msgs => setMessages(msgs.data.messages || [])).catch(() => {})
+      chatAPI.getMessages(conv.id).then(msgs => setMessages(previous => {
+        const loaded = msgs.data.messages || []
+        const loadedIds = new Set(loaded.map(item => item.id))
+        const unsynced = previous.filter(item => item.pending || !loadedIds.has(item.id))
+        return [...loaded, ...unsynced]
+      })).catch(() => {})
       await loadConversations()
     } catch {}
   }
@@ -913,7 +918,12 @@ export default function Home() {
     try {
       setActiveChat({ type: 'group', id: group.id, data: group })
       const msgs = await chatAPI.getGroupMessages(group.id)
-      setMessages(msgs.data.messages || [])
+      setMessages(previous => {
+        const loaded = msgs.data.messages || []
+        const loadedIds = new Set(loaded.map(item => item.id))
+        const unsynced = previous.filter(item => item.pending || !loadedIds.has(item.id))
+        return [...loaded, ...unsynced]
+      })
       await groupAPI.markRead(group.id).catch(() => {})
       await loadGroups()
       setTab('groups')
