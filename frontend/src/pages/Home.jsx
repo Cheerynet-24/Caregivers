@@ -215,6 +215,7 @@ export default function Home() {
   const videoEffectRef = useRef('none')
   const pendingIceRef = useRef([])
   const outgoingCallIdRef = useRef(null)
+  const callAnsweredRef = useRef(false)
   const notificationAudioRef = useRef(null)
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
@@ -341,6 +342,7 @@ export default function Home() {
       if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') new Notification(`Incoming ${callType} call`, { body: `${fromUsername} is calling you`, tag: 'incoming-call' })
     }
     const onAnswer = async ({ answer }) => {
+      callAnsweredRef.current = true
       if (peerRef.current) {
         await peerRef.current.setRemoteDescription(new RTCSessionDescription(answer))
         const queued = pendingIceRef.current.splice(0)
@@ -1364,6 +1366,7 @@ export default function Home() {
     if (!socket.connected) { setCallStatus('Signaling unavailable'); alert('Server connection မရှိသေးပါ။ App ကို ပြန်ဖွင့်ပြီး စမ်းပါ။'); return }
     try {
       pendingIceRef.current = []
+      callAnsweredRef.current = false
       const constraints = callType === 'video' ? { audio: { echoCancellation: true, noiseSuppression: true }, video: true } : { audio: { echoCancellation: true, noiseSuppression: true }, video: false }
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       rawStreamRef.current = stream
@@ -1392,7 +1395,7 @@ export default function Home() {
         }
       })
       setTimeout(() => {
-        if (peerRef.current === peer && peer.connectionState !== 'connected') {
+        if (peerRef.current === peer && !callAnsweredRef.current && !['connected', 'completed'].includes(peer.connectionState)) {
           window.CaregiversSystemSound?.stop?.()
           if (outgoingCallIdRef.current) socket.emit('call:end', { toUserId: activeChat.data.id, callId: outgoingCallIdRef.current, outcome: 'missed' })
           peer.close(); rawStreamRef.current?.getTracks().forEach(track => track.stop()); rawStreamRef.current = null; localStreamRef.current = null; peerRef.current = null; setCall(null); setCallStatus('No answer');
@@ -1445,6 +1448,7 @@ export default function Home() {
     rawStreamRef.current = null
     setCall(null)
     outgoingCallIdRef.current = null
+    callAnsweredRef.current = false
     setCallStatus('')
     setIncomingCall(null)
     setMutedCall(false)
