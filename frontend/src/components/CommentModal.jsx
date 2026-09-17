@@ -7,6 +7,20 @@ const stickerUrl = value => value.slice('sticker:'.length)
 const isPoll = value => typeof value === 'string' && value.startsWith('poll:')
 const pollData = value => { try { return JSON.parse(value.slice('poll:'.length)) } catch { return null } }
 const countComments = items => (items || []).reduce((total, item) => total + 1 + countComments(item.replies), 0)
+const relativeTime = value => {
+  const time = new Date(value).getTime()
+  if (!Number.isFinite(time)) return ''
+  const seconds = Math.max(0, Math.floor((Date.now() - time) / 1000))
+  if (seconds < 60) return `${seconds || 1}sec ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}min ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}hour ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}day ago`
+  const date = new Date(time)
+  return `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()} ago`
+}
 
 function PollComment({ content }) {
   const [selected, setSelected] = useState(null)
@@ -35,6 +49,7 @@ function CommentItem({ comment, user, depth = 0, highlightCommentId, onReply, on
       </div>
     </div>
     <div className="ml-10 mt-1 flex items-center gap-3 text-xs text-gray-500">
+      <span>{relativeTime(comment.createdAt)}</span>
       <button type="button" onClick={() => onLike(comment.id)} className={comment.liked ? 'text-red-500' : ''}><Heart size={13} className="mr-1 inline" fill={comment.liked ? 'currentColor' : 'none'} />{comment.likeCount || 0}</button>
       {depth < 3 && <button type="button" onClick={() => onReply(comment)}><Reply size={13} className="mr-1 inline" />Reply</button>}
       {canEdit && <button type="button" onClick={() => setEditing(true)}><Pencil size={13} className="mr-1 inline" />Edit</button>}
