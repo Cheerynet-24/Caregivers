@@ -8,7 +8,7 @@ const SOCKET_URL = import.meta.env.VITE_API_URL || window.location.origin
 
 export default function Admin() {
   const { t, i18n } = useTranslation()
-  const [password, setPassword] = useState('')
+  const [password, setPassword] = useState(() => localStorage.getItem('caregivers-admin-password') || '')
   const [authed, setAuthed] = useState(false)
   const [error, setError] = useState('')
   const [tab, setTab] = useState('users')
@@ -29,6 +29,18 @@ export default function Admin() {
   const [latestAdminNotification, setLatestAdminNotification] = useState(null)
   const [resetRequests, setResetRequests] = useState([])
   const [resetCopied, setResetCopied] = useState('')
+
+  useEffect(() => {
+    const savedPassword = localStorage.getItem('caregivers-admin-password')
+    if (!savedPassword) return
+    adminAPI.login(savedPassword).then(() => {
+      setAuthed(true)
+      loadUsers(); loadAdminNotifications(); loadResetRequests()
+    }).catch(() => {
+      localStorage.removeItem('caregivers-admin-password')
+      setPassword('')
+    })
+  }, [])
 
   const loadAdminNotifications = async () => { try { const res = await adminAPI.notifications(password); setAdminNotifications(res.data.notifications || []); setUnreadAdminNotifications(res.data.unreadCount || 0) } catch {} }
   const loadResetRequests = async () => { try { const res = await adminAPI.resetRequests(password); setResetRequests(res.data.requests || []) } catch {} }
@@ -131,7 +143,7 @@ export default function Admin() {
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-sm px-3 py-1 bg-white/10 rounded">
           {i18n.language === 'my' ? 'EN' : 'မြန်မာ'}
         </button>
-        <div className="relative"><button onClick={openAdminNotifications} className="relative p-2 hover:bg-white/10 rounded"><Bell size={18} />{unreadAdminNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold">{unreadAdminNotifications > 99 ? '99+' : unreadAdminNotifications}</span>}</button>{notificationOpen && <div className="absolute right-12 top-12 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-3 text-gray-800 shadow-2xl dark:bg-gray-800 dark:text-white"><div className="mb-2 flex items-center justify-between"><b>Admin Notifications</b><button onClick={() => setNotificationOpen(false)}><X size={16} /></button></div><div className="max-h-72 space-y-2 overflow-y-auto">{adminNotifications.map(item => <div key={item.id} className="rounded-lg bg-sky-50 p-2 text-xs dark:bg-sky-950/40"><b>{item.title}</b><p className="mt-1 whitespace-pre-wrap">{item.message}</p><p className="mt-1 text-[10px] text-gray-500">{new Date(item.createdAt).toLocaleString()}</p></div>)}{adminNotifications.length === 0 && <p className="py-6 text-center text-xs text-gray-500">No notifications</p>}</div></div>}</div>
+        <div className="relative"><button onClick={openAdminNotifications} className="relative p-2 hover:bg-white/10 rounded"><Bell size={18} />{unreadAdminNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold">{unreadAdminNotifications > 99 ? '99+' : unreadAdminNotifications}</span>}</button>{notificationOpen && <div className="fixed inset-0 z-50 bg-black/30" onClick={() => setNotificationOpen(false)}><div className="absolute right-0 top-0 h-full w-full overflow-y-auto bg-white p-4 text-gray-800 shadow-2xl dark:bg-gray-800 dark:text-white sm:w-[28rem]" onClick={event => event.stopPropagation()}><div className="mb-4 flex items-center justify-between border-b pb-3 dark:border-gray-700"><b className="text-lg">Admin Notifications</b><button onClick={() => setNotificationOpen(false)}><X size={22} /></button></div><div className="space-y-3">{adminNotifications.map(item => <div key={item.id} className="rounded-xl bg-sky-50 p-3 text-sm dark:bg-sky-950/40"><b className="block break-words">{item.title}</b><p className="mt-2 whitespace-pre-wrap break-words leading-6">{item.message}</p><p className="mt-2 text-xs text-gray-500">{new Date(item.createdAt).toLocaleString()}</p></div>)}{adminNotifications.length === 0 && <p className="py-6 text-center text-sm text-gray-500">No notifications</p>}</div></div></div>}</div>
         <button onClick={() => { localStorage.removeItem('caregivers-admin-password'); setAuthed(false) }} className="p-2 hover:bg-white/10 rounded"><LogOut size={18} /></button>
       </header>
 
