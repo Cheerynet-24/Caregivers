@@ -969,6 +969,15 @@ export default function Home() {
     event.target.value = ''
     if (!file || !file.type.startsWith('image/')) return
     try {
+      const animated = ['image/gif', 'image/webp', 'image/apng'].includes(file.type.toLowerCase()) || /\.(gif|webp|apng)$/i.test(file.name || '')
+      if (animated) {
+        const formData = new FormData()
+        formData.append('file', file, file.name || 'animated-sticker')
+        const uploaded = await chatAPI.upload(formData)
+        saveMySticker({ fileUrl: uploaded.data.fileUrl, animated: true })
+        setShowStickers(true)
+        return
+      }
       const fileUrl = await new Promise((resolve, reject) => {
         const reader = new FileReader()
         reader.onerror = () => reject(new Error('Could not read the selected image'))
@@ -1931,7 +1940,7 @@ export default function Home() {
             <div className="w-full min-w-0 shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative overflow-visible">
               {replyTarget && <div className="absolute bottom-full left-2 right-2 z-20 mb-1 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
               <input ref={chatFileRef} type="file" accept="image/*,video/*,audio/*,.pdf" className="hidden" onChange={() => sendMessage()} />
-              <input ref={stickerFileRef} type="file" accept="image/*" className="hidden" onChange={createStickerFromImage} />
+              <input ref={stickerFileRef} type="file" accept="image/*,.gif,.webp,.apng" className="hidden" onChange={createStickerFromImage} />
               <button onClick={() => chatFileRef.current?.click()} className="p-2 text-gray-500" title="Attach file"><Paperclip size={19} /></button>
               <button type="button" onPointerDown={startVoiceRecording} onPointerUp={stopVoiceRecording} onPointerCancel={stopVoiceRecording} onPointerLeave={stopVoiceRecording} className={`p-2 select-none touch-none ${recordingVoice ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} title="ဖိထားပြီး voice ပို့ရန်"><Mic size={19} /></button>
               <button onClick={sendLocation} className="p-2 text-gray-500" title="Send location"><MapPin size={19} /></button>
