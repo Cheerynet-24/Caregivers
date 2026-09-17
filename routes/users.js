@@ -16,6 +16,15 @@ router.get('/notifications', auth, async (req, res) => {
   }
 });
 
+router.delete('/notifications/:id', auth, async (req, res) => {
+  try {
+    const notification = await prisma.notification.findUnique({ where: { id: req.params.id }, select: { id: true, userId: true } });
+    if (!notification) return res.status(404).json({ error: 'Notification not found' });
+    if (notification.userId !== req.user.id) return res.status(403).json({ error: 'You can delete your own notifications only' });
+    await prisma.notification.delete({ where: { id: notification.id } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Failed to delete notification' }); }
+});
 router.post('/notifications/read', auth, async (req, res) => {
   try {
     const notifications = await prisma.notification.findMany({ where: { OR: [{ userId: null }, { userId: req.user.id }] }, select: { id: true } });

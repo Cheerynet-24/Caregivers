@@ -19,6 +19,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.URLUtil;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
 import android.hardware.Sensor;
@@ -149,15 +150,16 @@ public class MainActivity extends Activity {
             try {
                 DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                 request.setMimeType(mimeType);
-                request.addRequestHeader("User-Agent", userAgent);
-                String cookies = android.webkit.CookieManager.getInstance().getCookie(url);
-                if (cookies != null) request.addRequestHeader("Cookie", cookies);
-                request.setTitle("Caregivers download");
-                request.setDescription("Downloading file...");
+                String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
+                request.setTitle(filename);
+                request.setDescription("Saving media...");
                 request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "caregivers-" + System.currentTimeMillis());
+                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+                String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
+                if (cookie != null) request.addRequestHeader("Cookie", cookie);
                 ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
-            } catch (Exception ignored) {}
+                Toast.makeText(this, "Saved to Downloads", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) { Toast.makeText(this, "Download failed", Toast.LENGTH_SHORT).show(); }
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public boolean onConsoleMessage(ConsoleMessage message) {

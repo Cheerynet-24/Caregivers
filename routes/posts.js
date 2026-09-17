@@ -97,7 +97,7 @@ router.post('/', auth, parsePostUpload, async (req, res) => {
     const visibility = req.body.visibility === 'friends' ? 'friends' : 'public';
     const files = req.files || [];
     if (!caption && !files.length) return res.status(400).json({ error: 'Caption or media is required' });
-    const mediaItems = await Promise.all(files.map(async file => ({ url: await persistUpload(file, 'posts'), type: file.mimetype || '', name: file.originalname || '' })));
+    const mediaItems = await Promise.all(files.map(async file => ({ url: await persistUpload(file, 'posts'), type: file.mimetype || '', name: file.originalname || '', allowDownload: req.body.allowDownload !== 'false' })));
     const first = mediaItems[0] || null;
     const post = await prisma.post.create({ data: { authorId: req.user.id, caption: caption || null, visibility, mediaUrl: first?.url || null, mediaType: first?.type || null, mediaUrls: mediaItems.length ? JSON.stringify(mediaItems) : null }, include: postInclude });
     notifyFriendsAboutPost({ postId: post.id, authorId: req.user.id, visibility, io: req.app.get('io') }).catch(error => console.error('friend post notification error', error));
