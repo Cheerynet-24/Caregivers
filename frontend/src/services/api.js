@@ -170,6 +170,7 @@ export const adminAPI = {
     headers: { 'x-admin-password': password, 'Content-Type': 'multipart/form-data' }
   }),
   deviceToken: (token, password, platform = 'android') => api.post('/api/admin/device-token', { token, platform }, { headers: { 'x-admin-password': password } }),
+  pushStatus: (password) => api.get('/api/admin/push-status', { headers: { 'x-admin-password': password } }),
   notifications: (password) => api.get('/api/admin/notifications', { headers: { 'x-admin-password': password } }),
   markNotificationsRead: (password) => api.post('/api/admin/notifications/read', {}, { headers: { 'x-admin-password': password } }),
   resetRequests: (password) => api.get('/api/admin/password-reset-requests', { headers: { 'x-admin-password': password } })

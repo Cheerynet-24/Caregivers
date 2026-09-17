@@ -211,6 +211,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
         webView.addJavascriptInterface(new ForegroundSystemSoundBridge(), "CaregiversSystemSound");
+        webView.addJavascriptInterface(new FcmTokenBridge(), "CaregiversFcmToken");
         webView.loadUrl(getString(com.caregivers.mobile.R.string.start_url));
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::performBackAction);
@@ -611,6 +612,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void stop() { runOnUiThread(() -> stopNativeMusic()); }
         @JavascriptInterface public void update(String title, String artist, boolean playing) { runOnUiThread(() -> updateMusicNotification(title, artist, playing)); }
         @JavascriptInterface public void clear() { runOnUiThread(() -> stopMusicNotification()); }
+    }
+    private class FcmTokenBridge {
+        @JavascriptInterface public String getToken() {
+            return getSharedPreferences("caregivers", MODE_PRIVATE).getString("fcm_token", "");
+        }
     }
 
     private void requestNotificationPermission() {

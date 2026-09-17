@@ -9,6 +9,7 @@ const prisma = new PrismaClient();
 const { sanitizeUser, hashPassword } = require('../utils/helpers');
 const crypto = require('crypto');
 const { notifyAdmins } = require('../utils/adminNotifications');
+const { isFirebaseConfigured } = require('../utils/firebase');
 
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -51,6 +52,13 @@ router.post('/device-token', deviceAuth, async (req, res) => {
     await prisma.adminDevice.upsert({ where: { token }, update: { platform: req.body.platform || null }, create: { token, platform: req.body.platform || null } });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: 'Admin device registration failed' }); }
+});
+
+router.get('/push-status', deviceAuth, async (req, res) => {
+  try {
+    const registeredDevices = await prisma.adminDevice.count();
+    res.json({ firebaseConfigured: isFirebaseConfigured(), registeredDevices });
+  } catch (err) { res.status(500).json({ error: 'Failed to load push status' }); }
 });
 
 router.get('/notifications', deviceAuth, async (req, res) => {

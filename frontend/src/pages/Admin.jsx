@@ -29,13 +29,14 @@ export default function Admin() {
   const [latestAdminNotification, setLatestAdminNotification] = useState(null)
   const [resetRequests, setResetRequests] = useState([])
   const [resetCopied, setResetCopied] = useState('')
+  const [pushStatus, setPushStatus] = useState(null)
 
   useEffect(() => {
     const savedPassword = localStorage.getItem('caregivers-admin-password')
     if (!savedPassword) return
     adminAPI.login(savedPassword).then(() => {
       setAuthed(true)
-      loadUsers(); loadAdminNotifications(); loadResetRequests()
+      loadUsers(); loadAdminNotifications(); loadResetRequests(); loadPushStatus()
     }).catch(() => {
       localStorage.removeItem('caregivers-admin-password')
       setPassword('')
@@ -44,13 +45,20 @@ export default function Admin() {
 
   const loadAdminNotifications = async () => { try { const res = await adminAPI.notifications(password); setAdminNotifications(res.data.notifications || []); setUnreadAdminNotifications(res.data.unreadCount || 0) } catch {} }
   const loadResetRequests = async () => { try { const res = await adminAPI.resetRequests(password); setResetRequests(res.data.requests || []) } catch {} }
+  const loadPushStatus = async () => { try { const res = await adminAPI.pushStatus(password); setPushStatus(res.data) } catch {} }
+  const registerAdminPushToken = async () => {
+    try {
+      const nativeToken = window.CaregiversFcmToken?.getToken?.()
+      if (nativeToken) await adminAPI.deviceToken(nativeToken, password, 'android')
+    } catch {}
+  }
   const handleLogin = async (e) => {
     e.preventDefault()
     try {
       await adminAPI.login(password)
       localStorage.setItem('caregivers-admin-password', password)
       setAuthed(true)
-      loadUsers(); loadAdminNotifications(); loadResetRequests()
+      loadUsers(); loadAdminNotifications(); loadResetRequests(); loadPushStatus()
       if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     } catch {
       setError('Wrong password')
@@ -70,6 +78,13 @@ export default function Admin() {
     }
     socket.on('notification:new', onNotification)
     return () => { socket.off('notification:new', onNotification); socket.disconnect() }
+  }, [authed, password])
+
+  useEffect(() => {
+    if (!authed) return undefined
+    registerAdminPushToken()
+    const timer = window.setInterval(registerAdminPushToken, 15000)
+    return () => window.clearInterval(timer)
   }, [authed, password])
 
   const openAdminNotifications = async () => {
@@ -138,7 +153,7 @@ export default function Admin() {
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       <header className="bg-gray-800 text-white px-3 md:px-6 py-3 md:py-4 flex items-center gap-3">
         <img src="/favicon.jpg" alt="" className="w-8 h-8 rounded-full object-cover" />
-        <h1 className="font-bold text-sm md:text-lg truncate">{t('adminPanel')} - Caregivers</h1>
+        <h1 className="font-bold text-sm md:text-lg truncate">{t('adminPanel')} - Caregivers</h1>{pushStatus && <span className={`hidden rounded-full px-2 py-1 text-[10px] sm:inline ${pushStatus.firebaseConfigured && pushStatus.registeredDevices ? 'bg-green-500/20 text-green-200' : 'bg-amber-500/20 text-amber-200'}`}>{pushStatus.firebaseConfigured && pushStatus.registeredDevices ? 'Push ready' : 'Push setup needed'}</span>}
         <div className="flex-1" />
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-sm px-3 py-1 bg-white/10 rounded">
           {i18n.language === 'my' ? 'EN' : 'မြန်မာ'}
