@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.ContentUris;
+import android.content.ContentValues;
 import android.provider.MediaStore;
 import android.database.Cursor;
 import android.content.pm.PackageManager;
@@ -44,6 +45,10 @@ import android.app.PendingIntent;
 import android.graphics.drawable.Icon;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
@@ -479,20 +484,41 @@ public class MainActivity extends Activity {
 
     private class GalleryDownloadBridge {
         @JavascriptInterface public void save(String url, String name, String mimeType) {
-            runOnUiThread(() -> {
+            String safeName = (name == null || name.trim().isEmpty()) ? "caregivers-media-" + System.currentTimeMillis() : name.replaceAll("[^a-zA-Z0-9._-]", "_");
+            String safeMime = mimeType == null || mimeType.isEmpty() ? "application/octet-stream" : mimeType;
+            boolean video = safeMime.startsWith("video/");
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "Saving to Gallery...", Toast.LENGTH_SHORT).show());
+            new Thread(() -> {
+                Uri itemUri = null;
                 try {
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-                    request.setMimeType(mimeType == null || mimeType.isEmpty() ? "application/octet-stream" : mimeType);
-                    String safeName = (name == null || name.trim().isEmpty()) ? "caregivers-media-" + System.currentTimeMillis() : name.replaceAll("[^a-zA-Z0-9._-]", "_");
-                    boolean video = mimeType != null && mimeType.startsWith("video/");
-                    request.setDestinationInExternalPublicDir(video ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES, safeName);
-                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
-                    if (cookie != null) request.addRequestHeader("Cookie", cookie);
-                    ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
-                    Toast.makeText(MainActivity.this, "Saving to Gallery...", Toast.LENGTH_SHORT).show();
-                } catch (Exception error) { Toast.makeText(MainActivity.this, "Save failed", Toast.LENGTH_SHORT).show(); }
-            });
+                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                        ContentValues values = new ContentValues();
+                        values.put(MediaStore.MediaColumns.DISPLAY_NAME, safeName);
+                        values.put(MediaStore.MediaColumns.MIME_TYPE, safeMime);
+                        values.put(MediaStore.MediaColumns.RELATIVE_PATH, (video ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES) + "/Caregivers");
+                        values.put(MediaStore.MediaColumns.IS_PENDING, 1);
+                        Uri collection = video ? MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY) : MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                        itemUri = getContentResolver().insert(collection, values);
+                        if (itemUri == null) throw new IllegalStateException("MediaStore insert failed");
+                        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+                        String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
+                        if (cookie != null) connection.setRequestProperty("Cookie", cookie);
+                        connection.connect();
+                        try (InputStream input = connection.getInputStream(); OutputStream output = getContentResolver().openOutputStream(itemUri)) {
+                            byte[] buffer = new byte[8192]; int count; while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                        }
+                        ContentValues done = new ContentValues(); done.put(MediaStore.MediaColumns.IS_PENDING, 0); getContentResolver().update(itemUri, done, null, null);
+                    } else {
+                        DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url)); request.setMimeType(safeMime); request.setDestinationInExternalPublicDir(video ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES, safeName); request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                        String cookie = android.webkit.CookieManager.getInstance().getCookie(url); if (cookie != null) request.addRequestHeader("Cookie", cookie);
+                        ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
+                    }
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Saved to Gallery", Toast.LENGTH_SHORT).show());
+                } catch (Exception error) {
+                    if (itemUri != null) getContentResolver().delete(itemUri, null, null);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "Save failed", Toast.LENGTH_SHORT).show());
+                }
+            }).start();
         }
     }
     private class AppExitBridge {

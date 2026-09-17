@@ -9,7 +9,7 @@ const Avatar = ({ user, size = 'w-10 h-10' }) => user?.avatar
   ? <img src={resolveMediaUrl(user.avatar)} className={`${size} rounded-full object-cover`} alt="" />
   : <div className={`${size} rounded-full bg-sky-200 flex items-center justify-center text-sky-700 font-bold`}>{(user?.displayName || user?.username || '?')[0].toUpperCase()}</div>
 
-const saveMediaToGallery = (event, url, name, mimeType) => { event.preventDefault(); const fullUrl = resolveMediaUrl(url); if (window.CaregiversDownload?.save) window.CaregiversDownload.save(fullUrl, name, mimeType); else window.open(fullUrl, '_blank', 'noopener,noreferrer') }
+const saveMediaToGallery = (event, url, name, mimeType) => { event.preventDefault(); const fullUrl = resolveMediaUrl(url); if (window.CaregiversDownload?.save) window.CaregiversDownload.save(fullUrl, name, mimeType); else alert('Please install the latest Caregivers APK to save directly to Gallery.') }
 const isVideoMedia = post => {
   const type = String(post?.mediaType || '').toLowerCase()
   const url = String(post?.mediaUrl || '').split('?')[0].toLowerCase()
