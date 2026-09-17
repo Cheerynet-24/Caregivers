@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { postsAPI, userAPI, authAPI, reportsAPI, resolveMediaUrl } from '../services/api'
 import { getSounds, saveSounds } from '../services/soundStore'
-import { Heart, MessageCircle, Bookmark, Share2, Pencil, Trash2, UserCircle, ImagePlus, Send, X, Volume2, VolumeX, FileText } from 'lucide-react'
+import { Heart, MessageCircle, Bookmark, Share2, Pencil, Trash2, UserCircle, ImagePlus, Send, X, Volume2, VolumeX, FileText, Download } from 'lucide-react'
 import CommentModal from './CommentModal'
 import MediaViewer from './MediaViewer'
 
