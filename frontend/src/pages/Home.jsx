@@ -405,11 +405,20 @@ export default function Home() {
   }, [socket, groupCall, user?.id])
 
   useEffect(() => {
+    const repairReplyText = value => {
+      const text = String(value || '')
+      if (!/[ÃÂá][\u0080-\u00bf]/.test(text) || typeof TextDecoder === 'undefined') return text
+      try {
+        const bytes = Uint8Array.from(text, character => character.charCodeAt(0) & 255)
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+      } catch { return text }
+    }
     const sendReply = async (fromUserId, text) => {
-      if (!socket?.connected || !fromUserId || !text) return false
+      const repairedText = repairReplyText(text)
+      if (!socket?.connected || !fromUserId || !repairedText) return false
       try {
         const res = await chatAPI.getOrCreateConversation(fromUserId)
-        const result = await new Promise(resolve => socket.emit('message:private', { conversationId: res.data.conversation.id, content: text, type: 'text' }, resolve))
+        const result = await new Promise(resolve => socket.emit('message:private', { conversationId: res.data.conversation.id, content: repairedText, type: 'text' }, resolve))
         return result?.ok !== false
       } catch (error) { console.error('notification reply failed', error); return false }
     }
