@@ -202,6 +202,7 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new AudioRouteBridge(), "CaregiversAudio");
         webView.addJavascriptInterface(new KeyboardBridge(), "CaregiversKeyboard");
         webView.addJavascriptInterface(new AppExitBridge(), "CaregiversApp");
+        webView.addJavascriptInterface(new GalleryDownloadBridge(), "CaregiversDownload");
         webView.addJavascriptInterface(new LocalMusicBridge(), "CaregiversLocalMusic");
         webView.addJavascriptInterface(new MusicNotificationBridge(), "CaregiversMusic");
         webView.addJavascriptInterface(new ForegroundSystemSoundBridge(), "CaregiversSystemSound");
@@ -476,6 +477,24 @@ public class MainActivity extends Activity {
         proximityWakeLock = null; proximitySensor = null;
     }
 
+    private class GalleryDownloadBridge {
+        @JavascriptInterface public void save(String url, String name, String mimeType) {
+            runOnUiThread(() -> {
+                try {
+                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+                    request.setMimeType(mimeType == null || mimeType.isEmpty() ? "application/octet-stream" : mimeType);
+                    String safeName = (name == null || name.trim().isEmpty()) ? "caregivers-media-" + System.currentTimeMillis() : name.replaceAll("[^a-zA-Z0-9._-]", "_");
+                    boolean video = mimeType != null && mimeType.startsWith("video/");
+                    request.setDestinationInExternalPublicDir(video ? Environment.DIRECTORY_MOVIES : Environment.DIRECTORY_PICTURES, safeName);
+                    request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                    String cookie = android.webkit.CookieManager.getInstance().getCookie(url);
+                    if (cookie != null) request.addRequestHeader("Cookie", cookie);
+                    ((DownloadManager) getSystemService(DOWNLOAD_SERVICE)).enqueue(request);
+                    Toast.makeText(MainActivity.this, "Saving to Gallery...", Toast.LENGTH_SHORT).show();
+                } catch (Exception error) { Toast.makeText(MainActivity.this, "Save failed", Toast.LENGTH_SHORT).show(); }
+            });
+        }
+    }
     private class AppExitBridge {
         @JavascriptInterface public void exit() { runOnUiThread(() -> finish()); }
     }

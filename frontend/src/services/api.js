@@ -7,12 +7,16 @@ export const resolveMediaUrl = (url) => {
   return `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}`
 }
 
+let pendingRequests = 0
+const notifyLoading = value => window.dispatchEvent(new CustomEvent('caregivers:loading', { detail: value }))
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' }
 })
 
 api.interceptors.request.use((config) => {
+  pendingRequests += 1
+  notifyLoading(true)
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   // Let the browser add the multipart boundary. Setting this header manually
@@ -22,6 +26,16 @@ api.interceptors.request.use((config) => {
     delete config.headers['content-type']
   }
   return config
+})
+
+api.interceptors.response.use(response => {
+  pendingRequests = Math.max(0, pendingRequests - 1)
+  if (!pendingRequests) notifyLoading(false)
+  return response
+}, error => {
+  pendingRequests = Math.max(0, pendingRequests - 1)
+  if (!pendingRequests) notifyLoading(false)
+  return Promise.reject(error)
 })
 
 export const authAPI = {

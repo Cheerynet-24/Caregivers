@@ -118,6 +118,8 @@ export default function Home() {
   const [cameraOff, setCameraOff] = useState(false)
   const [cameraFacing, setCameraFacing] = useState('user')
   const [showDeveloper, setShowDeveloper] = useState(false)
+  const [appLoading, setAppLoading] = useState(false)
+  useEffect(() => { const handler = event => setAppLoading(Boolean(event.detail)); window.addEventListener('caregivers:loading', handler); return () => window.removeEventListener('caregivers:loading', handler) }, [])
   const [notifications, setNotifications] = useState([])
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [unreadChatCount, setUnreadChatCount] = useState(0)
@@ -2215,6 +2217,7 @@ export default function Home() {
         </div>
       )}
       {showMediaHistory && activeChat && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" onClick={() => setShowMediaHistory(false)}><div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-white p-4 dark:bg-gray-800" onClick={event => event.stopPropagation()}><div className="mb-3 flex items-center justify-between"><h3 className="font-bold dark:text-white">Photo / Video History</h3><button type="button" onClick={() => setShowMediaHistory(false)}><X size={20} /></button></div><div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-y-auto">{messages.filter(message => (message.type === 'image' || message.type === 'video') && message.fileUrl).map(message => <div key={message.id} className="rounded-lg border p-1 dark:border-gray-600">{message.type === 'video' ? <video src={resolveMediaUrl(message.fileUrl)} controls className="h-32 w-full rounded object-cover" /> : <img src={resolveMediaUrl(message.fileUrl)} alt="" className="h-32 w-full rounded object-cover" />}<a href={resolveMediaUrl(message.fileUrl)} download={message.content || `chat-${message.type}`} className="mt-1 block text-center text-xs text-sky-600 underline">Save</a></div>)}{messages.filter(message => (message.type === 'image' || message.type === 'video') && message.fileUrl).length === 0 && <p className="col-span-2 py-10 text-center text-sm text-gray-500">No photo or video yet</p>}</div></div></div>}
+      {appLoading && <div className="pointer-events-none fixed left-0 right-0 top-0 z-[200] h-1 bg-sky-100"><div className="h-full w-1/3 animate-pulse bg-sky-500" /></div>}
       {mediaViewer && <MediaViewer media={mediaViewer.media} kind={mediaViewer.kind} onClose={() => setMediaViewer(null)} />}
     </div>
   )
