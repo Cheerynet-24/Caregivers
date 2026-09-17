@@ -104,9 +104,10 @@ router.get('/messages/:conversationId', auth, async (req, res) => {
       include: {
         sender: { select: { id: true, username: true, displayName: true } }
       },
-      orderBy: { createdAt: 'asc' },
-      take: 200
+      orderBy: { createdAt: 'desc' },
+      take: 300
     });
+    messages.reverse();
     res.json({ messages: messages.map(message => ({ ...message, sender: compactUser(message.sender) })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
@@ -128,9 +129,10 @@ router.get('/group-messages/:groupId', auth, async (req, res) => {
       include: {
         sender: { select: { id: true, username: true, displayName: true } }
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: 300
     });
+    messages.reverse();
     res.json({ messages: messages.map(message => ({ ...message, sender: compactUser(message.sender) })) });
   } catch (err) {
     res.status(500).json({ error: 'Failed' });
