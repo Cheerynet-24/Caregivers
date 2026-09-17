@@ -173,6 +173,7 @@ export default function Home() {
   const [localSongs, setLocalSongs] = useState([])
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaDownloading, setMediaDownloading] = useState(false)
+  const [networkQuality, setNetworkQuality] = useState('Checking…')
   const [playerTrack, setPlayerTrack] = useState(null)
   const localMusicRef = useRef(null)
   const playerAudioRef = useRef(null)
@@ -217,6 +218,26 @@ export default function Home() {
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
   const swipeStartXRef = useRef(0)
+
+  useEffect(() => {
+    const updateNetworkQuality = () => {
+      if (!navigator.onLine) return setNetworkQuality('လိုင်းကျ')
+      if (socket && !socket.connected) return setNetworkQuality('ချိတ်ဆက်နေသည်')
+      const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+      const downlink = Number(connection?.downlink || 0)
+      const type = String(connection?.effectiveType || '').toLowerCase()
+      if (type === 'slow-2g' || type === '2g' || (downlink > 0 && downlink < 0.7)) setNetworkQuality('အားနည်း')
+      else if (type === '3g' || (downlink > 0 && downlink < 2)) setNetworkQuality('အသင့်တင့်')
+      else if (downlink >= 8 || type === '4g') setNetworkQuality('အရမ်းကောင်း')
+      else setNetworkQuality('ကောင်း')
+    }
+    updateNetworkQuality()
+    const timer = window.setInterval(updateNetworkQuality, 3000)
+    window.addEventListener('online', updateNetworkQuality)
+    window.addEventListener('offline', updateNetworkQuality)
+    navigator.connection?.addEventListener?.('change', updateNetworkQuality)
+    return () => { window.clearInterval(timer); window.removeEventListener('online', updateNetworkQuality); window.removeEventListener('offline', updateNetworkQuality); navigator.connection?.removeEventListener?.('change', updateNetworkQuality) }
+  }, [socket?.connected])
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
@@ -879,7 +900,6 @@ export default function Home() {
       setTab('chats')
       const conv = knownConversationId ? { id: knownConversationId } : (await chatAPI.getOrCreateConversation(otherUser.id)).data.conversation
       setActiveChat({ type: 'private', id: conv.id, data: otherUser })
-      setMessages([])
       await chatAPI.markRead(conv.id).catch(() => {})
       chatAPI.getMessages(conv.id).then(msgs => setMessages(previous => {
         const loaded = msgs.data.messages || []
@@ -1862,6 +1882,7 @@ export default function Home() {
                   <p className="text-xs text-gray-500">{activeChat.data?.isOnline ? t('online') : t('offline')}</p>
                 )}
               </div>
+              <span className={`hidden sm:inline-flex items-center rounded-full px-2 py-1 text-[10px] font-medium ${networkQuality === 'လိုင်းကျ' || networkQuality === 'အားနည်း' ? 'bg-red-100 text-red-600' : networkQuality === 'အသင့်တင့်' || networkQuality === 'ချိတ်ဆက်နေသည်' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`} title="Network status">● {networkQuality}</span>
               {activeChat.type === 'private' && (
                 <>
                   <button onClick={() => startCall('audio')} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title={t('call')}><Phone size={18} /></button>
