@@ -21,6 +21,11 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.ConsoleMessage;
 import android.media.AudioManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.PowerManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.media.ToneGenerator;
@@ -52,6 +57,11 @@ public class MainActivity extends Activity {
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
     private AudioManager audioManager;
+    private SensorManager sensorManager;
+    private Sensor proximitySensor;
+    private PowerManager.WakeLock proximityWakeLock;
+    private boolean proximityActive;
+    private SensorEventListener proximityListener;
     private Ringtone foregroundSystemRingtone;
     private ToneGenerator ringbackTone;
     private final android.os.Handler ringbackHandler = new android.os.Handler(android.os.Looper.getMainLooper());
@@ -410,31 +420,58 @@ public class MainActivity extends Activity {
     }
 
     private class AudioRouteBridge {
-        @JavascriptInterface public void setRoute(String route) {
-            runOnUiThread(() -> {
-                if (audioManager == null) return;
-                audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
-                if (android.os.Build.VERSION.SDK_INT >= 31) {
-                    int wanted = "speaker".equals(route) ? AudioDeviceInfo.TYPE_BUILTIN_SPEAKER : "bluetooth".equals(route) ? AudioDeviceInfo.TYPE_BLUETOOTH_SCO : AudioDeviceInfo.TYPE_BUILTIN_EARPIECE;
-                    for (AudioDeviceInfo device : audioManager.getAvailableCommunicationDevices()) {
-                        if (device.getType() == wanted) { audioManager.setCommunicationDevice(device); return; }
-                    }
-                }
-                if ("speaker".equals(route)) {
-                    audioManager.setBluetoothScoOn(false);
-                    audioManager.setSpeakerphoneOn(true);
-                } else if ("bluetooth".equals(route)) {
-                    audioManager.setSpeakerphoneOn(false);
-                    if (android.os.Build.VERSION.SDK_INT < 31) {
-                        audioManager.startBluetoothSco();
-                        audioManager.setBluetoothScoOn(true);
-                    }
-                } else {
-                    audioManager.setBluetoothScoOn(false);
-                    audioManager.setSpeakerphoneOn(false);
-                }
-            });
+        @JavascriptInterface public void startCallAudio() { runOnUiThread(() -> {
+            if (audioManager == null) return;
+            audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+            setAudioRoute("earpiece");
+            startProximity();
+        }); }
+        @JavascriptInterface public void stopCallAudio() { runOnUiThread(() -> { stopProximity(); if (audioManager != null) { audioManager.setMode(AudioManager.MODE_NORMAL); audioManager.setSpeakerphoneOn(false); if (android.os.Build.VERSION.SDK_INT >= 31) audioManager.clearCommunicationDevice(); } }); }
+        @JavascriptInterface public void setRoute(String route) { runOnUiThread(() -> setAudioRoute(route)); }
+    }
+
+    private void setAudioRoute(String route) {
+        if (audioManager == null) return;
+        audioManager.setMode(AudioManager.MODE_IN_COMMUNICATION);
+        boolean routed = false;
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            int wanted = "speaker".equals(route) ? AudioDeviceInfo.TYPE_BUILTIN_SPEAKER : "bluetooth".equals(route) ? AudioDeviceInfo.TYPE_BLUETOOTH_SCO : AudioDeviceInfo.TYPE_BUILTIN_EARPIECE;
+            for (AudioDeviceInfo device : audioManager.getAvailableCommunicationDevices()) {
+                int type = device.getType();
+                boolean headset = type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP || type == AudioDeviceInfo.TYPE_WIRED_HEADSET || type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES;
+                if (("earpiece".equals(route) && headset) || type == wanted) { routed = audioManager.setCommunicationDevice(device); if (routed) break; }
+            }
         }
+        if (routed) { audioManager.setSpeakerphoneOn(false); return; }
+        if ("speaker".equals(route)) { audioManager.setBluetoothScoOn(false); audioManager.setSpeakerphoneOn(true); }
+        else if ("bluetooth".equals(route)) { audioManager.setSpeakerphoneOn(false); if (android.os.Build.VERSION.SDK_INT < 31) { audioManager.startBluetoothSco(); audioManager.setBluetoothScoOn(true); } }
+        else { audioManager.setBluetoothScoOn(false); audioManager.setSpeakerphoneOn(false); }
+    }
+
+    private void startProximity() {
+        if (sensorManager != null || proximityActive) return;
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        proximitySensor = sensorManager == null ? null : sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+        if (proximitySensor == null) return;
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null) proximityWakeLock = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "Caregivers:CallProximity");
+        proximityActive = true;
+        proximityListener = new SensorEventListener() {
+            public void onSensorChanged(SensorEvent event) {
+                if (!proximityActive || proximityWakeLock == null) return;
+                boolean near = event.values.length > 0 && event.values[0] < proximitySensor.getMaximumRange();
+                if (near && !proximityWakeLock.isHeld()) proximityWakeLock.acquire(10 * 60 * 1000L);
+                else if (!near && proximityWakeLock.isHeld()) proximityWakeLock.release();
+            }
+            public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+        };
+        sensorManager.registerListener(proximityListener, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+    }
+    private void stopProximity() {
+        proximityActive = false;
+        if (sensorManager != null) { if (proximityListener != null) sensorManager.unregisterListener(proximityListener); sensorManager = null; proximityListener = null; }
+        if (proximityWakeLock != null && proximityWakeLock.isHeld()) proximityWakeLock.release();
+        proximityWakeLock = null; proximitySensor = null;
     }
 
     private class AppExitBridge {

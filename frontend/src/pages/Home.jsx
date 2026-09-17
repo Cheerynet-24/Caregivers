@@ -1357,6 +1357,7 @@ export default function Home() {
       setVideoEffect('none')
       localStreamRef.current = stream
       setCallStatus('Calling')
+      window.CaregiversAudio?.startCallAudio?.()
       window.CaregiversSystemSound?.playRingback?.()
       const config = iceServers.length ? iceServers : (await callAPI.config().then(response => response.data?.iceServers || []).catch(() => []))
       const peer = createPeer(activeChat.data.id, callType, config)
@@ -1420,6 +1421,7 @@ export default function Home() {
   const endCall = (notify = true) => {
     stopNotificationSound()
     window.CaregiversSystemSound?.stop?.()
+    window.CaregiversAudio?.stopCallAudio?.()
     if (notify && socket && call?.targetUserId) socket.emit('call:end', { toUserId: call.targetUserId, callId: outgoingCallIdRef.current, outcome: 'completed' })
     stopVideoEffectPipeline()
     peerRef.current?.close()
