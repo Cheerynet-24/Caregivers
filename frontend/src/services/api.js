@@ -45,7 +45,9 @@ export const authAPI = {
   saveFcmToken: (token) => api.put('/api/auth/fcm-token', { token }),
   changePassword: (data) => api.put('/api/auth/password', data),
   logout: () => api.post('/api/auth/logout'),
-  deleteAccount: () => api.delete('/api/auth/me')
+  deleteAccount: () => api.delete('/api/auth/me'),
+  requestPasswordReset: (username) => api.post('/api/auth/forgot-password', { username }),
+  resetPasswordStatus: (username) => api.get('/api/auth/reset-password-status', { params: { username } })
 }
 
 export const callAPI = {
@@ -166,7 +168,11 @@ export const adminAPI = {
   getPaymentInfo: (password) => api.get('/api/admin/payment-info', { headers: { 'x-admin-password': password } }),
   setPaymentInfo: (formData, password) => api.post('/api/admin/payment-info', formData, {
     headers: { 'x-admin-password': password, 'Content-Type': 'multipart/form-data' }
-  })
+  }),
+  deviceToken: (token, password, platform = 'android') => api.post('/api/admin/device-token', { token, platform }, { headers: { 'x-admin-password': password } }),
+  notifications: (password) => api.get('/api/admin/notifications', { headers: { 'x-admin-password': password } }),
+  markNotificationsRead: (password) => api.post('/api/admin/notifications/read', {}, { headers: { 'x-admin-password': password } }),
+  resetRequests: (password) => api.get('/api/admin/password-reset-requests', { headers: { 'x-admin-password': password } })
 }
 
 export default api

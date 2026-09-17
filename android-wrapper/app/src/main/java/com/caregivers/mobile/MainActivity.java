@@ -136,7 +136,7 @@ public class MainActivity extends Activity {
                 requestNotificationPermission();
                 requestMediaPermissionIfNeeded();
                 FirebaseMessaging.getInstance().getToken().addOnSuccessListener(token -> {
-                    String js = "javascript:(()=>{const fcm='" + token + "';let tries=0;const send=async()=>{const t=localStorage.getItem('token');if(t){try{await fetch('/api/auth/fcm-token',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({token:fcm})});}catch(e){}return;}if(++tries<30)setTimeout(send,2000);};send();})()";
+                    String js = "javascript:(()=>{const fcm='" + token + "';let tries=0;const send=async()=>{const adminPassword=localStorage.getItem('caregivers-admin-password');const t=localStorage.getItem('token');try{if(location.pathname.startsWith('/admin')&&adminPassword){await fetch('/api/admin/device-token',{method:'POST',headers:{'Content-Type':'application/json','x-admin-password':adminPassword},body:JSON.stringify({token:fcm,platform:'android'})});return;}if(t){await fetch('/api/auth/fcm-token',{method:'PUT',headers:{'Content-Type':'application/json','Authorization':'Bearer '+t},body:JSON.stringify({token:fcm})});return;}}catch(e){}if(++tries<30)setTimeout(send,2000);};send();})()";
                     view.evaluateJavascript(js, null);
                 });
                 deliverPendingReply();

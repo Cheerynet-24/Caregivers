@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { io } from 'socket.io-client'
 import { useTranslation } from 'react-i18next'
 import { adminAPI, resolveMediaUrl } from '../services/api'
-import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus, Trash2, Bell, Flag } from 'lucide-react'
+import { Users, Wallet, CreditCard, LogOut, Check, X, Ban, VolumeX, Volume2, Plus, Minus, Trash2, Bell, Flag, KeyRound, Copy } from 'lucide-react'
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || window.location.origin
 
 export default function Admin() {
   const { t, i18n } = useTranslation()
@@ -20,16 +23,52 @@ export default function Admin() {
   const [coinForm, setCoinForm] = useState({ userId: '', amount: '', type: 'add' })
   const [reports, setReports] = useState([])
   const [reportReplies, setReportReplies] = useState({})
+  const [adminNotifications, setAdminNotifications] = useState([])
+  const [unreadAdminNotifications, setUnreadAdminNotifications] = useState(0)
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const [latestAdminNotification, setLatestAdminNotification] = useState(null)
+  const [resetRequests, setResetRequests] = useState([])
+  const [resetCopied, setResetCopied] = useState('')
 
+  const loadAdminNotifications = async () => { try { const res = await adminAPI.notifications(password); setAdminNotifications(res.data.notifications || []); setUnreadAdminNotifications(res.data.unreadCount || 0) } catch {} }
+  const loadResetRequests = async () => { try { const res = await adminAPI.resetRequests(password); setResetRequests(res.data.requests || []) } catch {} }
   const handleLogin = async (e) => {
     e.preventDefault()
     try {
       await adminAPI.login(password)
+      localStorage.setItem('caregivers-admin-password', password)
       setAuthed(true)
-      loadUsers()
+      loadUsers(); loadAdminNotifications(); loadResetRequests()
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {})
     } catch {
       setError('Wrong password')
     }
+  }
+
+  useEffect(() => {
+    if (!authed) return undefined
+    const socket = io(SOCKET_URL, { auth: { adminPassword: password } })
+    const onNotification = notification => {
+      setAdminNotifications(previous => [notification, ...previous].slice(0, 30))
+      setUnreadAdminNotifications(previous => previous + 1)
+      setLatestAdminNotification(notification)
+      if (notification.type === 'password_reset_request') loadResetRequests()
+      loadUsers()
+      if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') new Notification(notification.title, { body: notification.message, tag: `admin-${notification.id}` })
+    }
+    socket.on('notification:new', onNotification)
+    return () => { socket.off('notification:new', onNotification); socket.disconnect() }
+  }, [authed, password])
+
+  const openAdminNotifications = async () => {
+    setNotificationOpen(previous => !previous)
+    if (unreadAdminNotifications) { setUnreadAdminNotifications(0); await adminAPI.markNotificationsRead(password).catch(() => {}) }
+  }
+
+  const copyResetPassword = async (requestId, value) => { try { await navigator.clipboard.writeText(value); setResetCopied(requestId); window.setTimeout(() => setResetCopied(''), 1500) } catch {} }
+  const resetRequestedUser = async (request) => {
+    try { const result = await adminAPI.resetPassword(request.userId, password); setResetRequests(previous => previous.filter(item => item.id !== request.id)); await loadUsers(); window.alert(`Username: ${result.data.username}\nTemporary password: ${result.data.temporaryPassword}\nUser Login အောက်မှာလည်း ပြပါမယ်။`) }
+    catch (err) { setError(err.response?.data?.error || 'Failed to reset password') }
   }
 
   const loadUsers = async () => {
@@ -92,7 +131,8 @@ export default function Admin() {
         <button onClick={() => i18n.changeLanguage(i18n.language === 'my' ? 'en' : 'my')} className="text-sm px-3 py-1 bg-white/10 rounded">
           {i18n.language === 'my' ? 'EN' : 'မြန်မာ'}
         </button>
-        <button onClick={() => setAuthed(false)} className="p-2 hover:bg-white/10 rounded"><LogOut size={18} /></button>
+        <div className="relative"><button onClick={openAdminNotifications} className="relative p-2 hover:bg-white/10 rounded"><Bell size={18} />{unreadAdminNotifications > 0 && <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-500 px-1 text-center text-[10px] font-bold">{unreadAdminNotifications > 99 ? '99+' : unreadAdminNotifications}</span>}</button>{notificationOpen && <div className="absolute right-12 top-12 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-xl bg-white p-3 text-gray-800 shadow-2xl dark:bg-gray-800 dark:text-white"><div className="mb-2 flex items-center justify-between"><b>Admin Notifications</b><button onClick={() => setNotificationOpen(false)}><X size={16} /></button></div><div className="max-h-72 space-y-2 overflow-y-auto">{adminNotifications.map(item => <div key={item.id} className="rounded-lg bg-sky-50 p-2 text-xs dark:bg-sky-950/40"><b>{item.title}</b><p className="mt-1 whitespace-pre-wrap">{item.message}</p><p className="mt-1 text-[10px] text-gray-500">{new Date(item.createdAt).toLocaleString()}</p></div>)}{adminNotifications.length === 0 && <p className="py-6 text-center text-xs text-gray-500">No notifications</p>}</div></div>}</div>
+        <button onClick={() => { localStorage.removeItem('caregivers-admin-password'); setAuthed(false) }} className="p-2 hover:bg-white/10 rounded"><LogOut size={18} /></button>
       </header>
 
       <div className="flex flex-col md:flex-row">
@@ -121,6 +161,7 @@ export default function Admin() {
             className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'broadcast' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Bell size={18} /> အသိပေးစာပို့ရန်
           </button>
+          <button onClick={() => { setTab('resetRequests'); loadResetRequests() }} className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'resetRequests' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}><KeyRound size={18} /> Password Requests ({resetRequests.length})</button>
           <button onClick={() => { setTab('reports'); loadReports() }}
             className={`shrink-0 md:w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm ${tab === 'reports' ? 'bg-sky-100 text-sky-700' : 'hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300'}`}>
             <Flag size={18} /> Reports ({reports.filter(report => report.status === 'PENDING').length})
@@ -316,6 +357,15 @@ export default function Admin() {
             </form>
           )}
 
+
+          {tab === 'resetRequests' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between"><h2 className="text-xl font-bold dark:text-white">Password Reset Requests</h2><button onClick={loadResetRequests} className="rounded-lg bg-sky-500 px-3 py-2 text-sm text-white">Refresh</button></div>
+              {resetRequests.map(request => <article key={request.id} className="rounded-xl bg-white p-4 shadow dark:bg-gray-800"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold dark:text-white">{request.user?.displayName || request.user?.username}</p><p className="text-xs text-gray-500">@{request.user?.username} · {new Date(request.createdAt).toLocaleString()}</p></div><button onClick={() => resetRequestedUser(request)} className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-semibold text-white">Reset password</button></div></article>)}
+              {resetRequests.length === 0 && <p className="text-sm text-gray-500">Password reset request မရှိသေးပါ။</p>}
+            </div>
+          )}
+
           {tab === 'reports' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between"><h2 className="text-xl font-bold dark:text-white">User Reports</h2><button onClick={loadReports} className="rounded-lg bg-sky-500 px-3 py-2 text-sm text-white">Refresh</button></div>
@@ -354,6 +404,7 @@ export default function Admin() {
           )}
         </main>
       </div>
+      {latestAdminNotification && <div className="fixed bottom-4 right-4 z-[100] w-80 rounded-xl border border-sky-200 bg-white p-4 shadow-2xl dark:border-sky-800 dark:bg-gray-800"><button onClick={() => setLatestAdminNotification(null)} className="absolute right-2 top-2 text-gray-400"><X size={16} /></button><div className="flex items-center gap-2 font-semibold text-sky-600"><Bell size={17} /> {latestAdminNotification.title}</div><p className="mt-2 whitespace-pre-wrap text-sm dark:text-gray-200">{latestAdminNotification.message}</p></div>}
     </div>
   )
 }

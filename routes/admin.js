@@ -7,6 +7,8 @@ const { v4: uuidv4 } = require('uuid');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const { sanitizeUser, hashPassword } = require('../utils/helpers');
+const crypto = require('crypto');
+const { notifyAdmins } = require('../utils/adminNotifications');
 
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -42,7 +44,36 @@ router.post('/login', (req, res) => {
   return res.status(401).json({ error: "Wrong password" });
 });
 
-// Get Payment Info (Public for users to see)
+router.post('/device-token', deviceAuth, async (req, res) => {
+  try {
+    const token = String(req.body.token || '').trim();
+    if (!token || token.length > 4096) return res.status(400).json({ error: 'Valid FCM token required' });
+    await prisma.adminDevice.upsert({ where: { token }, update: { platform: req.body.platform || null }, create: { token, platform: req.body.platform || null } });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: 'Admin device registration failed' }); }
+});
+
+router.get('/notifications', deviceAuth, async (req, res) => {
+  try {
+    const notifications = await prisma.adminNotification.findMany({ orderBy: { createdAt: 'desc' }, take: 30 });
+    const unreadCount = await prisma.adminNotification.count({ where: { readAt: null } });
+    res.json({ notifications, unreadCount });
+  } catch (err) { res.status(500).json({ error: 'Failed to load admin notifications' }); }
+});
+
+router.post('/notifications/read', deviceAuth, async (req, res) => {
+  try { await prisma.adminNotification.updateMany({ where: { readAt: null }, data: { readAt: new Date() } }); res.json({ success: true }); }
+  catch (err) { res.status(500).json({ error: 'Failed to mark notifications read' }); }
+});
+
+router.get('/password-reset-requests', deviceAuth, async (req, res) => {
+  try {
+    const requests = await prisma.passwordResetRequest.findMany({ where: { status: 'PENDING' }, include: { user: { select: { id: true, username: true, displayName: true } } }, orderBy: { createdAt: 'asc' } });
+    res.json({ requests });
+  } catch (err) { res.status(500).json({ error: 'Failed to load password reset requests' }); }
+});
+
+// Login
 router.get('/payment-info', async (req, res) => {
   try {
     const info = await prisma.paymentInfo.findFirst();
@@ -225,12 +256,15 @@ router.delete('/users/:id', deviceAuth, async (req, res) => {
 
 router.post('/users/:id/reset-password', deviceAuth, async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true } });
+    const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, username: true, displayName: true } });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    const temporaryPassword = `Care${require('crypto').randomBytes(4).toString('hex')}`;
+    const temporaryPassword = `Care${crypto.randomBytes(4).toString('hex')}`;
+    const pending = await prisma.passwordResetRequest.findFirst({ where: { userId: user.id, status: 'PENDING' }, orderBy: { createdAt: 'asc' } });
     await prisma.user.update({ where: { id: user.id }, data: { password: await hashPassword(temporaryPassword), mustResetPassword: true } });
+    if (pending) await prisma.passwordResetRequest.update({ where: { id: pending.id }, data: { status: 'RESOLVED', temporaryPassword, resolvedAt: new Date() } });
+    else await prisma.passwordResetRequest.create({ data: { userId: user.id, usernameSnapshot: user.username, status: 'RESOLVED', temporaryPassword, resolvedAt: new Date() } });
     res.json({ success: true, username: user.username, temporaryPassword });
-  } catch (err) { res.status(500).json({ error: 'Failed to reset password' }); }
+  } catch (err) { console.error('Failed to reset password:', err); res.status(500).json({ error: 'Failed to reset password' }); }
 });
 
 // Ban / Unban users

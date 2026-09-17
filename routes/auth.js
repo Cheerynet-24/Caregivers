@@ -3,6 +3,8 @@ const router = express.Router();
 const { PrismaClient } = require('@prisma/client');
 const { hashPassword, comparePassword, generateToken, sanitizeUser } = require('../utils/helpers');
 const { auth } = require('../middleware/auth');
+const { notifyAdmins } = require('../utils/adminNotifications');
+const crypto = require('crypto');
 
 const prisma = new PrismaClient();
 
@@ -39,6 +41,13 @@ router.post('/register', async (req, res) => {
       }
     });
 
+    await notifyAdmins(req.app.get('prisma') || prisma, req.app.get('io'), {
+      title: 'New user registration',
+      message: `${cleanDisplayName} (@${cleanUsername}) တစ်ယောက် Register တင်ထားပါတယ်။ Admin approval လိုအပ်ပါတယ်။`,
+      type: 'user_registration',
+      data: { userId: user.id, username: user.username }
+    });
+
     res.status(201).json({
       message: 'Registration submitted. Please wait for admin approval.',
       pendingApproval: true,
@@ -47,6 +56,52 @@ router.post('/register', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Password reset request (does not reveal whether a username exists).
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const username = String(req.body.username || '').trim();
+    if (username.length < 3) return res.status(400).json({ error: 'Username is required' });
+    const user = await prisma.user.findFirst({
+      where: { username: { equals: username, mode: 'insensitive' } },
+      select: { id: true, username: true, displayName: true }
+    });
+    if (user) {
+      const pending = await prisma.passwordResetRequest.findFirst({ where: { userId: user.id, status: 'PENDING' } });
+      if (!pending) {
+        const request = await prisma.passwordResetRequest.create({ data: { userId: user.id, usernameSnapshot: user.username } });
+        await notifyAdmins(req.app.get('prisma') || prisma, req.app.get('io'), {
+          title: 'Password reset request',
+          message: `${user.displayName || user.username} (@${user.username}) က password အသစ်တောင်းထားပါတယ်။`,
+          type: 'password_reset_request',
+          data: { requestId: request.id, userId: user.id, username: user.username }
+        });
+      }
+    }
+    res.json({ success: true, message: 'Request တင်ပြီးပါပြီ။ Admin မှ စစ်ဆေးပြီး password အသစ်ပေးပါမယ်။' });
+  } catch (err) {
+    console.error('Password reset request failed:', err);
+    res.status(500).json({ error: 'Password reset request failed' });
+  }
+});
+
+// Login page polls this endpoint and shows the generated password once.
+router.get('/reset-password-status', async (req, res) => {
+  try {
+    const username = String(req.query.username || '').trim();
+    if (!username) return res.json({ status: 'NONE' });
+    const request = await prisma.passwordResetRequest.findFirst({
+      where: { usernameSnapshot: { equals: username, mode: 'insensitive' }, status: 'RESOLVED', viewedAt: null, resolvedAt: { not: null } },
+      orderBy: { resolvedAt: 'desc' },
+      select: { id: true, status: true, temporaryPassword: true, resolvedAt: true }
+    });
+    if (!request || !request.temporaryPassword || (Date.now() - new Date(request.resolvedAt).getTime()) > 24 * 60 * 60 * 1000) return res.json({ status: 'PENDING' });
+    await prisma.passwordResetRequest.update({ where: { id: request.id }, data: { viewedAt: new Date() } });
+    res.json({ status: 'READY', temporaryPassword: request.temporaryPassword });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not check reset status' });
   }
 });
 

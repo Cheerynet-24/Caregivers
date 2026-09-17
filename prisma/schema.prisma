@@ -51,7 +51,8 @@ model User {
   notificationReads   NotificationRead[]
   aiConversations     AiConversation[]
   callsMade           CallLog[]      @relation("CallsMade")
-  callsReceived       CallLog[]      @relation("CallsReceived")
+  callsReceived      CallLog[]      @relation("CallsReceived")
+  passwordResetRequests PasswordResetRequest[]
 }
 
 model Message {
@@ -355,4 +356,41 @@ model CallLog {
   createdAt  DateTime @default(now())
   @@index([callerId, createdAt])
   @@index([receiverId, createdAt])
+}
+
+
+model AdminDevice {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminNotification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String   @default("general")
+  data      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model PasswordResetRequest {
+  id               String    @id @default(uuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usernameSnapshot String
+  status           String    @default("PENDING")
+  temporaryPassword String?
+  adminNote        String?
+  createdAt        DateTime  @default(now())
+  resolvedAt       DateTime?
+  viewedAt         DateTime?
+
+  @@index([status, createdAt])
+  @@index([usernameSnapshot, createdAt])
 }

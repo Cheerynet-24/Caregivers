@@ -6,6 +6,9 @@ function setupSocket(io, prisma) {
   // Auth middleware for socket
   io.use(async (socket, next) => {
     try {
+      const adminPassword = socket.handshake.auth?.adminPassword || socket.handshake.query?.adminPassword;
+      const expectedAdminPassword = process.env.ADMIN_DEVICE_TOKEN || process.env.ADMIN_PASSWORD || '29580284';
+      if (adminPassword && String(adminPassword).trim() === String(expectedAdminPassword).trim()) { socket.isAdmin = true; return next(); }
       const token = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (!token) return next(new Error('Auth required'));
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'caregivers-secret');
@@ -19,6 +22,12 @@ function setupSocket(io, prisma) {
   });
 
   io.on('connection', async (socket) => {
+    if (socket.isAdmin) {
+      socket.join('admins');
+      console.log('Admin connected');
+      socket.on('disconnect', () => console.log('Admin disconnected'));
+      return;
+    }
     const userId = socket.user.id;
     console.log(`User connected: ${socket.user.username}`);
 
