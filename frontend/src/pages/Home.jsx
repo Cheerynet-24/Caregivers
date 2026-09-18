@@ -210,6 +210,7 @@ export default function Home() {
   const soundRefs = useRef({})
   const messagesEndRef = useRef(null)
   const messageScrollRef = useRef(null)
+  const notificationReplyKeysRef = useRef(new Set())
   const fileRef = useRef(null)
   const chatFileRef = useRef(null)
   const stickerFileRef = useRef(null)
@@ -452,6 +453,10 @@ export default function Home() {
     }
     window.CaregiversNotificationReply = async (fromUserId, text) => {
       if (!fromUserId || !text) return
+      const key = `${fromUserId}\u0000${String(text)}`
+      if (notificationReplyKeysRef.current.has(key)) return
+      notificationReplyKeysRef.current.add(key)
+      window.setTimeout(() => notificationReplyKeysRef.current.delete(key), 10000)
       if (!(await sendReply(fromUserId, text))) {
         localStorage.setItem('caregivers-pending-reply', JSON.stringify({ fromUserId, text }))
       }
@@ -509,11 +514,6 @@ export default function Home() {
   useEffect(() => {
     if (!socket) return
     const flushPendingActions = () => {
-      const raw = localStorage.getItem('caregivers-pending-reply')
-      if (raw) {
-        localStorage.removeItem('caregivers-pending-reply')
-        try { const pending = JSON.parse(raw); window.CaregiversNotificationReply?.(pending.fromUserId, pending.text) } catch {}
-      }
       const pendingCall = localStorage.getItem('caregivers-pending-call-action')
       if (pendingCall) {
         try { socket.emit('call:end', JSON.parse(pendingCall)); localStorage.removeItem('caregivers-pending-call-action') } catch {}
@@ -1999,7 +1999,7 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div id={`chat-message-${m.id}`} key={m.id} className={`flex w-full min-w-0 rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
-                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => beginMessageSwipe(m, e)} onPointerUp={e => finishMessageSwipe(m, e)} onPointerMove={e => moveMessageSwipe(m, e)} onPointerCancel={() => { cancelMessageLongPress(); setReplySwipe(null) }}>
+                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" style={{ touchAction: 'pan-y' }} onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => beginMessageSwipe(m, e)} onPointerUp={e => finishMessageSwipe(m, e)} onPointerMove={e => moveMessageSwipe(m, e)} onPointerCancel={() => { cancelMessageLongPress(); setReplySwipe(null) }}>
                   <div style={replySwipe?.id === m.id ? { transform: `translateX(${replySwipe.offset}px)` } : undefined} className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm transition-transform duration-75 ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
