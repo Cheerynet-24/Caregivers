@@ -60,7 +60,15 @@ router.get('/search', auth, async (req, res) => {
       take: 100,
       orderBy: { username: 'asc' }
     });
-    res.json({ users: users.map(compactUser) });
+    const ids = users.map(user => user.id);
+    const [friendships, requests] = await Promise.all([
+      prisma.friendship.findMany({ where: { OR: [{ user1Id: req.user.id, user2Id: { in: ids } }, { user2Id: req.user.id, user1Id: { in: ids } }] }, select: { user1Id: true, user2Id: true } }),
+      prisma.friendRequest.findMany({ where: { status: 'pending', OR: [{ fromUserId: req.user.id, toUserId: { in: ids } }, { toUserId: req.user.id, fromUserId: { in: ids } }] }, select: { fromUserId: true, toUserId: true } })
+    ]);
+    const friendIds = new Set(friendships.map(item => item.user1Id === req.user.id ? item.user2Id : item.user1Id));
+    const sentIds = new Set(requests.filter(item => item.fromUserId === req.user.id).map(item => item.toUserId));
+    const receivedIds = new Set(requests.filter(item => item.toUserId === req.user.id).map(item => item.fromUserId));
+    res.json({ users: users.map(user => ({ ...compactUser(user), relationshipStatus: friendIds.has(user.id) ? 'FRIEND' : sentIds.has(user.id) ? 'REQUEST_SENT' : receivedIds.has(user.id) ? 'REQUEST_RECEIVED' : 'NONE' })) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Search failed' });
