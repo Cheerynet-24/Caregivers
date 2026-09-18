@@ -1910,7 +1910,7 @@ export default function Home() {
       </div>
 
       {/* Chat Area */}
-      <div className={`${activeChat ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col bg-gray-50 dark:bg-gray-900`}>
+      <div className={`${activeChat ? 'flex' : 'hidden md:flex'} relative min-w-0 flex-1 flex-col bg-gray-50 dark:bg-gray-900`}>
         {activeChat ? (
           <>
             <div className="relative h-14 shrink-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center px-3 sm:px-4 gap-2 sm:gap-3">
@@ -2007,8 +2007,9 @@ export default function Home() {
                 </div>
               ))}
               <div ref={messagesEndRef} />
-              {showJumpToLatest && <button type="button" onClick={jumpToLatest} className="absolute bottom-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg hover:bg-sky-600" title="နောက်ဆုံး Message ဆီသွားရန်" aria-label="Jump to latest message"><ChevronDown size={22} /></button>}
             </div>
+
+            {messages.length > 0 && <button type="button" onClick={jumpToLatest} className={`absolute bottom-20 right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg transition-opacity hover:bg-sky-600 ${showJumpToLatest ? 'opacity-100' : 'opacity-80'}`} title="နောက်ဆုံး Message ဆီသွားရန်" aria-label="Jump to latest message"><ChevronDown size={23} /></button>}
 
             <div className="w-full min-w-0 shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative overflow-visible">
               {replyTarget && <div className="absolute bottom-full left-2 right-2 z-20 mb-1 flex items-center justify-between rounded-lg bg-sky-50 dark:bg-sky-900/40 px-3 py-2 text-xs text-sky-700 dark:text-sky-200"><span className="truncate">Replying to: {replyTarget.content || 'message'}</span><button type="button" onClick={() => setReplyTarget(null)}><X size={15} /></button></div>}
