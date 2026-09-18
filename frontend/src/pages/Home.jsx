@@ -161,6 +161,7 @@ export default function Home() {
   const [aiConversations, setAiConversations] = useState([])
   const [activeAiConversationId, setActiveAiConversationId] = useState(null)
   const [replyTarget, setReplyTarget] = useState(null)
+  const [replySwipe, setReplySwipe] = useState(null)
   const [highlightedMessageId, setHighlightedMessageId] = useState(null)
   const [showChatSettings, setShowChatSettings] = useState(false)
   const [showMediaHistory, setShowMediaHistory] = useState(false)
@@ -235,6 +236,7 @@ export default function Home() {
   const voiceRecorderRef = useRef(null)
   const voiceChunksRef = useRef([])
   const swipeStartXRef = useRef(0)
+  const swipeStartYRef = useRef(0)
 
   useEffect(() => {
     const updateNetworkQuality = () => {
@@ -614,6 +616,27 @@ export default function Home() {
     messageLongPressTimer.current = window.setTimeout(() => setMessageMenu(message.id), 500)
   }
   const cancelMessageLongPress = () => window.clearTimeout(messageLongPressTimer.current)
+  const beginMessageSwipe = (message, event) => {
+    swipeStartXRef.current = event.clientX
+    swipeStartYRef.current = event.clientY
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setReplySwipe({ id: message.id, offset: 0 })
+    beginMessageLongPress(message)
+  }
+  const moveMessageSwipe = (message, event) => {
+    const deltaX = event.clientX - swipeStartXRef.current
+    const deltaY = event.clientY - swipeStartYRef.current
+    if (Math.abs(deltaY) > Math.abs(deltaX)) { cancelMessageLongPress(); setReplySwipe(null); return }
+    if (Math.abs(deltaX) > 8) cancelMessageLongPress()
+    setReplySwipe({ id: message.id, offset: Math.max(-90, Math.min(120, deltaX)) })
+  }
+  const finishMessageSwipe = (message, event) => {
+    cancelMessageLongPress()
+    const deltaX = event.clientX - swipeStartXRef.current
+    const deltaY = event.clientY - swipeStartYRef.current
+    if (Math.abs(deltaX) >= Math.abs(deltaY) && deltaX >= 55) { setReplyTarget(message); setTimeout(() => messageInputRef.current?.focus(), 0) }
+    setReplySwipe(null)
+  }
   const translateText = async (key, text) => {
     if (!text?.trim()) return ''
     if (translations[key]) return translations[key]
@@ -1976,8 +1999,8 @@ export default function Home() {
               )}
               {messages.map(m => (
                 <div id={`chat-message-${m.id}`} key={m.id} className={`flex w-full min-w-0 rounded-2xl transition ${m.senderId === user.id ? 'justify-end' : 'justify-start'} ${highlightedMessageId === m.id ? 'bg-yellow-200/70 dark:bg-yellow-900/50' : ''}`}>
-                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => { swipeStartXRef.current = e.clientX; e.currentTarget.setPointerCapture?.(e.pointerId); beginMessageLongPress(m) }} onPointerUp={e => { cancelMessageLongPress(); if (Math.abs(e.clientX - swipeStartXRef.current) > 45) { setReplyTarget(m); setTimeout(() => messageInputRef.current?.focus(), 0) } }} onPointerMove={e => { if (Math.abs(e.clientX - swipeStartXRef.current) > 12) cancelMessageLongPress() }} onPointerCancel={cancelMessageLongPress} onTouchStart={e => { swipeStartXRef.current = e.touches[0].clientX; beginMessageLongPress(m) }} onTouchEnd={e => { cancelMessageLongPress(); if (Math.abs(e.changedTouches[0].clientX - swipeStartXRef.current) > 45) { setReplyTarget(m); setTimeout(() => messageInputRef.current?.focus(), 0) } }} onTouchMove={cancelMessageLongPress} onTouchCancel={cancelMessageLongPress}>
-                  <div className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm ${
+                  <div data-message-menu className="relative group min-w-0 max-w-[85%]" onContextMenu={e => { e.preventDefault(); setMessageMenu(m.id) }} onPointerDown={e => beginMessageSwipe(m, e)} onPointerUp={e => finishMessageSwipe(m, e)} onPointerMove={e => moveMessageSwipe(m, e)} onPointerCancel={() => { cancelMessageLongPress(); setReplySwipe(null) }}>
+                  <div style={replySwipe?.id === m.id ? { transform: `translateX(${replySwipe.offset}px)` } : undefined} className={`max-w-full min-w-0 break-words [overflow-wrap:anywhere] px-4 py-2 rounded-2xl text-sm transition-transform duration-75 ${
                     m.senderId === user.id
                       ? 'bg-sky-500 text-white rounded-br-md'
                       : 'bg-white dark:bg-gray-700 dark:text-white rounded-bl-md shadow-sm'
