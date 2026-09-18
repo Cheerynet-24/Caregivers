@@ -150,8 +150,8 @@ router.get('/conversations', auth, async (req, res) => {
       orderBy: { updatedAt: 'desc' },
       take: 50,
       include: {
-        user1: { select: { id: true, username: true, displayName: true, isOnline: true } },
-        user2: { select: { id: true, username: true, displayName: true, isOnline: true } },
+        user1: { select: { id: true, username: true, displayName: true, isOnline: true, lastSeen: true } },
+        user2: { select: { id: true, username: true, displayName: true, isOnline: true, lastSeen: true } },
         messages: { orderBy: { createdAt: 'desc' }, take: 1 }
       }
     });

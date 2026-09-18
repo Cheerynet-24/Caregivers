@@ -78,7 +78,16 @@ function VideoEffectOverlay({ effect }) {
     {Array.from({ length: 16 }, (_, index) => <span key={`${effect.id}-${index}`} className="video-effect-particle" style={{ '--particle-icon': `'${icon}'`, left: `${(index * 29 + 7) % 100}%`, animationDuration: `${3.6 + (index % 5) * .35}s`, animationDelay: `${(index % 8) * -.42}s` }} />)}
   </div>
 }
-
+const formatOfflineDuration = (lastSeen, now = Date.now()) => {
+  if (!lastSeen) return 'Offline'
+  const minutes = Math.max(0, Math.floor((now - new Date(lastSeen).getTime()) / 60000))
+  if (minutes < 1) return 'Offline · မကြာသေးပါ'
+  if (minutes < 60) return `Offline · ${minutes} မိနစ်ကြာပြီ`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `Offline · ${hours} နာရီ ${minutes % 60} မိနစ်ကြာပြီ`
+  const days = Math.floor(hours / 24)
+  return `Offline · ${days} ရက် ${hours % 24} နာရီကြာပြီ`
+}
 export default function Home() {
   const { t, i18n } = useTranslation()
   const { user, socket, logout, setUser } = useAuth()
@@ -141,7 +150,6 @@ export default function Home() {
   const [myStickers, setMyStickers] = useState(() => {
     try { return JSON.parse(localStorage.getItem('caregivers-my-stickers') || '[]') } catch { return [] }
   })
-  const [showBackgrounds, setShowBackgrounds] = useState(false)
   const [messageMenu, setMessageMenu] = useState(null)
   const [reportTarget, setReportTarget] = useState(null)
   const [reportReason, setReportReason] = useState('Harassment or abuse')
@@ -178,6 +186,8 @@ export default function Home() {
   const [mediaUrl, setMediaUrl] = useState('')
   const [mediaDownloading, setMediaDownloading] = useState(false)
   const [networkQuality, setNetworkQuality] = useState('Checking…')
+  const [timeTick, setTimeTick] = useState(Date.now())
+  useEffect(() => { const timer = window.setInterval(() => setTimeTick(Date.now()), 60000); return () => window.clearInterval(timer) }, [])
   const [playerTrack, setPlayerTrack] = useState(null)
   const localMusicRef = useRef(null)
   const playerAudioRef = useRef(null)
@@ -1780,7 +1790,7 @@ export default function Home() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate dark:text-white">{c.otherUser?.displayName || c.otherUser?.username}</p>
-                <p className="text-xs text-gray-500 truncate">{c.lastMessage?.content || ''}</p>
+                  <p className="text-xs text-gray-500 truncate">{c.otherUser?.isOnline ? (c.lastMessage?.content || '') : formatOfflineDuration(c.otherUser?.lastSeen, timeTick)}</p>
               </div>
               {c.unreadCount > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-red-500 text-[10px] text-white flex items-center justify-center">{c.unreadCount > 99 ? '99+' : c.unreadCount}</span>}
               {c.otherUser?.isOnline && <span className="w-2 h-2 bg-green-500 rounded-full" />}
@@ -1902,7 +1912,7 @@ export default function Home() {
                   {activeChat.data?.displayName || activeChat.data?.name || activeChat.data?.username}
                 </p>
                 {activeChat.type === 'private' && (
-                  <p className="text-xs text-gray-500">{activeChat.data?.isOnline ? t('online') : t('offline')}</p>
+                  <p className="text-xs text-gray-500">{activeChat.data?.isOnline ? t('online') : formatOfflineDuration(activeChat.data?.lastSeen, timeTick)}</p>
                 )}
               </div>
               <span className={`hidden sm:inline-flex items-center rounded-full px-2 py-1 text-[10px] font-medium ${networkQuality === 'လိုင်းကျ' || networkQuality === 'အားနည်း' ? 'bg-red-100 text-red-600' : networkQuality === 'အသင့်တင့်' || networkQuality === 'ချိတ်ဆက်နေသည်' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`} title="Network status">● {networkQuality}</span>
@@ -1918,17 +1928,12 @@ export default function Home() {
                   <button onClick={() => startGroupCall('video')} disabled={Boolean(groupCall)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full disabled:opacity-40" title="Group video call"><Video size={18} /></button>
                 </>
               )}
-              <button onClick={() => setShowBackgrounds(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Chat background"><Settings size={18} /></button>
-              {showBackgrounds && <div className="absolute right-3 top-12 z-20 bg-white dark:bg-gray-800 border rounded-xl shadow p-3 flex flex-wrap gap-2 w-64">
-                {['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); setChatBackgroundImage(''); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); localStorage.removeItem(`chat-bg-image-${activeChat.id}`); setShowBackgrounds(false) }} className={`w-7 h-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}
-                <label className="w-full mt-1 px-3 py-2 rounded-lg bg-sky-500 text-white text-sm text-center cursor-pointer">Choose phone photo
-                  <input type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { const image = String(reader.result); setChatBackgroundImage(image); setChatBackground(''); localStorage.setItem(`chat-bg-image-${activeChat.id}`, image); localStorage.removeItem(`chat-bg-${activeChat.id}`); setShowBackgrounds(false) }; reader.readAsDataURL(file) }} />
-                </label>
-                {chatBackgroundImage && <button onClick={() => { setChatBackgroundImage(''); localStorage.removeItem(`chat-bg-image-${activeChat.id}`); setShowBackgrounds(false) }} className="w-full text-xs text-red-500">Remove photo</button>}
-              </div>}
+              {activeChat.type === 'private' && <button onClick={() => setShowChatSettings(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Music and conversation settings"><Settings size={18} /></button>}
               {activeChat.type === 'private' && <>
-                <button onClick={() => setShowMediaHistory(true)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Photo / video history"><Download size={18} /></button><button onClick={() => setShowChatSettings(v => !v)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Conversation settings"><Music size={18} /></button>
+                <button onClick={() => setShowMediaHistory(true)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full" title="Photo / video history"><Download size={18} /></button>
                 {showChatSettings && <div className="absolute right-3 top-12 z-30 w-72 bg-white dark:bg-gray-800 border rounded-xl shadow-xl p-3 space-y-2 text-sm dark:text-white">
+                  <p className="px-2 pt-1 text-xs font-semibold text-gray-500">Chat background</p><div className="flex flex-wrap gap-2 px-2">{['', 'bg-sky-50', 'bg-rose-50', 'bg-emerald-50', 'bg-amber-50'].map(bg => <button key={bg || 'default'} onClick={() => { setChatBackground(bg); setChatBackgroundImage(''); localStorage.setItem(`chat-bg-${activeChat.id}`, bg); localStorage.removeItem(`chat-bg-image-${activeChat.id}`) }} className={`h-7 w-7 rounded-full border ${bg || 'bg-gray-50'}`} />)}</div><label className="block rounded-lg bg-sky-500 px-3 py-2 text-center text-sm text-white cursor-pointer">Choose phone photo<input type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { const image = String(reader.result); setChatBackgroundImage(image); setChatBackground(''); localStorage.setItem(`chat-bg-image-${activeChat.id}`, image); localStorage.removeItem(`chat-bg-${activeChat.id}`) }; reader.readAsDataURL(file) }} /></label>
+                  {chatBackgroundImage && <button onClick={() => { setChatBackgroundImage(''); localStorage.removeItem(`chat-bg-image-${activeChat.id}`) }} className="w-full text-xs text-red-500">Remove photo</button>}
                   <button onClick={() => saveChatSettings({ ...chatSettings, muted: !chatSettings.muted })} className="w-full flex items-center gap-2 text-left p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><VolumeX size={16} /> {chatSettings.muted ? 'Unmute conversation' : 'Mute conversation'}</button>
                   <button onClick={() => saveChatSettings({ ...chatSettings, notifications: !chatSettings.notifications })} className="w-full flex items-center gap-2 text-left p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"><BellOff size={16} /> {chatSettings.notifications ? 'Turn notifications off' : 'Turn notifications on'}</button>
                   <label className="block p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"><span className="flex items-center gap-2"><Music size={16} /> Message sound (max 9 sec)</span><input type="file" accept="audio/*" className="mt-1 w-full text-xs" onChange={e => saveCustomSound('message', e.target.files[0])} /></label>
