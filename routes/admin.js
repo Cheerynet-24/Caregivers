@@ -228,7 +228,7 @@ router.get('/users', deviceAuth, async (req, res) => {
       orderBy: { createdAt: 'desc' },
       select: {
         id: true, username: true, displayName: true, email: true,
-        isOnline: true, isBanned: true, isMuted: true, isApproved: true,
+        isOnline: true, isBanned: true, isMuted: true, isApproved: true, approvalStatus: true,
         coinBalance: true, role: true, createdAt: true, lastSeen: true
       }
     });
@@ -240,8 +240,19 @@ router.get('/users', deviceAuth, async (req, res) => {
 
 router.post('/users/:id/approve', deviceAuth, async (req, res) => {
   try {
-    const user = await prisma.user.update({ where: { id: req.params.id }, data: { isApproved: true } });
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { isApproved: true, approvalStatus: 'APPROVED' } });
+    const notification = await prisma.notification.create({ data: { userId: user.id, title: 'Account Register လက်ခံပြီးပါပြီ', message: 'Admin မှ သင့် Account Register ကို လက်ခံပြီးပါပြီ။ ယခု Login ဝင်နိုင်ပါပြီ။' } });
+    req.app.get('io')?.to(`user:${user.id}`).emit('notification:new', notification);
     res.json({ message: 'User approved', user: sanitizeUser(user) });
+  } catch (err) { res.status(404).json({ error: 'User not found' }); }
+});
+
+router.post('/users/:id/reject', deviceAuth, async (req, res) => {
+  try {
+    const user = await prisma.user.update({ where: { id: req.params.id }, data: { isApproved: false, approvalStatus: 'REJECTED' } });
+    const notification = await prisma.notification.create({ data: { userId: user.id, title: 'Account Register လက်မခံသေးပါ', message: 'Admin မှ သင့် Account Register ကို လက်မခံသေးပါ။ Admin ကို ဆက်သွယ်မေးမြန်းပါ။' } });
+    req.app.get('io')?.to(`user:${user.id}`).emit('notification:new', notification);
+    res.json({ message: 'User rejected', user: sanitizeUser(user) });
   } catch (err) { res.status(404).json({ error: 'User not found' }); }
 });
 

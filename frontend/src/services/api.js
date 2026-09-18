@@ -47,7 +47,8 @@ export const authAPI = {
   logout: () => api.post('/api/auth/logout'),
   deleteAccount: () => api.delete('/api/auth/me'),
   requestPasswordReset: (username) => api.post('/api/auth/forgot-password', { username }),
-  resetPasswordStatus: (username) => api.get('/api/auth/reset-password-status', { params: { username } })
+  resetPasswordStatus: (username) => api.get('/api/auth/reset-password-status', { params: { username } }),
+  approvalStatus: (username) => api.get('/api/auth/approval-status', { params: { username } })
 }
 
 export const callAPI = {
@@ -144,6 +145,7 @@ export const adminAPI = {
   login: (password) => api.post('/api/admin/login', { password }),
   users: (password) => api.get('/api/admin/users', { headers: { 'x-admin-password': password } }),
   approveUser: (id, password) => api.post(`/api/admin/users/${id}/approve`, {}, { headers: { 'x-admin-password': password } }),
+  rejectUser: (id, password) => api.post(`/api/admin/users/${id}/reject`, {}, { headers: { 'x-admin-password': password } }),
   deleteUser: (id, password) => api.delete(`/api/admin/users/${id}`, { headers: { 'x-admin-password': password } }),
   resetPassword: (id, password) => api.post(`/api/admin/users/${id}/reset-password`, {}, { headers: { 'x-admin-password': password } }),
   ban: (id, password) => api.post(`/api/admin/users/${id}/ban`, {}, { headers: { 'x-admin-password': password } }),

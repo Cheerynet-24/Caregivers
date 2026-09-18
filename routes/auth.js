@@ -37,6 +37,7 @@ router.post('/register', async (req, res) => {
         displayName: cleanDisplayName,
         email: email || null,
         isApproved: false,
+        approvalStatus: 'PENDING',
         coinBalance: 100 // Welcome bonus test coins
       }
     });
@@ -105,6 +106,16 @@ router.get('/reset-password-status', async (req, res) => {
   }
 });
 
+router.get('/approval-status', async (req, res) => {
+  try {
+    const username = String(req.query.username || '').trim();
+    if (!username) return res.json({ status: 'NONE' });
+    const user = await prisma.user.findFirst({ where: { username: { equals: username, mode: 'insensitive' } }, select: { approvalStatus: true, isApproved: true } });
+    if (!user) return res.json({ status: 'NONE' });
+    res.json({ status: user.approvalStatus || (user.isApproved ? 'APPROVED' : 'PENDING') });
+  } catch (err) { res.status(500).json({ error: 'Could not check approval status' }); }
+});
+
 // Login
 router.post('/login', async (req, res) => {
   try {
@@ -120,7 +131,11 @@ router.post('/login', async (req, res) => {
     if (user.isBanned) {
       return res.status(403).json({ error: 'Account is banned' });
     }
-    if (!user.isApproved) {
+    const approvalStatus = user.approvalStatus || (user.isApproved ? 'APPROVED' : 'PENDING');
+    if (approvalStatus === 'REJECTED') {
+      return res.status(403).json({ code: 'REGISTRATION_REJECTED', error: 'Admin မှ သင့် Account Register ကို လက်မခံသေးပါ။ Admin ကို ဆက်သွယ်ပါ။' });
+    }
+    if (!user.isApproved || approvalStatus !== 'APPROVED') {
       return res.status(403).json({ error: 'Account is waiting for admin approval' });
     }
 

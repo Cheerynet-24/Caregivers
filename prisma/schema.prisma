@@ -21,6 +21,7 @@ model User {
   isBanned            Boolean         @default(false)
   isMuted             Boolean         @default(false)
   isApproved          Boolean         @default(true)
+  approvalStatus      String          @default("APPROVED")
   allowMessagesFrom   String          @default("everyone")
   allowPostsFrom      String          @default("everyone")
   showFriends         Boolean         @default(true)

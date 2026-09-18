@@ -17,6 +17,7 @@ export default function Login() {
   const [resetMessage, setResetMessage] = useState('')
   const [resetPassword, setResetPassword] = useState('')
   const [copied, setCopied] = useState(false)
+  const [approvalStatus, setApprovalStatus] = useState('NONE')
 
   useEffect(() => {
     if (!username.trim()) return undefined
@@ -27,6 +28,15 @@ export default function Login() {
         if (active && result.data.status === 'READY') setResetPassword(result.data.temporaryPassword)
       } catch {}
     }
+    check()
+    const timer = window.setInterval(check, 5000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [username])
+
+  useEffect(() => {
+    if (!username.trim()) { setApprovalStatus('NONE'); return undefined }
+    let active = true
+    const check = async () => { try { const result = await authAPI.approvalStatus(username.trim()); if (active) setApprovalStatus(result.data.status || 'NONE') } catch {} }
     check()
     const timer = window.setInterval(check, 5000)
     return () => { active = false; window.clearInterval(timer) }
@@ -62,6 +72,9 @@ export default function Login() {
         <div className="text-center mb-8"><img src="/favicon.jpg" alt="Caregivers" className="w-20 h-20 rounded-full mx-auto mb-4 object-cover border-4 border-sky-400" /><h1 className="text-3xl font-bold text-gray-800 dark:text-white">{t('appName')}</h1><p className="text-gray-500 mt-1">{t('welcome')}</p></div>
         <div className="flex justify-end mb-4 gap-2"><button onClick={() => i18n.changeLanguage('my')} className={`px-3 py-1 rounded text-sm ${i18n.language === 'my' ? 'bg-sky-500 text-white' : 'bg-gray-200'}`}>မြန်မာ</button><button onClick={() => i18n.changeLanguage('en')} className={`px-3 py-1 rounded text-sm ${i18n.language === 'en' ? 'bg-sky-500 text-white' : 'bg-gray-200'}`}>EN</button></div>
         {error && <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-sm">{error}</div>}
+        {approvalStatus === 'PENDING' && <div className="mb-4 rounded-lg bg-amber-100 p-3 text-sm text-amber-800">Account Register တင်ထားပြီးပါပြီ။ Admin လက်ခံပေးရန် စောင့်နေပါသည်။ လက်ခံပြီးမှ Login ဝင်နိုင်ပါမယ်။</div>}
+        {approvalStatus === 'APPROVED' && <div className="mb-4 rounded-lg bg-green-100 p-3 text-sm text-green-800">Admin မှ Account ကို လက်ခံပြီးပါပြီ။ Login ဝင်နိုင်ပါပြီ။</div>}
+        {approvalStatus === 'REJECTED' && <div className="mb-4 rounded-lg bg-red-100 p-3 text-sm text-red-800">Admin မှ Account Register ကို လက်မခံသေးပါ။ Admin ကို ဆက်သွယ်မေးမြန်းပါ။</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('username')}</label><input type="text" value={username} onChange={e => setUsername(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none" required /></div>
           <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('password')}</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none" required /></div>
