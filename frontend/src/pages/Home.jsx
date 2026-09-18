@@ -8,7 +8,7 @@ import { getSounds, saveSounds } from '../services/soundStore'
 import {
   MessageCircle, Users, Search, Wallet, LogOut, Phone, Video, UserCircle, Rss,
   Send, Plus, UserPlus, Link as LinkIcon, X, Settings, Moon, Sun,
-  ArrowLeft, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin,
+  ArrowLeft, ChevronDown, PhoneOff, Mic, MicOff, VideoOff, Paperclip, Code2, Download, MapPin,
   VolumeX, Volume2, BellOff, Bell, Trash2, Ban, Music, RefreshCw, Sparkles, Music2, DownloadCloud, LockKeyhole, Play, Flag, Bot, BarChart3
 } from 'lucide-react'
 
@@ -188,6 +188,7 @@ export default function Home() {
   const [networkQuality, setNetworkQuality] = useState('Checking…')
   const [timeTick, setTimeTick] = useState(Date.now())
   useEffect(() => { const timer = window.setInterval(() => setTimeTick(Date.now()), 60000); return () => window.clearInterval(timer) }, [])
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const [playerTrack, setPlayerTrack] = useState(null)
   const localMusicRef = useRef(null)
   const playerAudioRef = useRef(null)
@@ -207,6 +208,7 @@ export default function Home() {
   const [customSounds, setCustomSounds] = useState({})
   const soundRefs = useRef({})
   const messagesEndRef = useRef(null)
+  const messageScrollRef = useRef(null)
   const fileRef = useRef(null)
   const chatFileRef = useRef(null)
   const stickerFileRef = useRef(null)
@@ -522,7 +524,18 @@ export default function Home() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setShowJumpToLatest(false)
   }, [messages])
+
+  const updateJumpToLatest = () => {
+    const element = messageScrollRef.current
+    if (!element) return
+    setShowJumpToLatest(element.scrollHeight - element.scrollTop - element.clientHeight > 180)
+  }
+  const jumpToLatest = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    setShowJumpToLatest(false)
+  }
 
   useEffect(() => {
     if (localVideoRef.current && localStreamRef.current) localVideoRef.current.srcObject = localStreamRef.current
@@ -1957,7 +1970,7 @@ export default function Home() {
               )}
             </div>
 
-            <div className={`min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground} ${chatBackgroundImage ? 'bg-cover bg-center bg-no-repeat' : ''}`} style={chatBackgroundImage ? { backgroundImage: `linear-gradient(rgba(255,255,255,.78),rgba(255,255,255,.78)), url(${chatBackgroundImage})` } : undefined}>
+            <div ref={messageScrollRef} onScroll={updateJumpToLatest} className={`relative min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 space-y-3 ${chatBackground} ${chatBackgroundImage ? 'bg-cover bg-center bg-no-repeat' : ''}`} style={chatBackgroundImage ? { backgroundImage: `linear-gradient(rgba(255,255,255,.78),rgba(255,255,255,.78)), url(${chatBackgroundImage})` } : undefined}>
               {messages.length === 0 && (
                 <p className="text-center text-gray-400 text-sm mt-10">{t('noMessages')}</p>
               )}
@@ -1994,6 +2007,7 @@ export default function Home() {
                 </div>
               ))}
               <div ref={messagesEndRef} />
+              {showJumpToLatest && <button type="button" onClick={jumpToLatest} className="absolute bottom-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg hover:bg-sky-600" title="နောက်ဆုံး Message ဆီသွားရန်" aria-label="Jump to latest message"><ChevronDown size={22} /></button>}
             </div>
 
             <div className="w-full min-w-0 shrink-0 p-2 sm:p-3 bg-white dark:bg-gray-800 border-t dark:border-gray-700 flex gap-1 sm:gap-2 items-center relative overflow-visible">
